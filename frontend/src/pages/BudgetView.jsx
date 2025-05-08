@@ -10,7 +10,7 @@ import {
   Plus, Trash2, X, Filter, BarChart2,
   PieChart as PieIcon, AreaChart as AreaIcon,
   ScatterChart as ScatterIcon, Activity as RadarIcon,
-  Filter as FunnelIcon,TrendingUp 
+  Filter as FunnelIcon, TrendingUp 
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -37,20 +37,34 @@ const BudgetView = () => {
   });
   const [chartType, setChartType] = useState('bar');
   const [showFilter, setShowFilter] = useState(false);
+  const [errorMessage, setErrorMessage] = useState(''); // New state for error messages
 
   const fetchBudgets = async () => {
     try {
       const token = getAuthToken();
-      const res = await axios.get(`${import.meta.env.VITE_BACKEND_URL}/api/budgets`, { headers: { Authorization: `Bearer ${token}` } });
+      if (!token) {
+        setErrorMessage('Please log in to view budgets.');
+        return;
+      }
+      const res = await axios.get(`${import.meta.env.VITE_BACKEND_URL}/api/budgets`, { 
+        headers: { Authorization: `Bearer ${token}` } 
+      });
       setBudgets(res.data || []);
     } catch (err) {
-      console.error("Error fetching budgets");
+      setErrorMessage(err.response?.data?.message || 'Failed to fetch budgets.');
     }
   };
 
   const handleAddBudget = async () => {
     const token = getAuthToken();
-    if (!newBudget.category || !newBudget.amount) return;
+    if (!token) {
+      setErrorMessage('Please log in to add a budget.');
+      return;
+    }
+    if (!newBudget.category.trim() || !newBudget.amount || parseFloat(newBudget.amount) <= 0) {
+      setErrorMessage('Please enter a valid category and a positive amount.');
+      return;
+    }
 
     try {
       await axios.post(`${import.meta.env.VITE_BACKEND_URL}/api/budgets`, {
@@ -58,22 +72,30 @@ const BudgetView = () => {
         amount: parseFloat(newBudget.amount),
         category: newBudget.category.trim(),
       }, { headers: { Authorization: `Bearer ${token}` } });
-      fetchBudgets();
+      await fetchBudgets();
       setIsModalOpen(false);
       setNewBudget({ category: '', amount: '', period: 'Monthly', type: 'expense' });
       setSearchQuery('');
+      setErrorMessage('');
     } catch (err) {
-      console.error("Error adding budget");
+      setErrorMessage(err.response?.data?.message || 'Failed to add budget.');
     }
   };
 
   const handleDeleteBudget = async (id) => {
     const token = getAuthToken();
+    if (!token) {
+      setErrorMessage('Please log in to delete a budget.');
+      return;
+    }
     try {
-      await axios.delete(`http://localhost:5000/api/budgets/${id}`, { headers: { Authorization: `Bearer ${token}` } });
+      await axios.delete(`${import.meta.env.VITE_BACKEND_URL}/api/budgets/${id}`, { 
+        headers: { Authorization: `Bearer ${token}` } 
+      });
       fetchBudgets();
+      setErrorMessage('');
     } catch (err) {
-      console.error("Error deleting budget");
+      setErrorMessage(err.response?.data?.message || 'Failed to delete budget.');
     }
   };
 
@@ -141,47 +163,46 @@ const BudgetView = () => {
             </PieChart>
           </ResponsiveContainer>
         );
-        case 'treemap':
-          const getTreemapColor = (value) => {
-            if (value >= 10000) return '#1f77b4';
-            if (value >= 5000) return '#2ca02c';
-            if (value >= 2000) return '#ff7f0e';
-            if (value >= 1000) return '#d62728';
-            return '#9467bd';
-          };
+      case 'treemap':
+        const getTreemapColor = (value) => {
+          if (value >= 10000) return '#1f77b4';
+          if (value >= 5000) return '#2ca02c';
+          if (value >= 2000) return '#ff7f0e';
+          if (value >= 1000) return '#d62728';
+          return '#9467bd';
+        };
 
-          return (
-            <ResponsiveContainer width="100%" height={300}>
-              <Treemap
-                data={data}
-                dataKey={dataKey}
-                nameKey="category"
-                stroke="#fff"
-                aspectRatio={4 / 3}
-                isAnimationActive
-                content={({ depth, x, y, width, height, index, name, value }) => (
-                  <g>
-                    <rect
-                      x={x}
-                      y={y}
-                      width={width}
-                      height={height}
-                      fill={getTreemapColor(value)}
-                      stroke="#fff"
-                    />
-                    {width > 80 && height > 20 && (
-                      <text x={x + 4} y={y + 16} fill="#fff" fontSize={12}>
-                        {name} ({value})
-                      </text>
-                    )}
-                  </g>
-                )}
-              >
-                <Tooltip content={customTooltip} />
-              </Treemap>
-            </ResponsiveContainer>
-          );
-
+        return (
+          <ResponsiveContainer width="100%" height={300}>
+            <Treemap
+              data={data}
+              dataKey={dataKey}
+              nameKey="category"
+              stroke="#fff"
+              aspectRatio={4 / 3}
+              isAnimationActive
+              content={({ depth, x, y, width, height, index, name, value }) => (
+                <g>
+                  <rect
+                    x={x}
+                    y={y}
+                    width={width}
+                    height={height}
+                    fill={getTreemapColor(value)}
+                    stroke="#fff"
+                  />
+                  {width > 80 && height > 20 && (
+                    <text x={x + 4} y={y + 16} fill="#fff" fontSize={12}>
+                      {name} ({value})
+                    </text>
+                  )}
+                </g>
+              )}
+            >
+              <Tooltip content={customTooltip} />
+            </Treemap>
+          </ResponsiveContainer>
+        );
       case 'area':
         return (
           <ResponsiveContainer width="100%" height={300}>
@@ -221,31 +242,30 @@ const BudgetView = () => {
             </RadarChart>
           </ResponsiveContainer>
         );
-        case 'funnel':
-          return (
-            <ResponsiveContainer width="100%" height={300}>
-              <FunnelChart>
-                <Tooltip content={customTooltip} />
-                <Funnel
-                  data={data}
-                  dataKey={dataKey}
-                  nameKey="category"
-                  isAnimationActive
-                  label={{
-                    position: 'right',
-                    fill: '#333',
-                    fontSize: 12,
-                    formatter: (entry) => `${entry.category}: ₹${entry.amount}`
-                  }}
-                >
-                  {data.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                  ))}
-                </Funnel>
-              </FunnelChart>
-            </ResponsiveContainer>
-          );
-
+      case 'funnel':
+        return (
+          <ResponsiveContainer width="100%" height={300}>
+            <FunnelChart>
+              <Tooltip content={customTooltip} />
+              <Funnel
+                data={data}
+                dataKey={dataKey}
+                nameKey="category"
+                isAnimationActive
+                label={{
+                  position: 'right',
+                  fill: '#333',
+                  fontSize: 12,
+                  formatter: (entry) => `${entry.category}: ₹${entry.amount}`
+                }}
+              >
+                {data.map((entry, index) => (
+                  <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                ))}
+              </Funnel>
+            </FunnelChart>
+          </ResponsiveContainer>
+        );
       default:
         return (
           <ResponsiveContainer width="100%" height={300}>
@@ -266,6 +286,16 @@ const BudgetView = () => {
 
   return (
     <div className="p-6 space-y-8">
+      {/* Error Message Display */}
+      {errorMessage && (
+        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
+          <span className="block sm:inline">{errorMessage}</span>
+          <button onClick={() => setErrorMessage('')} className="absolute top-0 bottom-0 right-0 px-4 py-3">
+            <X size={18} />
+          </button>
+        </div>
+      )}
+
       <div className="flex justify-between items-center">
         <h2 className="text-2xl font-bold">Budget Insights</h2>
         <div className="flex space-x-2">
@@ -312,6 +342,7 @@ const BudgetView = () => {
                 <option value="Monthly">Monthly</option>
                 <option value="Quarterly">Quarterly</option>
                 <option value="Yearly">Yearly</option>
+                <option value="Weekly">Weekly</option>
               </select>
               <select
                 value={filter.category}
@@ -369,7 +400,7 @@ const BudgetView = () => {
             <RadarIcon size={16} className="mr-2 inline" /> Radar Chart
           </option>
           <option value="funnel" className="flex items-center">
-            <Filter size={16} className="mr-2 inline" /> Funnel Chart
+            <FunnelIcon size={16} className="mr-2 inline" /> Funnel Chart
           </option>
         </select>
       </div>
@@ -433,21 +464,26 @@ const BudgetView = () => {
               initial={{ scale: 0.95 }} animate={{ scale: 1 }} exit={{ scale: 0.95 }}>
               <div className="flex justify-between items-center mb-4">
                 <h3 className="text-lg font-semibold">Add Budget</h3>
-                <button onClick={() => setIsModalOpen(false)}><X /></button>
+                <button onClick={() => {
+                  setIsModalOpen(false);
+                  setErrorMessage('');
+                  setSearchQuery('');
+                  setNewBudget({ category: '', amount: '', period: 'Monthly', type: 'expense' });
+                }}><X /></button>
               </div>
               <div className="space-y-4">
                 <div className="relative">
                   <input
                     type="text"
                     placeholder="Search or enter category"
-                    value={searchQuery}
+                    value={newBudget.category}
                     onChange={(e) => {
-                      setSearchQuery(e.target.value);
                       setNewBudget({ ...newBudget, category: e.target.value });
+                      setSearchQuery(e.target.value);
                     }}
                     className="w-full border p-2 rounded"
                   />
-                  {filteredSuggestions.length > 0 && (
+                  {filteredSuggestions.length > 0 && searchQuery && (
                     <div className="absolute bg-white border rounded mt-1 max-h-40 overflow-y-auto w-full z-10">
                       {filteredSuggestions.map(cat => (
                         <div key={cat} onClick={() => {
@@ -466,6 +502,8 @@ const BudgetView = () => {
                   value={newBudget.amount}
                   onChange={(e) => setNewBudget({ ...newBudget, amount: e.target.value })}
                   className="w-full border p-2 rounded"
+                  min="0"
+                  step="0.01"
                 />
                 <select
                   value={newBudget.type}
@@ -483,6 +521,7 @@ const BudgetView = () => {
                   <option value="Monthly">Monthly</option>
                   <option value="Quarterly">Quarterly</option>
                   <option value="Yearly">Yearly</option>
+                  <option value="Weekly">Weekly</option>
                 </select>
                 <button onClick={handleAddBudget} className="w-full bg-blue-600 text-white p-2 rounded hover:bg-blue-700">
                   Save
