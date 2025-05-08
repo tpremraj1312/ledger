@@ -101,7 +101,7 @@ const ExpensesView = () => {
         page: pagination.currentPage,
         limit: pagination.limit,
       };
-      const paginatedResponse = await axios.get('http://localhost:5000/api/transactions', {
+      const paginatedResponse = await axios.get(`${import.meta.env.VITE_BACKEND_URL}/api/transactions`, {
         headers: { Authorization: `Bearer ${token}` },
         params: paginatedParams,
       });
@@ -114,7 +114,7 @@ const ExpensesView = () => {
       }));
 
       // Fetch all transactions for overview (no pagination)
-      const allResponse = await axios.get('http://localhost:5000/api/transactions', {
+      const allResponse = await axios.get(`${import.meta.env.VITE_BACKEND_URL}/api/transactions`, {
         headers: { Authorization: `Bearer ${token}` },
         params: { ...params, limit: 10000 }, // Large limit to get all
       });
@@ -459,7 +459,7 @@ const ExpensesView = () => {
     };
 
     try {
-      await axios.post('http://localhost:5000/api/transactions', payload, {
+      await axios.post(`${import.meta.env.VITE_BACKEND_URL}/api/transactions`, payload, {
         headers: { Authorization: `Bearer ${token}` },
       });
       setIsManualTxModalOpen(false);
@@ -508,7 +508,7 @@ const ExpensesView = () => {
     formData.append('bill', scanFile);
 
     try {
-      await axios.post('http://localhost:5000/api/billscan', formData, {
+      await axios.post(`${import.meta.env.VITE_BACKEND_URL}/api/billscan`, formData, {
         headers: {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'multipart/form-data',

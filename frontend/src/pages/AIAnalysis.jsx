@@ -71,7 +71,7 @@ const AIAnalysisPage = () => {
 
     try {
       // Fetch AI analysis
-      const analysisResponse = await axios.get('http://localhost:5000/api/ai-analysis', {
+      const analysisResponse = await axios.get(`${import.meta.env.VITE_BACKEND_URL}/api/ai-analysis`, {
         headers: { Authorization: `Bearer ${token}` },
         params: {
           startDate: filters.startDate,
@@ -82,10 +82,10 @@ const AIAnalysisPage = () => {
       setAnalysis(analysisResponse.data.analysis);
 
       // Fetch categories
-      const transactionsResponse = await axios.get('http://localhost:5000/api/transactions', {
+      const transactionsResponse = await axios.get(`${import.meta.env.VITE_BACKEND_URL}/api/transactions`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      const budgetsResponse = await axios.get('http://localhost:5000/api/budgets', {
+      const budgetsResponse = await axios.get(`${import.meta.env.VITE_BACKEND_URL}/api/budgets`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       const transactionCategories = transactionsResponse.data.transactions.map(tx => tx.category);

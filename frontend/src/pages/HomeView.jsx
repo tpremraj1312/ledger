@@ -89,7 +89,7 @@ const HomeView = () => {
 
     try {
       // Fetch dashboard summary
-      const summaryResponse = await axios.get('http://localhost:5000/api/dashboard/summary', {
+      const summaryResponse = await axios.get(`${import.meta.env.VITE_BACKEND_URL}/api/dashboard/summary`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       setSummaryData(summaryResponse.data);
@@ -103,7 +103,7 @@ const HomeView = () => {
         ...(filters.category !== 'All' && { category: filters.category }),
         type: 'debit',
       };
-      const transactionsResponse = await axios.get('http://localhost:5000/api/transactions', {
+      const transactionsResponse = await axios.get(`${import.meta.env.VITE_BACKEND_URL}/api/transactions`, {
         headers: { Authorization: `Bearer ${token}` },
         params,
       });
@@ -117,7 +117,7 @@ const HomeView = () => {
       }));
 
       // Fetch budgets
-      const budgetsResponse = await axios.get('http://localhost:5000/api/budgets', {
+      const budgetsResponse = await axios.get(`${import.meta.env.VITE_BACKEND_URL}/api/budgets`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       setBudgets(budgetsResponse.data || []);
@@ -391,7 +391,7 @@ const HomeView = () => {
     };
 
     try {
-      await axios.post('http://localhost:5000/api/transactions', payload, {
+      await axios.post(`${import.meta.env.VITE_BACKEND_URL}/api/transactions`, payload, {
         headers: { Authorization: `Bearer ${token}` },
       });
       setIsManualTxModalOpen(false);
@@ -440,7 +440,7 @@ const HomeView = () => {
     formData.append('bill', scanFile);
 
     try {
-      await axios.post('http://localhost:5000/api/billscan', formData, {
+      await axios.post(`${import.meta.env.VITE_BACKEND_URL}/api/billscan`, formData, {
         headers: {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'multipart/form-data',

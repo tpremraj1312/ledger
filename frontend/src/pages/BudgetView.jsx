@@ -41,7 +41,7 @@ const BudgetView = () => {
   const fetchBudgets = async () => {
     try {
       const token = getAuthToken();
-      const res = await axios.get('http://localhost:5000/api/budgets', { headers: { Authorization: `Bearer ${token}` } });
+      const res = await axios.get(`${import.meta.env.VITE_BACKEND_URL}/api/budgets`, { headers: { Authorization: `Bearer ${token}` } });
       setBudgets(res.data || []);
     } catch (err) {
       console.error("Error fetching budgets");
@@ -53,7 +53,7 @@ const BudgetView = () => {
     if (!newBudget.category || !newBudget.amount) return;
 
     try {
-      await axios.post('http://localhost:5000/api/budgets', {
+      await axios.post(`${import.meta.env.VITE_BACKEND_URL}/api/budgets`, {
         ...newBudget,
         amount: parseFloat(newBudget.amount),
         category: newBudget.category.trim(),

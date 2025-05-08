@@ -52,7 +52,7 @@ const CompareBudgetExpensePage = () => {
 
     try {
       // Fetch comparison data
-      const comparisonResponse = await axios.get('http://localhost:5000/api/budget-comparison', {
+      const comparisonResponse = await axios.get(`${import.meta.env.VITE_BACKEND_URL}/api/budget-comparison`, {
         headers: { Authorization: `Bearer ${token}` },
         params: {
           startDate: filters.startDate,
@@ -79,11 +79,11 @@ const CompareBudgetExpensePage = () => {
 
       // Fetch categories
       const [transactionsResponse, budgetsResponse] = await Promise.all([
-        axios.get('http://localhost:5000/api/transactions', {
+        axios.get(`${import.meta.env.VITE_BACKEND_URL}/api/transactions`, {
           headers: { Authorization: `Bearer ${token}` },
           params: { type: 'all', limit: 1000 },
         }),
-        axios.get('http://localhost:5000/api/budgets', {
+        axios.get(`${import.meta.env.VITE_BACKEND_URL}/api/budgets`, {
           headers: { Authorization: `Bearer ${token}` },
         }),
       ]);
