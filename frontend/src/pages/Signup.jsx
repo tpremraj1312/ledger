@@ -62,7 +62,7 @@ const Signup = () => {
     try {
         // Call the backend signup endpoint
         const response = await axios.post(
-            "http://localhost:5000/api/auth/signup",
+            `${import.meta.env.VITE_BACKEND_URL}/api/auth/signup`,
              { // Send only necessary fields
                  username: formData.username,
                  email: formData.email,

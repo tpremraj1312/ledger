@@ -4,7 +4,7 @@ import axios from "axios";
 
 // --- Axios Default Configuration ---
 // Set the base URL for all requests
-axios.defaults.baseURL = "http://localhost:5000"; // Or your backend URL from .env
+axios.defaults.baseURL = `${import.meta.env.VITE_BACKEND_URL}`; // Or your backend URL from .env
 
 // Function to set the Authorization header default
 const setAuthTokenHeader = (token) => {

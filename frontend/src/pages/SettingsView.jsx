@@ -40,7 +40,7 @@ const SettingsView = ({ accounts, refreshAccounts, isLoadingAccounts, accountsEr
     }
 
     try {
-      const response = await axios.get("http://localhost:5000/api/auth/me", {
+      const response = await axios.get(`${import.meta.env.VITE_BACKEND_URL}/api/auth/me`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setUserInfo(response.data);
@@ -69,7 +69,7 @@ const SettingsView = ({ accounts, refreshAccounts, isLoadingAccounts, accountsEr
 
     try {
       await axios.patch(
-        `http://localhost:5000/api/accounts/${accountId}/set-primary`,
+        `${import.meta.env.VITE_BACKEND_URL}/api/accounts/${accountId}/set-primary`,
         {},
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -99,7 +99,7 @@ const SettingsView = ({ accounts, refreshAccounts, isLoadingAccounts, accountsEr
 
     try {
       await axios.delete(
-        `http://localhost:5000/api/accounts/${accountId}`,
+        `${import.meta.env.VITE_BACKEND_URL}/api/accounts/${accountId}`,
         { headers: { Authorization: `Bearer ${token}` } }
       );
       refreshAccounts(); // Refresh the accounts list
@@ -141,7 +141,7 @@ const SettingsView = ({ accounts, refreshAccounts, isLoadingAccounts, accountsEr
 
     try {
       const response = await axios.post(
-        "http://localhost:5000/api/auth/change-password",
+        `${import.meta.env.VITE_BACKEND_URL}/api/auth/change-password`,
         { currentPassword, newPassword },
         { headers: { Authorization: `Bearer ${token}` } }
       );

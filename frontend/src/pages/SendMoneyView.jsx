@@ -37,7 +37,7 @@ const SendMoneyView = () => {
       return;
     }
     try {
-      const response = await axios.get("http://localhost:5000/api/accounts", {
+      const response = await axios.get(`${import.meta.env.VITE_BACKEND_URL}/api/accounts`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setAccounts(response.data || []);
@@ -101,7 +101,7 @@ const SendMoneyView = () => {
 
     try {
       const response = await axios.post(
-        "http://localhost:5000/api/transfer/send",
+        `${import.meta.env.VITE_BACKEND_URL}/api/transfer/send`,
         {
           recipientIdentifier, // Sending email
           amount: parseFloat(amount),
