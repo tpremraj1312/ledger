@@ -2,6 +2,8 @@
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import Signup from "./pages/Signup";
 import Login from "./pages/Login";
+import ForgotPassword from "./pages/ForgotPassword";
+import ResetPassword from "./pages/ResetPassword";
 // import AddAccount from "./pages/AddAccount";
 import DashboardLayout from "./pages/DashboardLayout";
 import PrivateRoute from "./components/PrivateRoute";
@@ -23,7 +25,8 @@ function App() {
           <Route path="/" element={<LandingPage />} />
           <Route path="/signup" element={<Signup />} />
           <Route path="/login" element={<Login />} />
-
+          <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
           {/* Protected Routes */}
           {/* Wrap layout and specific pages needing protection */}
           <Route path="/dashboard" element={<PrivateRoute><DashboardLayout /></PrivateRoute>} />
