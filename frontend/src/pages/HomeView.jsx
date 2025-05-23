@@ -219,10 +219,10 @@ const HomeView = React.memo(({ setIsManualTxModalOpen, setIsScanModalOpen, setAc
     const customTooltip = ({ active, payload }) => {
       if (active && payload && payload.length) {
         return (
-          <div className="bg-white/95 p-1.5 sm:p-2 border border-gray-100 rounded-md shadow-md backdrop-blur-sm">
-            <p className="font-semibold text-gray-800 text-[9px] sm:text-xs">{payload[0].payload[nameKey] || payload[0].payload.date}</p>
+          <div className="bg-white/95 p-2 border border-gray-100 rounded-md shadow-md backdrop-blur-sm">
+            <p className="font-semibold text-gray-800 text-xs">{payload[0].payload[nameKey] || payload[0].payload.date}</p>
             {payload.map((entry, index) => (
-              <p key={index} className="text-gray-600 text-[9px] sm:text-xs">{`${entry.name}: ${formatCurrency(entry.value)}`}</p>
+              <p key={index} className="text-gray-600 text-xs">{`${entry.name}: ${formatCurrency(entry.value)}`}</p>
             ))}
           </div>
         );
@@ -237,14 +237,14 @@ const HomeView = React.memo(({ setIsManualTxModalOpen, setIsScanModalOpen, setAc
     // Optimize X-axis labels for mobile
     const isMobile = window.innerWidth < 640;
     const tickFormatter = (value, index) => {
-      if (isMobile && nameKey === 'date' && index % 6 !== 0) return '';
+      if (isMobile && nameKey === 'date' && index % 3 !== 0) return '';
       return isMobile && nameKey === 'date' ? formatDateForMobile(value) : value;
     };
 
     switch (chartType) {
       case 'pie':
         return (
-          <ResponsiveContainer width="100%" height={isMobile ? 280 : 340}>
+          <ResponsiveContainer width="100%" height={isMobile ? 200 : 300}>
             <PieChart>
               <Pie
                 data={data}
@@ -252,43 +252,44 @@ const HomeView = React.memo(({ setIsManualTxModalOpen, setIsScanModalOpen, setAc
                 nameKey={nameKey}
                 cx="50%"
                 cy="50%"
-                outerRadius={isMobile ? 70 : 110}
+                outerRadius={isMobile ? 60 : 100}
                 label={isMobile ? false : ({ name, value }) => `${name}: ${formatCurrency(value)}`}
                 labelLine={isMobile ? false : true}
                 isAnimationActive
-                animationDuration={500}
+                animationDuration={400}
               >
                 {data.map((_, index) => (
                   <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                 ))}
               </Pie>
               <Tooltip content={customTooltip} />
-              <Legend wrapperStyle={{ fontSize: isMobile ? 7 : 11 }} />
+              <Legend wrapperStyle={{ fontSize: isMobile ? 10 : 12 }} />
             </PieChart>
           </ResponsiveContainer>
         );
       case 'area':
         return (
-          <ResponsiveContainer width="100%" height={isMobile ? 280 : 340}>
-            <AreaChart data={data}>
+          <ResponsiveContainer width="100%" height={isMobile ? 200 : 300}>
+            <AreaChart data={data} margin={{ top: 10, right: 10, left: -20, bottom: 20 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
               <XAxis
                 dataKey={nameKey}
-                fontSize={isMobile ? 9 : 11}
+                fontSize={isMobile ? 10 : 12}
                 stroke="#374151"
-                angle={isMobile ? -60 : -45}
+                angle={isMobile ? -45 : -30}
                 textAnchor="end"
-                height={isMobile ? 70 : 50}
+                height={isMobile ? 50 : 40}
                 tickFormatter={tickFormatter}
               />
               <YAxis
-                fontSize={isMobile ? 9 : 11}
+                fontSize={isMobile ? 10 : 12}
                 stroke="#374151"
                 tickFormatter={(value) => `₹${value / 1000}k`}
                 domain={[0, maxValue * 1.1]}
+                width={isMobile ? 40 : 50}
               />
               <Tooltip content={customTooltip} />
-              <Legend wrapperStyle={{ fontSize: isMobile ? 7 : 11 }} />
+              <Legend wrapperStyle={{ fontSize: isMobile ? 10 : 12 }} />
               {isBlended ? (
                 <>
                   <Area
@@ -296,24 +297,22 @@ const HomeView = React.memo(({ setIsManualTxModalOpen, setIsScanModalOpen, setAc
                     dataKey="expense"
                     name="Expenses"
                     fill="#EF4444"
-                    fillOpacity={0.5}
+                    fillOpacity={0.4}
                     stroke="#EF4444"
                     strokeWidth={2}
-                    stackId="1"
                     isAnimationActive
-                    animationDuration={500}
+                    animationDuration={400}
                   />
                   <Area
                     type="monotone"
                     dataKey="budget"
                     name="Budget"
                     fill="#059669"
-                    fillOpacity={0.5}
+                    fillOpacity={0.4}
                     stroke="#059669"
                     strokeWidth={2}
-                    stackId="1"
                     isAnimationActive
-                    animationDuration={500}
+                    animationDuration={400}
                   />
                 </>
               ) : (
@@ -322,11 +321,11 @@ const HomeView = React.memo(({ setIsManualTxModalOpen, setIsScanModalOpen, setAc
                   dataKey={dataKey}
                   name={title}
                   fill={COLORS[0]}
-                  fillOpacity={0.5}
+                  fillOpacity={0.4}
                   stroke={COLORS[0]}
-                  strokeWidth='2'
+                  strokeWidth={2}
                   isAnimationActive
-                  animationDuration={500}
+                  animationDuration={400}
                 />
               )}
             </AreaChart>
@@ -334,52 +333,53 @@ const HomeView = React.memo(({ setIsManualTxModalOpen, setIsScanModalOpen, setAc
         );
       case 'scatter':
         return (
-          <ResponsiveContainer width="100%" height={isMobile ? 280 : 340}>
-            <ScatterChart>
+          <ResponsiveContainer width="100%" height={isMobile ? 200 : 300}>
+            <ScatterChart margin={{ top: 10, right: 10, left: -20, bottom: 20 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
               <XAxis
                 dataKey={nameKey}
                 type="category"
-                fontSize={isMobile ? 9 : 11}
+                fontSize={isMobile ? 10 : 12}
                 stroke="#374151"
-                angle={isMobile ? -60 : -45}
+                angle={isMobile ? -45 : -30}
                 textAnchor="end"
-                height={isMobile ? 70 : 50}
+                height={isMobile ? 50 : 40}
                 tickFormatter={tickFormatter}
               />
               <YAxis
-                fontSize={isMobile ? 9 : 11}
+                fontSize={isMobile ? 10 : 12}
                 stroke="#374151"
                 tickFormatter={(value) => `₹${value / 1000}k`}
                 domain={[0, maxValue * 1.1]}
+                width={isMobile ? 40 : 50}
               />
               <Tooltip content={customTooltip} />
-              <Legend wrapperStyle={{ fontSize: isMobile ? 7 : 11 }} />
-              <Scatter name={title} data={data} fill={COLORS[0]} isAnimationActive animationDuration={500} />
+              <Legend wrapperStyle={{ fontSize: isMobile ? 10 : 12 }} />
+              <Scatter name={title} data={data} fill={COLORS[0]} isAnimationActive animationDuration={400} />
             </ScatterChart>
           </ResponsiveContainer>
         );
       case 'radar':
         return (
-          <ResponsiveContainer width="100%" height={isMobile ? 280 : 340}>
+          <ResponsiveContainer width="100%" height={isMobile ? 200 : 300}>
             <RadarChart data={data}>
               <PolarGrid stroke="#e5e7eb" />
-              <PolarAngleAxis dataKey={nameKey} stroke="#374151" fontSize={isMobile ? 9 : 11} />
+              <PolarAngleAxis dataKey={nameKey} stroke="#374151" fontSize={isMobile ? 10 : 12} />
               <PolarRadiusAxis
                 stroke="#374151"
-                fontSize={isMobile ? 9 : 11}
+                fontSize={isMobile ? 10 : 12}
                 tickFormatter={(value) => `₹${value / 1000}k`}
                 domain={[0, maxValue * 1.1]}
               />
               <Tooltip content={customTooltip} />
-              <Legend wrapperStyle={{ fontSize: isMobile ? 7 : 11 }} />
-              <Radar name={title} dataKey={dataKey} stroke={COLORS[0]} fill={COLORS[0]} fillOpacity={0.6} isAnimationActive animationDuration={500} />
+              <Legend wrapperStyle={{ fontSize: isMobile ? 10 : 12 }} />
+              <Radar name={title} dataKey={dataKey} stroke={COLORS[0]} fill={COLORS[0]} fillOpacity={0.6} isAnimationActive animationDuration={400} />
             </RadarChart>
           </ResponsiveContainer>
         );
       case 'funnel':
         return (
-          <ResponsiveContainer width="100%" height={isMobile ? 280 : 340}>
+          <ResponsiveContainer width="100%" height={isMobile ? 200 : 300}>
             <FunnelChart>
               <Tooltip content={customTooltip} />
               <Funnel
@@ -387,11 +387,11 @@ const HomeView = React.memo(({ setIsManualTxModalOpen, setIsScanModalOpen, setAc
                 dataKey={dataKey}
                 nameKey={nameKey}
                 isAnimationActive
-                animationDuration={500}
+                animationDuration={400}
                 label={{
                   position: 'right',
                   fill: '#333',
-                  fontSize: isMobile ? 9 : 11,
+                  fontSize: isMobile ? 10 : 12,
                   formatter: (entry) => `${entry[nameKey]}: ${formatCurrency(entry[dataKey])}`,
                 }}
               >
@@ -404,7 +404,7 @@ const HomeView = React.memo(({ setIsManualTxModalOpen, setIsScanModalOpen, setAc
         );
       case 'treemap':
         return (
-          <ResponsiveContainer width="100%" height={isMobile ? 280 : 340}>
+          <ResponsiveContainer width="100%" height={isMobile ? 200 : 300}>
             <Treemap
               data={data}
               dataKey={dataKey}
@@ -412,7 +412,7 @@ const HomeView = React.memo(({ setIsManualTxModalOpen, setIsScanModalOpen, setAc
               stroke="#fff"
               aspectRatio={4 / 3}
               isAnimationActive
-              animationDuration={500}
+              animationDuration={400}
               content={({ depth, x, y, width, height, index, name, value }) => (
                 <g>
                   <rect
@@ -423,8 +423,8 @@ const HomeView = React.memo(({ setIsManualTxModalOpen, setIsScanModalOpen, setAc
                     fill={COLORS[index % COLORS.length]}
                     stroke="#fff"
                   />
-                  {width > (isMobile ? 50 : 70) && height > (isMobile ? 14 : 18) && (
-                    <text x={x + 3} y={y + (isMobile ? 11 : 14)} fill="#fff" fontSize={isMobile ? 9 : 11}>
+                  {width > (isMobile ? 40 : 60) && height > (isMobile ? 12 : 16) && (
+                    <text x={x + 3} y={y + (isMobile ? 10 : 12)} fill="#fff" fontSize={isMobile ? 8 : 10}>
                       {name} ({formatCurrency(value)})
                     </text>
                   )}
@@ -437,33 +437,34 @@ const HomeView = React.memo(({ setIsManualTxModalOpen, setIsScanModalOpen, setAc
         );
       default:
         return (
-          <ResponsiveContainer width="100%" height={isMobile ? 280 : 340}>
-            <BarChart data={data}>
+          <ResponsiveContainer width="100%" height={isMobile ? 200 : 300}>
+            <BarChart data={data} margin={{ top: 10, right: 10, left: -20, bottom: 20 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
               <XAxis
                 dataKey={nameKey}
-                fontSize={isMobile ? 9 : 11}
+                fontSize={isMobile ? 10 : 12}
                 stroke="#374151"
-                angle={isMobile ? -60 : -45}
+                angle={isMobile ? -45 : -30}
                 textAnchor="end"
-                height={isMobile ? 70 : 50}
+                height={isMobile ? 50 : 40}
                 tickFormatter={tickFormatter}
               />
               <YAxis
-                fontSize={isMobile ? 9 : 11}
+                fontSize={isMobile ? 10 : 12}
                 stroke="#374151"
                 tickFormatter={(value) => `₹${value / 1000}k`}
                 domain={[0, maxValue * 1.1]}
+                width={isMobile ? 40 : 50}
               />
               <Tooltip content={customTooltip} />
-              <Legend wrapperStyle={{ fontSize: isMobile ? 7 : 11 }} />
+              <Legend wrapperStyle={{ fontSize: isMobile ? 10 : 12 }} />
               {isBlended ? (
                 <>
-                  <Bar dataKey="expense" name="Expenses" fill="#EF4444" isAnimationActive animationDuration={500} />
-                  <Bar dataKey="budget" name="Budget" fill="#059669" isAnimationActive animationDuration={500} />
+                  <Bar dataKey="expense" name="Expenses" fill="#EF4444" isAnimationActive animationDuration={400} />
+                  <Bar dataKey="budget" name="Budget" fill="#059669" isAnimationActive animationDuration={400} />
                 </>
               ) : (
-                <Bar dataKey={dataKey} name={title} fill={COLORS[0]} isAnimationActive animationDuration={500} />
+                <Bar dataKey={dataKey} name={title} fill={COLORS[0]} isAnimationActive animationDuration={400} />
               )}
             </BarChart>
           </ResponsiveContainer>
@@ -500,7 +501,7 @@ const HomeView = React.memo(({ setIsManualTxModalOpen, setIsScanModalOpen, setAc
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        className="flex flex-col items-center justify-center py-12 sm:py-16 min-h-[calc(100vh-4rem)] bg-gray-50"
+        className="flex flex-col items-center justify-center py-12 min-h-[calc(100vh-4rem)] bg-gray-50"
       >
         <Loader2 className="animate-spin h-6 w-6 text-blue-600" />
         <p className="mt-2 text-xs font-medium text-gray-600">Loading your financial insights...</p>
@@ -674,28 +675,28 @@ const HomeView = React.memo(({ setIsManualTxModalOpen, setIsScanModalOpen, setAc
       >
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-2 sm:mb-3">
           <h3 className="text-base sm:text-lg font-semibold text-gray-800 mb-2 sm:mb-0">Expenses Insights</h3>
-          <div className="flex space-x-1 overflow-x-auto pb-1">
+          <div className="flex flex-wrap gap-1">
             {[
-              { value: 'area', icon: <AreaIcon size={11} /> },
-              { value: 'bar', icon: <BarChart2 size={11} /> },
-              { value: 'pie', icon: <PieIcon size={11} /> },
-              { value: 'treemap', icon: <TreemapIcon size={11} /> },
-              { value: 'scatter', icon: <ScatterIcon size={11} /> },
-              { value: 'radar', icon: <RadarIcon size={11} /> },
-              { value: 'funnel', icon: <FunnelIcon size={11} /> },
+              { value: 'area', icon: <AreaIcon size={12} /> },
+              { value: 'bar', icon: <BarChart2 size={12} /> },
+              { value: 'pie', icon: <PieIcon size={12} /> },
+              { value: 'treemap', icon: <TreemapIcon size={12} /> },
+              { value: 'scatter', icon: <ScatterIcon size={12} /> },
+              { value: 'radar', icon: <RadarIcon size={12} /> },
+              { value: 'funnel', icon: <FunnelIcon size={12} /> },
             ].map((type) => (
               <button
                 key={type.value}
                 onClick={() => setChartType(type.value)}
-                className={`p-1 sm:p-1.5 rounded-lg text-[11px] flex items-center min-h-[44px] min-w-[44px] ${chartType === type.value ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-100'}`}
+                className={`p-1 rounded-lg text-xs flex items-center min-h-[36px] min-w-[36px] ${chartType === type.value ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-100'}`}
               >
                 {type.icon}
               </button>
             ))}
           </div>
         </div>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4 overflow-x-auto">
-          <div className="min-w-[500px] sm:min-w-0">
+        <div className="space-y-4">
+          <div>
             <h4 className="text-[11px] sm:text-xs font-medium text-gray-700 mb-2">Expenses Over Time</h4>
             {expenseOverTimeData.length > 0 ? (
               <ChartComponent
@@ -705,10 +706,10 @@ const HomeView = React.memo(({ setIsManualTxModalOpen, setIsScanModalOpen, setAc
                 nameKey="date"
               />
             ) : (
-              <p className="text-gray-500 text-center py-3 sm:py-4 text-[11px] sm:text-xs">No expense data available.</p>
+              <p className="text-gray-500 text-center py-3 text-xs">No expense data available.</p>
             )}
           </div>
-          <div className="min-w-[500px] sm:min-w-0">
+          <div>
             <h4 className="text-[11px] sm:text-xs font-medium text-gray-700 mb-2">Expense Categories</h4>
             {expenseCategoryData.length > 0 ? (
               <ChartComponent
@@ -718,7 +719,7 @@ const HomeView = React.memo(({ setIsManualTxModalOpen, setIsScanModalOpen, setAc
                 nameKey="name"
               />
             ) : (
-              <p className="text-gray-500 text-center py-3 sm:py-4 text-[11px] sm:text-xs">No expense data available.</p>
+              <p className="text-gray-500 text-center py-3 text-xs">No expense data available.</p>
             )}
           </div>
         </div>
@@ -732,8 +733,8 @@ const HomeView = React.memo(({ setIsManualTxModalOpen, setIsScanModalOpen, setAc
         className="bg-white rounded-xl shadow-md p-2 sm:p-4 border-2 border-gray-50"
       >
         <h3 className="text-base sm:text-lg font-semibold text-gray-800 mb-2 sm:mb-3">Budget Insights</h3>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4 overflow-x-auto">
-          <div className="min-w-[500px] sm:min-w-0">
+        <div className="space-y-4">
+          <div>
             <h4 className="text-[11px] sm:text-xs font-medium text-gray-700 mb-2">Budgets Over Time</h4>
             {budgetOverTimeData.length > 0 ? (
               <ChartComponent
@@ -743,10 +744,10 @@ const HomeView = React.memo(({ setIsManualTxModalOpen, setIsScanModalOpen, setAc
                 nameKey="date"
               />
             ) : (
-              <p className="text-gray-500 text-center py-3 sm:py-4 text-[11px] sm:text-xs">No budget data available.</p>
+              <p className="text-gray-500 text-center py-3 text-xs">No budget data available.</p>
             )}
           </div>
-          <div className="min-w-[500px] sm:min-w-0">
+          <div>
             <h4 className="text-[11px] sm:text-xs font-medium text-gray-700 mb-2">Budget Categories</h4>
             {budgetCategoryData.length > 0 ? (
               <ChartComponent
@@ -756,7 +757,7 @@ const HomeView = React.memo(({ setIsManualTxModalOpen, setIsScanModalOpen, setAc
                 nameKey="name"
               />
             ) : (
-              <p className="text-gray-500 text-center py-3 sm:py-4 text-[11px] sm:text-xs">No budget data available.</p>
+              <p className="text-gray-500 text-center py-3 text-xs">No budget data available.</p>
             )}
           </div>
         </div>
@@ -770,7 +771,7 @@ const HomeView = React.memo(({ setIsManualTxModalOpen, setIsScanModalOpen, setAc
         className="bg-white rounded-xl shadow-md p-2 sm:p-4 border-2 border-gray-50"
       >
         <h3 className="text-base sm:text-lg font-semibold text-gray-800 mb-2 sm:mb-3">Comparison Insights</h3>
-        <div className="overflow-x-auto">
+        <div>
           <h4 className="text-[11px] sm:text-xs font-medium text-gray-700 mb-2">Expenses vs Budget</h4>
           {blendedChartData.length > 0 ? (
             <ChartComponent
@@ -781,7 +782,7 @@ const HomeView = React.memo(({ setIsManualTxModalOpen, setIsScanModalOpen, setAc
               isBlended={true}
             />
           ) : (
-            <p className="text-gray-500 text-center py-3 sm:py-4 text-[11px] sm:text-xs">No data available for expenses or budget.</p>
+            <p className="text-gray-500 text-center py-3 text-xs">No data available for expenses or budget.</p>
           )}
         </div>
       </motion.div>
@@ -796,34 +797,30 @@ const HomeView = React.memo(({ setIsManualTxModalOpen, setIsScanModalOpen, setAc
         <h3 className="text-base sm:text-lg font-semibold text-gray-800 mb-2 sm:mb-3">Expense History</h3>
         {transactions.length > 0 ? (
           <>
-            <div className="overflow-x-auto">
-              <div className="min-w-[500px] max-h-72 overflow-y-auto">
-                <div className="grid grid-cols-4 gap-1 sm:gap-2 p-1 sm:p-2 bg-gray-50 rounded-lg sticky top-0 z-10">
-                  <p className="text-[11px] sm:text-xs font-semibold text-gray-700">Category</p>
-                  <p className="text-[11px] sm:text-xs font-semibold text-gray-700">Description</p>
-                  <p className="text-[11px] sm:text-xs font-semibold text-gray-700">Date</p>
-                  <p className="text-[11px] sm:text-xs font-semibold text-gray-700 text-right">Amount</p>
-                </div>
-                {transactions.map((tx, index) => (
-                  <motion.div
-                    key={tx._id}
-                    custom={index}
-                    variants={itemVariants}
-                    initial="hidden"
-                    animate="visible"
-                    className="grid grid-cols-4 gap-1 sm:gap-2 p-1 sm:p-2 border-b border-gray-200 hover:bg-gray-100 rounded-lg"
-                  >
-                    <p className="text-[11px] sm:text-xs text-gray-800 capitalize">{tx.category}</p>
-                    <p className="text-[11px] sm:text-xs text-gray-600 truncate">{tx.description || '-'}</p>
-                    <p className="text-[11px] sm:text-xs text-gray-600">{formatDateForMobile(tx.date)}</p>
-                    <p className="text-[11px] sm:text-xs text-red-600 font-semibold text-right">-{formatCurrency(tx.amount)}</p>
-                    {tx.source === 'manual' && <span className="text-[10px] text-blue-500 col-span-4">(Manual)</span>}
-                    {tx.source === 'billscan' && <span className="text-[10px] text-purple-500 col-span-4">(Scanned)</span>}
-                  </motion.div>
-                ))}
-              </div>
+            <div className="space-y-2">
+              {transactions.map((tx, index) => (
+                <motion.div
+                  key={tx._id}
+                  custom={index}
+                  variants={itemVariants}
+                  initial="hidden"
+                  animate="visible"
+                  className="p-2 sm:p-3 bg-gray-50 rounded-lg shadow-sm border border-gray-200"
+                >
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 sm:gap-2">
+                    <div className="flex-1">
+                      <p className="text-xs sm:text-sm font-semibold text-gray-800 capitalize">{tx.category}</p>
+                      <p className="text-[10px] sm:text-xs text-gray-600 truncate">{tx.description || '-'}</p>
+                      <p className="text-[10px] sm:text-xs text-gray-500">{formatDateForMobile(tx.date)}</p>
+                      {tx.source === 'manual' && <span className="text-[9px] sm:text-[10px] text-blue-500">(Manual)</span>}
+                      {tx.source === 'billscan' && <span className="text-[9px] sm:text-[10px] text-purple-500">(Scanned)</span>}
+                    </div>
+                    <p className="text-xs sm:text-sm text-red-600 font-semibold text-right">-{formatCurrency(tx.amount)}</p>
+                  </div>
+                </motion.div>
+              ))}
             </div>
-            <div className="flex justify-between items-center mt-2 sm:mt-3 text-[11px] sm:text-xs">
+            <div className="flex justify-between items-center mt-3 text-xs">
               <span className="text-gray-600 text-[10px]">
                 Page {pagination.currentPage} of {pagination.totalPages} ({pagination.totalTransactions} items)
               </span>
@@ -831,14 +828,14 @@ const HomeView = React.memo(({ setIsManualTxModalOpen, setIsScanModalOpen, setAc
                 <button
                   onClick={() => handlePageChange(pagination.currentPage - 1)}
                   disabled={pagination.currentPage <= 1 || isLoading}
-                  className="p-1 sm:p-1.5 rounded-lg bg-gray-100 hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed min-h-[44px] min-w-[44px]"
+                  className="p-1 rounded-lg bg-gray-100 hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed min-h-[36px] min-w-[36px]"
                 >
                   <ChevronLeft size={12} />
                 </button>
                 <button
                   onClick={() => handlePageChange(pagination.currentPage + 1)}
                   disabled={pagination.currentPage >= pagination.totalPages || isLoading}
-                  className="p-1 sm:p-1.5 rounded-lg bg-gray-100 hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed min-h-[44px] min-w-[44px]"
+                  className="p-1 rounded-lg bg-gray-100 hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed min-h-[36px] min-w-[36px]"
                 >
                   <ChevronRight size={12} />
                 </button>
@@ -846,7 +843,7 @@ const HomeView = React.memo(({ setIsManualTxModalOpen, setIsScanModalOpen, setAc
             </div>
           </>
         ) : (
-          <p className="text-gray-500 text-center py-3 sm:py-4 text-[11px] sm:text-xs">No expenses found.</p>
+          <p className="text-gray-500 text-center py-3 text-xs">No expenses found.</p>
         )}
       </motion.div>
     </div>
