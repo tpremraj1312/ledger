@@ -7,28 +7,6 @@ import Transaction from '../models/transaction.js';
 
 const router = express.Router();
 
-// Valid categories as per transaction schema
-const validCategories = [
-  'Groceries',
-  'Junk Food (Non-Essential)',
-  'Clothing',
-  'Stationery',
-  'Medicine',
-  'Personal Care',
-  'Household Items',
-  'Electronics',
-  'Entertainment',
-  'Transportation',
-  'Utilities',
-  'Education',
-  'Dining Out',
-  'Fees/Taxes',
-  'Salary',
-  'Refund',
-  'Business',
-  'Other',
-];
-
 // Configure Multer for file upload (memory)
 const storage = multer.memoryStorage();
 const upload = multer({
@@ -73,10 +51,10 @@ router.post('/', authMiddleware, async (req, res) => {
     return res.status(400).json({ message: 'Date is required for manual transactions' });
   }
 
-  // Validate category against schema
+  // Validate category
   const normalizedCategory = category.trim();
-  if (!validCategories.includes(normalizedCategory)) {
-    return res.status(400).json({ message: `Invalid category. Must be one of: ${validCategories.join(', ')}` });
+  if (!normalizedCategory) {
+    return res.status(400).json({ message: 'Category cannot be empty' });
   }
 
   let transactionDate;
@@ -149,9 +127,6 @@ router.get('/', authMiddleware, async (req, res) => {
 
     if (category && category !== 'All') {
       const normalizedCategory = category.trim();
-      if (!validCategories.includes(normalizedCategory)) {
-        return res.status(400).json({ message: `Invalid category filter. Must be one of: ${validCategories.join(', ')}` });
-      }
       query.$or = [
         { category: normalizedCategory },
         { 'categories.category': normalizedCategory }
@@ -236,7 +211,7 @@ router.post('/billscan', authMiddleware, upload.single('bill'), async (req, res)
     let dominantCategory = transactionType === 'credit' ? 'Refund' : 'Other';
     let maxTotal = 0;
     parsedData.categories.forEach((cat) => {
-      const normalizedCat = validCategories.includes(cat.category) ? cat.category : 'Other';
+      const normalizedCat = cat.category.trim() || 'Other';
       if ((cat.categoryTotal || 0) > maxTotal) {
         maxTotal = cat.categoryTotal;
         dominantCategory = normalizedCat;
@@ -247,7 +222,7 @@ router.post('/billscan', authMiddleware, upload.single('bill'), async (req, res)
 
     // Map parsed categories to transaction schema
     const transactionCategories = parsedData.categories.map((cat) => ({
-      category: validCategories.includes(cat.category) ? cat.category : 'Other',
+      category: cat.category.trim() || 'Other',
       isNonEssential: cat.isNonEssential || false,
       categoryTotal: cat.categoryTotal || 0,
       items: cat.items.map((item) => ({
@@ -297,7 +272,7 @@ router.post('/billscan', authMiddleware, upload.single('bill'), async (req, res)
         }
       });
       return {
-        category: validCategories.includes(cat.category) ? cat.category : 'Other',
+        category: cat.category.trim() || 'Other',
         isNonEssential: cat.isNonEssential,
         categoryTotal: cat.categoryTotal || 0,
         items: itemsByName,

@@ -20,7 +20,6 @@ const authenticateToken = (req, res, next) => {
       console.error('JWT verification failed:', err.message);
       return res.status(403).json({ message: 'Invalid or expired token' });
     }
-    console.log('JWT payload:', user);
     const userId = user._id || user.userId;
     if (!userId) {
       console.error('No user ID found in JWT payload');
@@ -33,8 +32,8 @@ const authenticateToken = (req, res, next) => {
 
 // Format currency for response
 const formatCurrency = (amount) => {
-  if (amount === undefined || amount === null) return '₹0.00';
-  return `₹${amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const value = Number(amount) || 0;
+  return `₹${value.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 };
 
 // Determine budget period based on date range
@@ -62,12 +61,17 @@ const generateBudgetComparison = async (userId, { startDate, endDate, category }
     }
     const userObjectId = typeof userId === 'string' ? new mongoose.Types.ObjectId(userId) : userId;
 
-    // Validate dates
-    const start = startDate ? new Date(startDate) : null;
-    const end = endDate ? new Date(endDate) : null;
-    if (start && end && start > end) {
+    // Normalize dates
+    const start = startDate ? new Date(startDate) : new Date(new Date().setMonth(new Date().getMonth() - 1));
+    const end = endDate ? new Date(endDate) : new Date();
+    if (isNaN(start) || isNaN(end)) {
+      throw new Error('Invalid date format');
+    }
+    if (start > end) {
       throw new Error('Start date cannot be after end date');
     }
+    const endOfDay = new Date(end);
+    endOfDay.setUTCHours(23, 59, 59, 999);
 
     // Determine period
     const period = determineBudgetPeriod(startDate, endDate);
@@ -77,27 +81,15 @@ const generateBudgetComparison = async (userId, { startDate, endDate, category }
     const debitMatch = {
       user: userObjectId,
       type: 'debit',
-      status: 'completed'
+      status: 'completed',
+      date: { $gte: start, $lte: endOfDay },
     };
-    if (startDate && start) {
-      debitMatch.date = { $gte: start };
-    }
-    if (endDate && end) {
-      debitMatch.date = debitMatch.date || {};
-      const endOfDay = new Date(end);
-      endOfDay.setUTCHours(23, 59, 59, 999);
-      debitMatch.date.$lte = endOfDay;
-    }
     if (category && category !== 'All') {
       debitMatch.$or = [
         { category },
-        { 'categories.category': category }
+        { 'categories.category': category },
       ];
     }
-
-    // Debug raw debit transactions
-    const rawDebitTransactions = await Transaction.find(debitMatch).lean();
-    console.log('Raw debit transactions:', JSON.stringify(rawDebitTransactions, null, 2));
 
     // Aggregate debit transactions
     const debitAggregation = await Transaction.aggregate([
@@ -108,86 +100,80 @@ const generateBudgetComparison = async (userId, { startDate, endDate, category }
             { $match: { source: 'manual' } },
             {
               $group: {
-                _id: '$category',
-                total: { $sum: '$amount' }
-              }
+                _id: { $trim: { input: { $ifNull: ['$category', ''] } } },
+                total: { $sum: { $toDouble: { $ifNull: ['$amount', 0] } } },
+              },
             },
+            { $match: { _id: { $ne: '' } } },
             {
               $project: {
                 category: '$_id',
-                amount: '$total',
-                _id: 0
-              }
-            }
+                amount: { $round: ['$total', 2] },
+                _id: 0,
+              },
+            },
           ],
           billscan: [
-            { $match: { source: 'billscan' } },
+            { $match: { source: 'billscan', categories: { $exists: true, $ne: [] } } },
             { $unwind: '$categories' },
             {
-              $group: {
-                _id: '$categories.category',
-                total: { $sum: '$categories.categoryTotal' }
-              }
+              $match: {
+                'categories.category': { $ne: null, $ne: '' },
+                'categories.categoryTotal': { $exists: true },
+              },
             },
+            {
+              $group: {
+                _id: { $trim: { input: { $ifNull: ['$categories.category', ''] } } },
+                total: { $sum: { $toDouble: { $ifNull: ['$categories.categoryTotal', 0] } } },
+              },
+            },
+            { $match: { _id: { $ne: '' } } },
             {
               $project: {
                 category: '$_id',
-                amount: '$total',
-                _id: 0
-              }
-            }
-          ]
-        }
+                amount: { $round: ['$total', 2] },
+                _id: 0,
+              },
+            },
+          ],
+        },
       },
       {
         $project: {
-          combined: { $concatArrays: ['$manual', '$billscan'] }
-        }
+          combined: { $concatArrays: ['$manual', '$billscan'] },
+        },
       },
-      { $unwind: '$combined' },
+      { $unwind: { path: '$combined', preserveNullAndEmptyArrays: false } },
       {
         $group: {
           _id: '$combined.category',
-          amount: { $sum: '$combined.amount' }
-        }
+          amount: { $sum: '$combined.amount' },
+        },
       },
       {
         $project: {
           category: '$_id',
-          amount: 1,
-          _id: 0
-        }
-      }
+          amount: { $round: ['$amount', 2] },
+          _id: 0,
+        },
+      },
     ]);
-    console.log('Aggregated debit transactions:', JSON.stringify(debitAggregation, null, 2));
 
-    // Build transaction query for credit (income)
+    // Aggregate credit transactions
     const creditMatch = {
       user: userObjectId,
       type: 'credit',
-      status: 'completed'
+      status: 'completed',
+      date: { $gte: start, $lte: endOfDay },
     };
-    if (startDate && start) {
-      creditMatch.date = { $gte: start };
-    }
-    if (endDate && end) {
-      creditMatch.date = creditMatch.date || {};
-      const endOfDay = new Date(end);
-      endOfDay.setUTCHours(23, 59, 59, 999);
-      creditMatch.date.$lte = endOfDay;
-    }
     if (category && category !== 'All') {
       creditMatch.$or = [
         { category },
-        { 'categories.category': category }
+        { 'categories.category': category },
       ];
     }
 
-    // Debug raw credit transactions
-    const rawCreditTransactions = await Transaction.find(creditMatch).lean();
-    console.log('Raw credit transactions:', JSON.stringify(rawCreditTransactions, null, 2));
-
-    // Aggregate credit transactions
     const creditAggregation = await Transaction.aggregate([
       { $match: creditMatch },
       {
@@ -196,210 +182,215 @@ const generateBudgetComparison = async (userId, { startDate, endDate, category }
             { $match: { source: 'manual' } },
             {
               $group: {
-                _id: '$category',
-                total: { $sum: '$amount' }
-              }
+                _id: { $trim: { input: { $ifNull: ['$category', ''] } } },
+                total: { $sum: { $toDouble: { $ifNull: ['$amount', 0] } } },
+              },
             },
+            { $match: { _id: { $ne: '' } } },
             {
               $project: {
                 category: '$_id',
-                amount: '$total',
-                _id: 0
-              }
-            }
+                amount: { $round: ['$total', 2] },
+                _id: 0,
+              },
+            },
           ],
           billscan: [
-            { $match: { source: 'billscan' } },
+            { $match: { source: 'billscan', categories: { $exists: true, $ne: [] } } },
             { $unwind: '$categories' },
             {
-              $group: {
-                _id: '$categories.category',
-                total: { $sum: '$categories.categoryTotal' }
-              }
+              $match: {
+                'categories.category': { $ne: null, $ne: '' },
+                'categories.categoryTotal': { $exists: true },
+              },
             },
+            {
+              $group: {
+                _id: { $trim: { input: { $ifNull: ['$categories.category', ''] } } },
+                total: { $sum: { $toDouble: { $ifNull: ['$categories.categoryTotal', 0] } } },
+              },
+            },
+            { $match: { _id: { $ne: '' } } },
             {
               $project: {
                 category: '$_id',
-                amount: '$total',
-                _id: 0
-              }
-            }
-          ]
-        }
+                amount: { $round: ['$total', 2] },
+                _id: 0,
+              },
+            },
+          ],
+        },
       },
       {
         $project: {
-          combined: { $concatArrays: ['$manual', '$billscan'] }
-        }
+          combined: { $concatArrays: ['$manual', '$billscan'] },
+        },
       },
-      { $unwind: '$combined' },
+      { $unwind: { path: '$combined', preserveNullAndEmptyArrays: false } },
       {
         $group: {
           _id: '$combined.category',
-          amount: { $sum: '$combined.amount' }
-        }
+          amount: { $sum: '$combined.amount' },
+        },
       },
       {
         $project: {
           category: '$_id',
-          amount: 1,
-          _id: 0
-        }
-      }
+          amount: { $round: ['$amount', 2] },
+          _id: 0,
+        },
+      },
     ]);
-    console.log('Aggregated credit transactions:', JSON.stringify(creditAggregation, null, 2));
 
-    // Build budget query for expense budgets
+    // Aggregate expense budgets
     const expenseBudgetMatch = { user: userObjectId, type: 'expense', period };
     if (category && category !== 'All') {
       expenseBudgetMatch.category = category;
     }
 
-    // Aggregate expense budgets
     const expenseBudgetAggregation = await Budget.aggregate([
       { $match: expenseBudgetMatch },
       {
         $group: {
-          _id: '$category',
-          total: { $sum: '$amount' }
-        }
+          _id: { $trim: { input: { $ifNull: ['$category', ''] } } },
+          total: { $sum: { $toDouble: { $ifNull: ['$amount', 0] } } },
+        },
       },
+      { $match: { _id: { $ne: '' } } },
       {
         $project: {
           category: '$_id',
-          budget: '$total',
-          _id: 0
-        }
-      }
+          budget: { $round: ['$total', 2] },
+          _id: 0,
+        },
+      },
     ]);
-    console.log('Aggregated expense budgets:', JSON.stringify(expenseBudgetAggregation, null, 2));
 
-    // Build budget query for income budgets
+    // Aggregate income budgets
     const incomeBudgetMatch = { user: userObjectId, type: 'income', period };
     if (category && category !== 'All') {
       incomeBudgetMatch.category = category;
     }
 
-    // Aggregate income budgets
     const incomeBudgetAggregation = await Budget.aggregate([
       { $match: incomeBudgetMatch },
       {
         $group: {
-          _id: '$category',
-          total: { $sum: '$amount' }
-        }
+          _id: { $trim: { input: { $ifNull: ['$category', ''] } } },
+          total: { $sum: { $toDouble: { $ifNull: ['$amount', 0] } } },
+        },
       },
+      { $match: { _id: { $ne: '' } } },
       {
         $project: {
           category: '$_id',
-          budget: '$total',
-          _id: 0
-        }
-      }
+          budget: { $round: ['$total', 2] },
+          _id: 0,
+        },
+      },
     ]);
-    console.log('Aggregated income budgets:', JSON.stringify(incomeBudgetAggregation, null, 2));
 
     // Combine debit transactions and expense budgets
     const debitMap = {};
     debitAggregation.forEach(item => {
-      debitMap[item.category] = item.amount;
+      if (item.category) {
+        debitMap[item.category] = Number(item.amount) || 0;
+      }
     });
 
     const expenseBudgetMap = {};
     expenseBudgetAggregation.forEach(item => {
-      expenseBudgetMap[item.category] = item.budget;
+      if (item.category) {
+        expenseBudgetMap[item.category] = Number(item.budget) || 0;
+      }
     });
 
     // Debit comparison
     const debitCategories = [...new Set([...Object.keys(debitMap), ...Object.keys(expenseBudgetMap)])];
-    const debitComparison = debitCategories.map(cat => {
-      const budget = expenseBudgetMap[cat] || 0;
-      const expense = debitMap[cat] || 0;
-      const difference = budget - expense;
-      return {
-        category: cat,
-        budgetedExpense: budget,
-        actualExpense: expense,
-        difference,
-        budgetedExpenseFormatted: formatCurrency(budget),
-        actualExpenseFormatted: formatCurrency(expense),
-        differenceFormatted: formatCurrency(difference),
-        status: difference >= 0 ? 'Under Budget' : 'Over Budget'
-      };
-    }).filter(item => item.budgetedExpense > 0 || item.actualExpense > 0);
+    const debitComparison = debitCategories
+      .map(cat => {
+        const budget = expenseBudgetMap[cat] || 0;
+        const expense = debitMap[cat] || 0;
+        const difference = budget - expense;
+        return {
+          category: cat,
+          budgetedExpense: budget,
+          actualExpense: expense,
+          difference,
+          budgetedExpenseFormatted: formatCurrency(budget),
+          actualExpenseFormatted: formatCurrency(expense),
+          differenceFormatted: formatCurrency(difference),
+          status: difference >= 0 ? 'Under Budget' : 'Over Budget',
+        };
+      })
+      .filter(item => item.budgetedExpense >= 0 || item.actualExpense > 0);
 
     // Calculate debit totals
     const debitTotals = {
-      totalBudgetedExpense: debitComparison.reduce((sum, item) => sum + item.budgetedExpense, 0),
-      totalActualExpense: debitComparison.reduce((sum, item) => sum + item.actualExpense, 0),
-      totalDifference: debitComparison.reduce((sum, item) => sum + item.difference, 0),
+      totalBudgetedExpense: Number(debitComparison.reduce((sum, item) => sum + item.budgetedExpense, 0).toFixed(2)),
+      totalActualExpense: Number(debitComparison.reduce((sum, item) => sum + item.actualExpense, 0).toFixed(2)),
+      totalDifference: Number(debitComparison.reduce((sum, item) => sum + item.difference, 0).toFixed(2)),
       totalBudgetedExpenseFormatted: formatCurrency(debitComparison.reduce((sum, item) => sum + item.budgetedExpense, 0)),
       totalActualExpenseFormatted: formatCurrency(debitComparison.reduce((sum, item) => sum + item.actualExpense, 0)),
       totalDifferenceFormatted: formatCurrency(debitComparison.reduce((sum, item) => sum + item.difference, 0)),
-      totalStatus: debitComparison.reduce((sum, item) => sum + item.difference, 0) >= 0 ? 'Under Budget' : 'Over Budget'
+      totalStatus: debitComparison.reduce((sum, item) => sum + item.difference, 0) >= 0 ? 'Under Budget' : 'Over Budget',
     };
 
     // Combine credit transactions and income budgets
     const creditMap = {};
     creditAggregation.forEach(item => {
-      creditMap[item.category] = item.amount;
+      if (item.category) {
+        creditMap[item.category] = Number(item.amount) || 0;
+      }
     });
 
     const incomeBudgetMap = {};
     incomeBudgetAggregation.forEach(item => {
-      incomeBudgetMap[item.category] = item.budget;
+      if (item.category) {
+        incomeBudgetMap[item.category] = Number(item.budget) || 0;
+      }
     });
 
     // Credit comparison
     const creditCategories = [...new Set([...Object.keys(creditMap), ...Object.keys(incomeBudgetMap)])];
-    const creditComparison = creditCategories.map(cat => {
-      const goal = incomeBudgetMap[cat] || 0;
-      const income = creditMap[cat] || 0;
-      const difference = goal - income;
-      return {
-        category: cat,
-        incomeGoal: goal,
-        actualIncome: income,
-        difference,
-        incomeGoalFormatted: formatCurrency(goal),
-        actualIncomeFormatted: formatCurrency(income),
-        differenceFormatted: formatCurrency(difference),
-        status: difference >= 0 ? 'Below Goal' : 'Above Goal'
-      };
-    }).filter(item => item.incomeGoal > 0 || item.actualIncome > 0);
+    const creditComparison = creditCategories
+      .map(cat => {
+        const goal = incomeBudgetMap[cat] || 0;
+        const income = creditMap[cat] || 0;
+        const difference = goal - income;
+        return {
+          category: cat,
+          incomeGoal: goal,
+          actualIncome: income,
+          difference,
+          incomeGoalFormatted: formatCurrency(goal),
+          actualIncomeFormatted: formatCurrency(income),
+          differenceFormatted: formatCurrency(difference),
+          status: difference >= 0 ? 'Below Goal' : 'Above Goal',
+        };
+      })
+      .filter(item => item.incomeGoal >= 0 || item.actualIncome > 0);
 
     // Calculate credit totals
     const creditTotals = {
-      totalIncomeGoal: creditComparison.reduce((sum, item) => sum + item.incomeGoal, 0),
-      totalActualIncome: creditComparison.reduce((sum, item) => sum + item.actualIncome, 0),
-      totalDifference: creditComparison.reduce((sum, item) => sum + item.difference, 0),
+      totalIncomeGoal: Number(creditComparison.reduce((sum, item) => sum + item.incomeGoal, 0).toFixed(2)),
+      totalActualIncome: Number(creditComparison.reduce((sum, item) => sum + item.actualIncome, 0).toFixed(2)),
+      totalDifference: Number(creditComparison.reduce((sum, item) => sum + item.difference, 0).toFixed(2)),
       totalIncomeGoalFormatted: formatCurrency(creditComparison.reduce((sum, item) => sum + item.incomeGoal, 0)),
       totalActualIncomeFormatted: formatCurrency(creditComparison.reduce((sum, item) => sum + item.actualIncome, 0)),
       totalDifferenceFormatted: formatCurrency(creditComparison.reduce((sum, item) => sum + item.difference, 0)),
-      totalStatus: creditComparison.reduce((sum, item) => sum + item.difference, 0) >= 0 ? 'Below Goal' : 'Above Goal'
+      totalStatus: creditComparison.reduce((sum, item) => sum + item.difference, 0) >= 0 ? 'Below Goal' : 'Above Goal',
     };
 
     const result = {
       debitComparison: {
         comparison: debitComparison,
         totals: debitTotals,
-        debug: {
-          debitCount: debitAggregation.length,
-          expenseBudgetCount: expenseBudgetAggregation.length,
-          categories: debitCategories,
-          rawDebitTransactionCount: rawDebitTransactions.length
-        }
       },
       creditComparison: {
         comparison: creditComparison,
         totals: creditTotals,
-        debug: {
-          creditCount: creditAggregation.length,
-          incomeBudgetCount: incomeBudgetAggregation.length,
-          categories: creditCategories,
-          rawCreditTransactionCount: rawCreditTransactions.length
-        }
-      }
+      },
     };
 
     console.log('Comparison result:', JSON.stringify(result, null, 2));
@@ -417,10 +408,7 @@ router.get('/', authenticateToken, async (req, res) => {
     const userId = req.user._id;
     console.log('Budget comparison request:', { userId, startDate, endDate, category });
 
-    // Call the comparison function
     const comparison = await generateBudgetComparison(userId, { startDate, endDate, category });
-
-    // Return the comparison
     res.json(comparison);
   } catch (error) {
     console.error('Error in budget comparison route:', error.message);

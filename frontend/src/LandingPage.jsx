@@ -161,7 +161,7 @@ function LandingPage() {
               Experience the future of personal finance with AI-driven insights, smart budgeting, and intelligent investment recommendations.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 sm:gap-6 justify-center lg:justify-start">
-              <button className="group bg-gradient-to-r from-blue-600 to-blue-700 text-white px-6 sm:px-8 py-3 sm:py-4 rounded-xl font-semibold hover:shadow-lg hover:shadow-blue-600/20 transition-all duration-300 transform hover:-translate-y-0.5">
+              <button className="group bg-gradient-to-r from-blue-600 to-blue-700 text-white px-6 sm:px-8 py-3 sm:py-4 rounded-xl font-semibold hover:shadow-lg hover:shadow-blue-600/20 transition-all duration-300 transform hover:-translate-y-0.5" onClick={handleSignup}>
                 Start Your Journey 
                 <ArrowRight size={20} className="inline ml-2 transform group-hover:translate-x-1 transition-transform" />
               </button>
@@ -259,7 +259,7 @@ function LandingPage() {
               Join thousands of users who are already experiencing the power of AI-driven financial management. Start your journey to financial freedom today.
             </p>
             <div className="flex flex-col sm:flex-row justify-center gap-4 sm:gap-6">
-              <button className="group bg-white text-blue-600 px-6 sm:px-8 py-3 sm:py-4 rounded-xl font-semibold hover:bg-blue-50 transition-all duration-300 transform hover:-translate-y-1 hover:shadow-lg">
+              <button className="group bg-white text-blue-600 px-6 sm:px-8 py-3 sm:py-4 rounded-xl font-semibold hover:bg-blue-50 transition-all duration-300 transform hover:-translate-y-1 hover:shadow-lg" onClick={handleSignup}>
                 Create Free Account
                 <ArrowRight size={20} className="inline ml-2 transform group-hover:translate-x-1 transition-transform" />
               </button>

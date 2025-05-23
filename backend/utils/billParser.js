@@ -104,9 +104,10 @@ Analyze this bill/receipt image and extract the following information in JSON fo
 }
 
 Rules:
-1. If any top-level field (totalAmount, date, storeName) cannot be determined, use null.
-2. Every item and charge on the bill must be assigned to one of the specified categories. Use "Other" only as a last resort.
-3. Categorize items based on their name/description:
+1. Ensure the data extracted from the bill has 100% accuracy.
+2. If any top-level field (totalAmount, date, storeName) cannot be determined, use null.
+3. Every item and charge on the bill must be assigned to one of the specified categories. Use "Other" only as a last resort.
+4. Categorize items based on their name/description:
    - Groceries: Staple food items (e.g., rice, wheat, bread, dal, vegetables, milk, butter, cooking oil, sugar)
    - Junk Food (Non-Essential): Snacks, sodas, candies, fast food (e.g., chips, cola, chocolate, sugar candy)
    - Clothing: Apparel (e.g., t-shirt, pants, dress, shoes)
@@ -125,12 +126,12 @@ Rules:
    - Refund: Refund-related entries (e.g., returned items)
    - Business: Business-related expenses (e.g., office supplies, professional services)
    - Other: Items that don’t fit above (e.g., gifts, miscellaneous)
-4. Set "isNonEssential": true for Junk Food (Non-Essential), Entertainment, Dining Out, and luxury Electronics (e.g., gaming accessories, not appliances). Set false for all other categories, including Fees/Taxes, Salary, Refund, and Business.
-5. Calculate "categoryTotal" as the exact sum of (price * quantity) for all items in the category. If quantity is missing, assume 1.
-6. For Fees/Taxes, include additional charges (e.g., CGST, SGST, service fee) or discounts as individual items with quantity 1 unless explicitly listed otherwise (e.g., {"name": "CGST", "price": 20.75, "quantity": 1}).
-7. Ensure all monetary values are numbers (e.g., 1500, not "1500") and precise to two decimal places where applicable (e.g., 20.75 for taxes).
-8. Date must be in YYYY-MM-DD format (e.g., 2025-05-03).
-9. Store name should be the name of the business/establishment (e.g., "Walmart").
+5. Set "isNonEssential": true for Junk Food (Non-Essential), Entertainment, Dining Out, and luxury Electronics (e.g., gaming accessories, not appliances). Set false for all other categories, including Fees/Taxes, Salary, Refund, and Business.
+6. Calculate "categoryTotal" as the exact sum of (price * quantity) for all items in the category. If quantity is missing, assume 1.
+7. For Fees/Taxes, include additional charges (e.g., CGST, SGST, service fee) or discounts as individual items with quantity 1 unless explicitly listed otherwise (e.g., {"name": "CGST", "price": 20.75, "quantity": 1}).
+8. Ensure all monetary values are numbers (e.g., 1500, not "1500") and precise to two decimal places where applicable (e.g., 20.75 for taxes).
+9. Date must be in YYYY-MM-DD format (e.g., 2025-05-03).
+10. Store name should be the name of the business/establishment (e.g., "Walmart").
 10. Minimize the number of categories used; prefer specific categories over "Other" when possible.
 11. If an item could fit multiple categories, choose the most specific one (e.g., "chocolate" -> Junk Food (Non-Essential), not Groceries; "cooking oil" -> Groceries, not Other).
 12. Ensure quantities are positive numbers (default to 1 if invalid or missing).

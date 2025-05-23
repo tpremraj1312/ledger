@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
@@ -9,25 +8,15 @@ import {
   FunnelChart, Funnel, Treemap
 } from 'recharts';
 import {
-  FileText, Loader2, AlertTriangle, PlusCircle, X as IconX,
-  Filter, BarChart2, PieChart as PieIcon, AreaChart as AreaIcon,
-  ScatterChart as ScatterIcon, Activity as RadarIcon, Filter as FunnelIcon,
-  LayoutGrid as TreemapIcon, ChevronLeft, ChevronRight, Brain, Scale
+  FileText, Loader2, AlertTriangle, PlusCircle, Filter, BarChart2, PieChart as PieIcon,
+  AreaChart as AreaIcon, ScatterChart as ScatterIcon, Activity as RadarIcon,
+  Filter as FunnelIcon, LayoutGrid as TreemapIcon, ChevronLeft, ChevronRight, Brain
 } from 'lucide-react';
 
 // Helper Functions
 const formatCurrency = (amount) => {
   if (amount === undefined || amount === null) return '₹0.00';
   return `₹${amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-};
-
-const formatDateForInput = (date) => {
-  if (!date) date = new Date();
-  const d = new Date(date);
-  const month = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  const year = d.getFullYear();
-  return `${year}-${month}-${day}`;
 };
 
 const formatDateForDisplay = (dateString) => {
@@ -39,10 +28,18 @@ const formatDateForDisplay = (dateString) => {
   } catch (e) { return dateString; }
 };
 
+const formatDateForMobile = (dateString) => {
+  if (!dateString) return '';
+  try {
+    return new Date(dateString).toLocaleDateString('en-IN', {
+      day: 'numeric', month: 'short'
+    });
+  } catch (e) { return dateString; }
+};
+
 const getAuthToken = () => localStorage.getItem('token');
 
-const HomeView = () => {
-  const navigate = useNavigate();
+const HomeView = React.memo(({ setIsManualTxModalOpen, setIsScanModalOpen, setActiveTab = () => console.warn('setActiveTab not provided. Ensure DashboardLayout.jsx passes setActiveTab to HomeView.') }) => {
   const [summaryData, setSummaryData] = useState(null);
   const [transactions, setTransactions] = useState([]);
   const [budgets, setBudgets] = useState([]);
@@ -61,20 +58,6 @@ const HomeView = () => {
   });
   const [chartType, setChartType] = useState('area');
   const [showFilters, setShowFilters] = useState(false);
-  const [isManualTxModalOpen, setIsManualTxModalOpen] = useState(false);
-  const [isScanModalOpen, setIsScanModalOpen] = useState(false);
-  const [manualTxData, setManualTxData] = useState({
-    type: 'debit',
-    amount: '',
-    category: '',
-    date: formatDateForInput(new Date()),
-    description: '',
-  });
-  const [modalError, setModalError] = useState('');
-  const [isSubmittingManual, setIsSubmittingManual] = useState(false);
-  const [scanFile, setScanFile] = useState(null);
-  const [scanError, setScanError] = useState('');
-  const [isScanning, setIsScanning] = useState(false);
 
   // Fetch Data
   const fetchData = useCallback(async () => {
@@ -88,38 +71,34 @@ const HomeView = () => {
     }
 
     try {
-      // Fetch dashboard summary
-      const summaryResponse = await axios.get(`${import.meta.env.VITE_BACKEND_URL}/api/dashboard/summary`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const [summaryResponse, transactionsResponse, budgetsResponse] = await Promise.all([
+        axios.get(`${import.meta.env.VITE_BACKEND_URL}/api/dashboard/summary`, {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+        axios.get(`${import.meta.env.VITE_BACKEND_URL}/api/transactions`, {
+          headers: { Authorization: `Bearer ${token}` },
+          params: {
+            page: pagination.currentPage,
+            limit: pagination.limit,
+            ...(filters.startDate && { startDate: filters.startDate }),
+            ...(filters.endDate && { endDate: filters.endDate }),
+            ...(filters.category !== 'All' && { category: filters.category }),
+            type: 'debit',
+          },
+        }),
+        axios.get(`${import.meta.env.VITE_BACKEND_URL}/api/budgets`, {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+      ]);
+
       setSummaryData(summaryResponse.data);
-
-      // Fetch transactions
-      const params = {
-        page: pagination.currentPage,
-        limit: pagination.limit,
-        ...(filters.startDate && { startDate: filters.startDate }),
-        ...(filters.endDate && { endDate: filters.endDate }),
-        ...(filters.category !== 'All' && { category: filters.category }),
-        type: 'debit',
-      };
-      const transactionsResponse = await axios.get(`${import.meta.env.VITE_BACKEND_URL}/api/transactions`, {
-        headers: { Authorization: `Bearer ${token}` },
-        params,
-      });
       setTransactions(transactionsResponse.data.transactions || []);
-
       setPagination(prev => ({
         ...prev,
         totalPages: transactionsResponse.data.pagination.totalPages || 1,
         totalTransactions: transactionsResponse.data.pagination.totalTransactions || 0,
         currentPage: transactionsResponse.data.pagination.currentPage || 1,
       }));
-
-      // Fetch budgets
-      const budgetsResponse = await axios.get(`${import.meta.env.VITE_BACKEND_URL}/api/budgets`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
       setBudgets(budgetsResponse.data || []);
     } catch (err) {
       const message = err.code === 'ERR_NETWORK'
@@ -136,57 +115,93 @@ const HomeView = () => {
   }, [fetchData]);
 
   // Handle Filters and Pagination
-  const handleFilterChange = (e) => {
+  const handleFilterChange = useCallback((e) => {
     const { name, value } = e.target;
     setFilters(prev => ({ ...prev, [name]: value }));
     setPagination(prev => ({ ...prev, currentPage: 1 }));
-  };
+  }, []);
 
-  const handlePageChange = (newPage) => {
+  const handlePageChange = useCallback((newPage) => {
     if (newPage >= 1 && newPage <= pagination.totalPages) {
       setPagination(prev => ({ ...prev, currentPage: newPage }));
     }
-  };
+  }, [pagination.totalPages]);
 
   // Calculate Chart and Overview Data
-  const { areaChartData, pieChartData, budgetChartData, categories, overview } = useMemo(() => {
+  const {
+    expenseOverTimeData,
+    expenseCategoryData,
+    budgetOverTimeData,
+    budgetCategoryData,
+    blendedChartData,
+    categories,
+    overview,
+  } = useMemo(() => {
     const currentCategories = ['All', ...new Set([...transactions.map(tx => tx.category), ...budgets.map(b => b.category)])];
 
-    // Expense Chart Data
+    // Expenses Over Time (by date)
     const expenseByDate = transactions.reduce((acc, tx) => {
-      const dateStr = formatDateForDisplay(tx.date);
-      acc[dateStr] = (acc[dateStr] || 0) + tx.amount;
+      const date = formatDateForDisplay(tx.date);
+      acc[date] = (acc[date] || 0) + tx.amount;
       return acc;
     }, {});
-    const areaData = Object.entries(expenseByDate)
+    const expenseOverTime = Object.entries(expenseByDate)
       .map(([date, amount]) => ({ date, amount }))
       .sort((a, b) => new Date(a.date) - new Date(b.date));
 
+    // Expense Categories
     const expenseByCategory = transactions.reduce((acc, tx) => {
       acc[tx.category] = (acc[tx.category] || 0) + tx.amount;
       return acc;
     }, {});
-    const pieData = Object.entries(expenseByCategory).map(([name, value]) => ({ name, value }));
+    const expenseCategory = Object.entries(expenseByCategory)
+      .map(([name, value]) => ({ name, value }))
+      .sort((a, b) => b.value - a.value);
 
-    // Budget Chart Data
+    // Budgets Over Time (by date)
     const expenseBudgets = budgets.filter(b => b.type === 'expense');
-    const budgetData = expenseBudgets.map(b => ({
-      category: b.category,
-      amount: b.amount,
+    const budgetByDate = expenseBudgets.reduce((acc, b) => {
+      const date = formatDateForDisplay(b.createdAt);
+      acc[date] = (acc[date] || 0) + b.amount;
+      return acc;
+    }, {});
+    const budgetOverTime = Object.entries(budgetByDate)
+      .map(([date, amount]) => ({ date, amount }))
+      .sort((a, b) => new Date(a.date) - new Date(b.date));
+
+    // Budget Categories
+    const budgetByCategory = expenseBudgets.reduce((acc, b) => {
+      acc[b.category] = (acc[b.category] || 0) + b.amount;
+      return acc;
+    }, {});
+    const budgetCategory = Object.entries(budgetByCategory)
+      .map(([name, value]) => ({ name, value }))
+      .sort((a, b) => b.value - a.value);
+
+    // Blended Expenses and Budget
+    const allDates = [...new Set([
+      ...transactions.map(tx => formatDateForDisplay(tx.date)),
+      ...expenseBudgets.map(b => formatDateForDisplay(b.createdAt))
+    ])].sort((a, b) => new Date(a) - new Date(b));
+    const blendedData = allDates.map(date => ({
+      date,
+      expense: expenseByDate[date] || 0,
+      budget: budgetByDate[date] || 0,
     }));
 
-    // Overview Metrics
     const totalExpenses = transactions.reduce((sum, tx) => sum + tx.amount, 0);
     const avgExpense = transactions.length > 0 ? totalExpenses / transactions.length : 0;
     const totalBudget = expenseBudgets.reduce((sum, b) => sum + b.amount, 0);
-    const topCategory = pieData.length > 0
-      ? pieData.reduce((max, curr) => curr.value > max.value ? curr : max).name
+    const topCategory = expenseCategory.length > 0
+      ? expenseCategory.reduce((max, curr) => curr.value > max.value ? curr : max).name
       : 'N/A';
 
     return {
-      areaChartData: areaData,
-      pieChartData: pieData,
-      budgetChartData: budgetData,
+      expenseOverTimeData: expenseOverTime,
+      expenseCategoryData: expenseCategory,
+      budgetOverTimeData: budgetOverTime,
+      budgetCategoryData: budgetCategory,
+      blendedChartData: blendedData,
       categories: currentCategories,
       overview: {
         totalExpenses,
@@ -200,23 +215,36 @@ const HomeView = () => {
   }, [transactions, budgets]);
 
   // Chart Component
-  const ChartComponent = ({ data, title, color, dataKey, nameKey = 'name' }) => {
+  const ChartComponent = React.memo(({ data, title, dataKey, nameKey = 'name', isBlended = false }) => {
     const customTooltip = ({ active, payload }) => {
       if (active && payload && payload.length) {
         return (
-          <div className="bg-white p-2 border rounded shadow">
-            <p className="font-semibold">{payload[0].payload[nameKey] || payload[0].payload.date}</p>
-            <p>{`${title}: ${formatCurrency(payload[0].value)}`}</p>
+          <div className="bg-white/95 p-1.5 sm:p-2 border border-gray-100 rounded-md shadow-md backdrop-blur-sm">
+            <p className="font-semibold text-gray-800 text-[9px] sm:text-xs">{payload[0].payload[nameKey] || payload[0].payload.date}</p>
+            {payload.map((entry, index) => (
+              <p key={index} className="text-gray-600 text-[9px] sm:text-xs">{`${entry.name}: ${formatCurrency(entry.value)}`}</p>
+            ))}
           </div>
         );
       }
       return null;
     };
 
+    const maxValue = isBlended
+      ? Math.max(...data.map(d => Math.max(d.expense, d.budget)), 1000)
+      : Math.max(...data.map(d => d[dataKey]), 1000);
+
+    // Optimize X-axis labels for mobile
+    const isMobile = window.innerWidth < 640;
+    const tickFormatter = (value, index) => {
+      if (isMobile && nameKey === 'date' && index % 6 !== 0) return '';
+      return isMobile && nameKey === 'date' ? formatDateForMobile(value) : value;
+    };
+
     switch (chartType) {
       case 'pie':
         return (
-          <ResponsiveContainer width="100%" height={300}>
+          <ResponsiveContainer width="100%" height={isMobile ? 280 : 340}>
             <PieChart>
               <Pie
                 data={data}
@@ -224,68 +252,134 @@ const HomeView = () => {
                 nameKey={nameKey}
                 cx="50%"
                 cy="50%"
-                outerRadius={100}
-                label={({ name, value }) => `${name}: ${formatCurrency(value)}`}
+                outerRadius={isMobile ? 70 : 110}
+                label={isMobile ? false : ({ name, value }) => `${name}: ${formatCurrency(value)}`}
+                labelLine={isMobile ? false : true}
+                isAnimationActive
+                animationDuration={500}
               >
                 {data.map((_, index) => (
                   <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                 ))}
               </Pie>
               <Tooltip content={customTooltip} />
-              <Legend />
+              <Legend wrapperStyle={{ fontSize: isMobile ? 7 : 11 }} />
             </PieChart>
           </ResponsiveContainer>
         );
       case 'area':
         return (
-          <ResponsiveContainer width="100%" height={300}>
+          <ResponsiveContainer width="100%" height={isMobile ? 280 : 340}>
             <AreaChart data={data}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey={nameKey} fontSize={10} />
-              <YAxis fontSize={10} tickFormatter={(value) => `₹${value / 1000}k`} />
-              <Tooltip content={customTooltip} />
-              <Legend />
-              <Area
-                type="monotone"
-                dataKey={dataKey}
-                name={title}
-                fill={color}
-                fillOpacity={0.3}
-                stroke={color}
-                strokeWidth={2}
+              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+              <XAxis
+                dataKey={nameKey}
+                fontSize={isMobile ? 9 : 11}
+                stroke="#374151"
+                angle={isMobile ? -60 : -45}
+                textAnchor="end"
+                height={isMobile ? 70 : 50}
+                tickFormatter={tickFormatter}
               />
+              <YAxis
+                fontSize={isMobile ? 9 : 11}
+                stroke="#374151"
+                tickFormatter={(value) => `₹${value / 1000}k`}
+                domain={[0, maxValue * 1.1]}
+              />
+              <Tooltip content={customTooltip} />
+              <Legend wrapperStyle={{ fontSize: isMobile ? 7 : 11 }} />
+              {isBlended ? (
+                <>
+                  <Area
+                    type="monotone"
+                    dataKey="expense"
+                    name="Expenses"
+                    fill="#EF4444"
+                    fillOpacity={0.5}
+                    stroke="#EF4444"
+                    strokeWidth={2}
+                    stackId="1"
+                    isAnimationActive
+                    animationDuration={500}
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="budget"
+                    name="Budget"
+                    fill="#059669"
+                    fillOpacity={0.5}
+                    stroke="#059669"
+                    strokeWidth={2}
+                    stackId="1"
+                    isAnimationActive
+                    animationDuration={500}
+                  />
+                </>
+              ) : (
+                <Area
+                  type="monotone"
+                  dataKey={dataKey}
+                  name={title}
+                  fill={COLORS[0]}
+                  fillOpacity={0.5}
+                  stroke={COLORS[0]}
+                  strokeWidth='2'
+                  isAnimationActive
+                  animationDuration={500}
+                />
+              )}
             </AreaChart>
           </ResponsiveContainer>
         );
       case 'scatter':
         return (
-          <ResponsiveContainer width="100%" height={300}>
+          <ResponsiveContainer width="100%" height={isMobile ? 280 : 340}>
             <ScatterChart>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey={nameKey} type="category" />
-              <YAxis dataKey={dataKey} type="number" name={title} />
+              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+              <XAxis
+                dataKey={nameKey}
+                type="category"
+                fontSize={isMobile ? 9 : 11}
+                stroke="#374151"
+                angle={isMobile ? -60 : -45}
+                textAnchor="end"
+                height={isMobile ? 70 : 50}
+                tickFormatter={tickFormatter}
+              />
+              <YAxis
+                fontSize={isMobile ? 9 : 11}
+                stroke="#374151"
+                tickFormatter={(value) => `₹${value / 1000}k`}
+                domain={[0, maxValue * 1.1]}
+              />
               <Tooltip content={customTooltip} />
-              <Legend />
-              <Scatter name={title} data={data} fill={color} />
+              <Legend wrapperStyle={{ fontSize: isMobile ? 7 : 11 }} />
+              <Scatter name={title} data={data} fill={COLORS[0]} isAnimationActive animationDuration={500} />
             </ScatterChart>
           </ResponsiveContainer>
         );
       case 'radar':
         return (
-          <ResponsiveContainer width="100%" height={300}>
+          <ResponsiveContainer width="100%" height={isMobile ? 280 : 340}>
             <RadarChart data={data}>
-              <PolarGrid />
-              <PolarAngleAxis dataKey={nameKey} />
-              <PolarRadiusAxis />
+              <PolarGrid stroke="#e5e7eb" />
+              <PolarAngleAxis dataKey={nameKey} stroke="#374151" fontSize={isMobile ? 9 : 11} />
+              <PolarRadiusAxis
+                stroke="#374151"
+                fontSize={isMobile ? 9 : 11}
+                tickFormatter={(value) => `₹${value / 1000}k`}
+                domain={[0, maxValue * 1.1]}
+              />
               <Tooltip content={customTooltip} />
-              <Legend />
-              <Radar name={title} dataKey={dataKey} stroke={color} fill={color} fillOpacity={0.6} />
+              <Legend wrapperStyle={{ fontSize: isMobile ? 7 : 11 }} />
+              <Radar name={title} dataKey={dataKey} stroke={COLORS[0]} fill={COLORS[0]} fillOpacity={0.6} isAnimationActive animationDuration={500} />
             </RadarChart>
           </ResponsiveContainer>
         );
       case 'funnel':
         return (
-          <ResponsiveContainer width="100%" height={300}>
+          <ResponsiveContainer width="100%" height={isMobile ? 280 : 340}>
             <FunnelChart>
               <Tooltip content={customTooltip} />
               <Funnel
@@ -293,10 +387,11 @@ const HomeView = () => {
                 dataKey={dataKey}
                 nameKey={nameKey}
                 isAnimationActive
+                animationDuration={500}
                 label={{
                   position: 'right',
                   fill: '#333',
-                  fontSize: 12,
+                  fontSize: isMobile ? 9 : 11,
                   formatter: (entry) => `${entry[nameKey]}: ${formatCurrency(entry[dataKey])}`,
                 }}
               >
@@ -309,7 +404,7 @@ const HomeView = () => {
         );
       case 'treemap':
         return (
-          <ResponsiveContainer width="100%" height={300}>
+          <ResponsiveContainer width="100%" height={isMobile ? 280 : 340}>
             <Treemap
               data={data}
               dataKey={dataKey}
@@ -317,6 +412,7 @@ const HomeView = () => {
               stroke="#fff"
               aspectRatio={4 / 3}
               isAnimationActive
+              animationDuration={500}
               content={({ depth, x, y, width, height, index, name, value }) => (
                 <g>
                   <rect
@@ -327,8 +423,8 @@ const HomeView = () => {
                     fill={COLORS[index % COLORS.length]}
                     stroke="#fff"
                   />
-                  {width > 80 && height > 20 && (
-                    <text x={x + 4} y={y + 16} fill="#fff" fontSize={12}>
+                  {width > (isMobile ? 50 : 70) && height > (isMobile ? 14 : 18) && (
+                    <text x={x + 3} y={y + (isMobile ? 11 : 14)} fill="#fff" fontSize={isMobile ? 9 : 11}>
                       {name} ({formatCurrency(value)})
                     </text>
                   )}
@@ -341,182 +437,73 @@ const HomeView = () => {
         );
       default:
         return (
-          <ResponsiveContainer width="100%" height={300}>
+          <ResponsiveContainer width="100%" height={isMobile ? 280 : 340}>
             <BarChart data={data}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey={nameKey} />
-              <YAxis />
+              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+              <XAxis
+                dataKey={nameKey}
+                fontSize={isMobile ? 9 : 11}
+                stroke="#374151"
+                angle={isMobile ? -60 : -45}
+                textAnchor="end"
+                height={isMobile ? 70 : 50}
+                tickFormatter={tickFormatter}
+              />
+              <YAxis
+                fontSize={isMobile ? 9 : 11}
+                stroke="#374151"
+                tickFormatter={(value) => `₹${value / 1000}k`}
+                domain={[0, maxValue * 1.1]}
+              />
               <Tooltip content={customTooltip} />
-              <Legend />
-              <Bar dataKey={dataKey} name={title} fill={color} />
+              <Legend wrapperStyle={{ fontSize: isMobile ? 7 : 11 }} />
+              {isBlended ? (
+                <>
+                  <Bar dataKey="expense" name="Expenses" fill="#EF4444" isAnimationActive animationDuration={500} />
+                  <Bar dataKey="budget" name="Budget" fill="#059669" isAnimationActive animationDuration={500} />
+                </>
+              ) : (
+                <Bar dataKey={dataKey} name={title} fill={COLORS[0]} isAnimationActive animationDuration={500} />
+              )}
             </BarChart>
           </ResponsiveContainer>
         );
     }
-  };
-
-  // Manual Transaction Handlers
-  const handleManualFormChange = (e) => {
-    const { name, value } = e.target;
-    setManualTxData(prev => ({ ...prev, [name]: value }));
-    setModalError('');
-  };
-
-  const handleManualSubmit = async (e) => {
-    e.preventDefault();
-    setModalError('');
-    setIsSubmittingManual(true);
-
-    const { type, amount, category, date } = manualTxData;
-    if (!type || !amount || !category || !date || parseFloat(amount) <= 0) {
-      setModalError('Please fill all required fields with a valid positive amount.');
-      setIsSubmittingManual(false);
-      return;
-    }
-
-    const token = getAuthToken();
-    if (!token) {
-      setModalError('Authentication error. Please log in again.');
-      setIsSubmittingManual(false);
-      return;
-    }
-
-    const payload = {
-      type,
-      amount: parseFloat(amount),
-      category,
-      date,
-      description: manualTxData.description,
-      source: 'manual',
-    };
-
-    try {
-      await axios.post(`${import.meta.env.VITE_BACKEND_URL}/api/transactions`, payload, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      setIsManualTxModalOpen(false);
-      setManualTxData({
-        type: 'debit',
-        amount: '',
-        category: '',
-        date: formatDateForInput(new Date()),
-        description: '',
-      });
-      fetchData();
-    } catch (err) {
-      const errorMessage = err.response?.data?.message || 'Failed to record transaction.';
-      setModalError(errorMessage);
-    } finally {
-      setIsSubmittingManual(false);
-    }
-  };
-
-  // Scan Transaction Handlers
-  const handleScanFileChange = (e) => {
-    const file = e.target.files[0];
-    setScanFile(file);
-    setScanError('');
-  };
-
-  const handleScanSubmit = async (e) => {
-    e.preventDefault();
-    setScanError('');
-    setIsScanning(true);
-
-    if (!scanFile) {
-      setScanError('Please select an image or PDF to scan.');
-      setIsScanning(false);
-      return;
-    }
-
-    const token = getAuthToken();
-    if (!token) {
-      setScanError('Authentication error. Please log in again.');
-      setIsScanning(false);
-      return;
-    }
-
-    const formData = new FormData();
-    formData.append('bill', scanFile);
-
-    try {
-      await axios.post(`${import.meta.env.VITE_BACKEND_URL}/api/billscan`, formData, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'multipart/form-data',
-        },
-      });
-      setIsScanModalOpen(false);
-      setScanFile(null);
-      fetchData();
-    } catch (err) {
-      const errorMessage = err.response?.data?.message || 'Failed to process bill scan.';
-      setScanError(errorMessage);
-    } finally {
-      setIsScanning(false);
-    }
-  };
-
-  // Quick Actions
-  const quickActions = [
-    {
-      id: 'scan',
-      icon: <FileText size={28} />,
-      label: 'Scan Bill',
-      color: 'bg-gradient-to-br from-blue-500 to-blue-600',
-      action: () => setIsScanModalOpen(true),
-    },
-    {
-      id: 'manual',
-      icon: <PlusCircle size={28} />,
-      label: 'Add Transaction',
-      color: 'bg-gradient-to-br from-green-500 to-green-600',
-      action: () => setIsManualTxModalOpen(true),
-    },
-    {
-      id: 'compare-budget-expense',
-      icon: <Scale size={28} />,
-      label: 'Compare Budget & Expense',
-      color: 'bg-gradient-to-br from-purple-500 to-purple-600',
-      action: () => navigate('/dashboard/compare-budget-expense'), // Redirect to AI Analysis page for comparison
-    },
-    {
-      id: 'ai-analysis',
-      icon: <Brain size={28} />,
-      label: 'AI Analysis',
-      color: 'bg-gradient-to-br from-indigo-500 to-indigo-600',
-      action: () => navigate('/dashboard/ai-analysis'), // Redirect to new route
-    },
-  ];
+  });
 
   // Animation Variants
   const cardVariants = {
-    hidden: { opacity: 0, y: 20 },
-    visible: { opacity: 1, y: 0, transition: { duration: 0.5, ease: 'easeOut' } },
-    hover: { scale: 1.05, boxShadow: '0 10px 20px rgba(0,0,0,0.1)', transition: { duration: 0.2 } },
-    tap: { scale: 0.95 },
+    hidden: { opacity: 0, y: 8 },
+    visible: { opacity: 1, y: 0, transition: { duration: 0.2, ease: 'easeOut' } },
+    hover: { scale: 1.03, transition: { duration: 0.15 } },
   };
 
   const itemVariants = {
-    hidden: { opacity: 0, x: -20 },
+    hidden: { opacity: 0, x: -4 },
     visible: (i) => ({
       opacity: 1,
       x: 0,
-      transition: { delay: i * 0.1, duration: 0.4, ease: 'easeOut' },
+      transition: { delay: i * 0.04, duration: 0.15, ease: 'easeOut' },
     }),
   };
 
-  const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#6366F1', '#EC4899', '#8B5CF6', '#F97316'];
+  const drawerVariants = {
+    hidden: { x: '100%', opacity: 0 },
+    visible: { x: 0, opacity: 1, transition: { duration: 0.25, ease: 'easeOut' } },
+    exit: { x: '100%', opacity: 0, transition: { duration: 0.15, ease: 'easeIn' } },
+  };
+
+  const COLORS = ['#2563EB', '#059669', '#D97706', '#7C3AED', '#DB2777', '#6D28D9', '#EA580C'];
 
   if (isLoading) {
     return (
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        className="flex justify-center items-center py-20 bg-gradient-to-b from-gray-50 to-gray-100 min-h-screen"
+        className="flex flex-col items-center justify-center py-12 sm:py-16 min-h-[calc(100vh-4rem)] bg-gray-50"
       >
-        <Loader2 className="animate-spin h-12 w-12 text-blue-500" />
-        <p className="ml-4 text-lg text-gray-700 font-medium">Loading your dashboard...</p>
+        <Loader2 className="animate-spin h-6 w-6 text-blue-600" />
+        <p className="mt-2 text-xs font-medium text-gray-600">Loading your financial insights...</p>
       </motion.div>
     );
   }
@@ -526,13 +513,15 @@ const HomeView = () => {
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        className="bg-red-50 border-l-4 border-red-500 text-red-700 p-6 rounded-lg max-w-3xl mx-auto mt-8 shadow-md"
+        className="flex items-center justify-center min-h-[calc(100vh-4rem)] bg-gray-50 p-4"
       >
-        <div className="flex items-center">
-          <AlertTriangle className="w-6 h-6 mr-3" />
-          <div>
-            <strong className="font-bold text-lg">Error!</strong>
-            <p className="mt-1">{error}</p>
+        <div className="bg-white p-4 rounded-xl shadow-md max-w-sm w-full border border-red-50">
+          <div className="flex items-center">
+            <AlertTriangle className="w-4 h-4 text-red-500 mr-2" />
+            <div>
+              <strong className="font-semibold text-gray-800 text-sm">Error</strong>
+              <p className="mt-1 text-xs text-gray-600">{error}</p>
+            </div>
           </div>
         </div>
       </motion.div>
@@ -540,120 +529,104 @@ const HomeView = () => {
   }
 
   return (
-    <div className="space-y-8 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 bg-gradient-to-b from-gray-50 to-gray-100 min-h-screen">
+    <div className="min-h-[calc(100vh-4rem)] bg-gray-50 p-2 sm:p-4 lg:p-5 space-y-3 sm:space-y-4">
       {/* Header */}
       <motion.div
-        initial={{ opacity: 0, y: -20 }}
+        initial={{ opacity: 0, y: -8 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
-        className="flex justify-between items-center"
+        className="flex justify-between items-center sticky top-0 bg-white p-2 sm:p-3 rounded-xl shadow-sm z-10"
       >
-        <h2 className="text-3xl font-bold text-gray-800">Financial Dashboard</h2>
-        <div className="flex space-x-2">
-          <button
-            onClick={() => setShowFilters(!showFilters)}
-            className="bg-gray-200 text-gray-800 px-4 py-2 rounded-lg shadow hover:bg-gray-300 flex items-center"
-          >
-            <Filter size={18} className="mr-2" /> {showFilters ? 'Hide Filters' : 'Show Filters'}
-          </button>
-        </div>
+        <h2 className="text-base sm:text-lg font-bold text-gray-900">Financial Dashboard</h2>
+        <button
+          onClick={() => setShowFilters(true)}
+          className="p-1.5 min-h-[44px] min-w-[44px] bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center text-sm font-medium"
+        >
+          <Filter size={17} className="mr-4 sm:mr-1.5 ml-4 sm:ml-1.5" /> <span className="sm:inline mr-4 sm:mr-1.5 ml-4 sm:ml-1.5">Filter</span>
+        </button>
       </motion.div>
 
       {/* Quick Actions */}
       <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ duration: 0.6 }}
-        className="grid grid-cols-2 sm:grid-cols-4 gap-6"
+        variants={cardVariants}
+        initial="hidden"
+        animate="visible"
+        className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3"
       >
-        {quickActions.map((action) => (
+        {[
+          { id: 'scan', icon: <FileText size={18} />, label: 'Scan Bill', color: 'bg-gradient-to-br from-blue-600 to-blue-800', action: () => setIsScanModalOpen(true), order: 'order-1' },
+          { id: 'manual', icon: <PlusCircle size={18} />, label: 'Add Transaction', color: 'bg-gradient-to-br from-green-600 to-green-800', action: () => setIsManualTxModalOpen(true), order: 'order-2' },
+          { id: 'compare', icon: <BarChart2 size={18} />, label: 'Compare Budget vs Expenses', color: 'bg-gradient-to-br from-purple-600 to-purple-800', action: () => setActiveTab('compare'), order: 'order-3' },
+          { id: 'ai-analysis', icon: <Brain size={18} />, label: 'AI Analysis', color: 'bg-gradient-to-br from-orange-600 to-orange-800', action: () => setActiveTab('ai-analysis'), order: 'order-4' },
+        ].map((action) => (
           <motion.button
             key={action.id}
             variants={cardVariants}
-            initial="hidden"
-            animate="visible"
             whileHover="hover"
-            whileTap="tap"
-            className={`${action.color} rounded-2xl p-6 text-white shadow-lg hover:shadow-xl transition-all duration-300 flex flex-col items-center justify-center relative overflow-hidden group`}
+            whileTap={{ scale: 0.95 }}
+            className={`${action.color} ${action.order} text-white p-3 sm:p-4 rounded-xl shadow-md border border-gray-100 relative overflow-hidden group hover:shadow-lg transition-all duration-150 min-h-[110px]`}
             onClick={action.action}
           >
-            <div className="absolute inset-0 bg-white/10 group-hover:bg-white/20 transition-opacity duration-300"></div>
-            <div className="relative z-10 flex flex-col items-center">
+            <div className="absolute inset-0 bg-white/10 group-hover:bg-white/20 transition-opacity"></div>
+            <div className="relative flex flex-col items-center space-y-2">
               {action.icon}
-              <span className="mt-3 text-lg font-semibold tracking-tight">{action.label}</span>
+              <span className="text-[11px] sm:text-xs font-semibold text-center leading-tight line-clamp-2">{action.label}</span>
             </div>
           </motion.button>
         ))}
       </motion.div>
 
-      {/* Overview Section */}
-      <motion.div
-        variants={cardVariants}
-        initial="hidden"
-        animate="visible"
-        className="bg-white rounded-xl shadow-lg p-6"
-      >
-        <h3 className="text-lg font-semibold text-gray-800 mb-4">Financial Overview</h3>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="bg-gradient-to-br from-blue-50 to-blue-100 p-4 rounded-lg">
-            <p className="text-sm text-gray-600">Total Expenses</p>
-            <p className="text-xl font-bold text-blue-600">{formatCurrency(overview.totalExpenses)}</p>
-          </div>
-          <div className="bg-gradient-to-br from-green-50 to-green-100 p-4 rounded-lg">
-            <p className="text-sm text-gray-600">Total Budget</p>
-            <p className="text-xl font-bold text-green-600">{formatCurrency(overview.totalBudget)}</p>
-          </div>
-          <div className="bg-gradient-to-br from-purple-50 to-purple-100 p-4 rounded-lg">
-            <p className="text-sm text-gray-600">Top Expense Category</p>
-            <p className="text-xl font-bold text-purple-600 capitalize">{overview.topCategory}</p>
-          </div>
-          <div className="bg-gradient-to-br from-orange-50 to-orange-100 p-4 rounded-lg">
-            <p className="text-sm text-gray-600">Total Transactions</p>
-            <p className="text-xl font-bold text-orange-600">{overview.transactionCount}</p>
-          </div>
-        </div>
-      </motion.div>
-
-      {/* Filters Section */}
+      {/* Filters Drawer (Mobile) / Card (Desktop) */}
       <AnimatePresence>
         {showFilters && (
           <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            className="bg-white rounded-xl shadow-lg p-6 mb-4 overflow-hidden"
+            variants={drawerVariants}
+            initial="hidden"
+            animate="visible"
+            exit="exit"
+            className="fixed inset-y-0 right-0 w-[90%] sm:w-72 bg-white p-3 sm:p-4 rounded-l-xl shadow-lg z-50 sm:static sm:bg-white/95 sm:rounded-xl sm:shadow-md"
           >
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="flex justify-between items-center mb-2 sm:mb-3">
+              <h3 className="text-base font-semibold text-gray-800">Filters</h3>
+              <button
+                onClick={() => setShowFilters(false)}
+                className="text-gray-600 hover:text-gray-800 p-1 min-h-[44px] min-w-[44px]"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="space-y-2 sm:space-y-3">
               <div>
-                <label htmlFor="startDate" className="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
+                <label htmlFor="startDate" className="block text-[11px] sm:text-xs font-medium text-gray-700">Start Date</label>
                 <input
                   type="date"
                   id="startDate"
                   name="startDate"
                   value={filters.startDate}
                   onChange={handleFilterChange}
-                  className="w-full p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="mt-1 w-full p-1.5 sm:p-2 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-[11px] sm:text-xs"
                 />
               </div>
               <div>
-                <label htmlFor="endDate" className="block text-sm font-medium text-gray-700 mb-1">End Date</label>
+                <label htmlFor="endDate" className="block text-[11px] sm:text-xs font-medium text-gray-700">End Date</label>
                 <input
                   type="date"
                   id="endDate"
                   name="endDate"
-                  value={filters.startDate}
+                  value={filters.endDate}
                   onChange={handleFilterChange}
-                  className="w-full p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="mt-1 w-full p-1.5 sm:p-2 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-[11px] sm:text-xs"
                 />
               </div>
               <div>
-                <label htmlFor="category" className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+                <label htmlFor="category" className="block text-[11px] sm:text-xs font-medium text-gray-700">Category</label>
                 <select
                   id="category"
                   name="category"
                   value={filters.category}
                   onChange={handleFilterChange}
-                  className="w-full p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="mt-1 w-full p-1.5 sm:p-2 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-[11px] sm:text-xs"
                 >
                   {categories.map(cat => (
                     <option key={cat} value={cat}>{cat}</option>
@@ -664,339 +637,220 @@ const HomeView = () => {
           </motion.div>
         )}
       </AnimatePresence>
+      {showFilters && <div className="fixed inset-0 bg-black/60 z-40 sm:hidden" onClick={() => setShowFilters(false)}></div>}
 
-      {/* Chart Type Selector */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="flex items-center space-x-2"
-      >
-        <label className="text-sm font-medium text-gray-700">Chart Type:</label>
-        <select
-          value={chartType}
-          onChange={(e) => setChartType(e.target.value)}
-          className="border p-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-        >
-          <option value="bar"><BarChart2 size={16} className="mr-2 inline" /> Bar Chart</option>
-          <option value="pie"><PieIcon size={16} className="mr-2 inline" /> Pie Chart</option>
-          <option value="treemap"><TreemapIcon size={16} className="mr-2 inline" /> Treemap</option>
-          <option value="area"><AreaIcon size={16} className="mr-2 inline" /> Area Chart</option>
-          <option value="scatter"><ScatterIcon size={16} className="mr-2 inline" /> Scatter Chart</option>
-          <option value="radar"><RadarIcon size={16} className="mr-2 inline" /> Radar Chart</option>
-          <option value="funnel"><FunnelIcon size={16} className="mr-2 inline" /> Funnel Chart</option>
-        </select>
-      </motion.div>
-
-      {/* Financial Charts */}
+      {/* Overview Cards */}
       <motion.div
         variants={cardVariants}
         initial="hidden"
         animate="visible"
-        className="grid grid-cols-1 lg:grid-cols-2 gap-8"
+        className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3"
       >
-        <div className="bg-white rounded-xl shadow-lg p-6">
-          <h3 className="text-lg font-semibold text-gray-800 mb-4">Expenses Over Time</h3>
-          {areaChartData.length > 0 ? (
+        {[
+          { label: 'Total Expenses', value: formatCurrency(overview.totalExpenses), color: 'text-blue-600', bg: 'bg-blue-50' },
+          { label: 'Total Budget', value: formatCurrency(overview.totalBudget), color: 'text-green-600', bg: 'bg-green-50' },
+          { label: 'Top Category', value: overview.topCategory, color: 'text-purple-600', bg: 'bg-purple-50', capitalize: true },
+          { label: 'Transactions', value: overview.transactionCount, color: 'text-orange-600', bg: 'bg-orange-50' },
+        ].map((item, index) => (
+          <motion.div
+            key={item.label}
+            variants={cardVariants}
+            whileHover="hover"
+            className={`p-2 sm:p-3 rounded-xl shadow-md ${item.bg} border-2 border-gray-50`}
+            custom={index}
+          >
+            <p className="text-[11px] sm:text-xs text-gray-600">{item.label}</p>
+            <p className={`text-sm sm:text-base font-semibold ${item.color} ${item.capitalize ? 'capitalize' : ''}`}>{item.value}</p>
+          </motion.div>
+        ))}
+      </motion.div>
+
+      {/* Expenses Insights */}
+      <motion.div
+        variants={cardVariants}
+        initial="hidden"
+        animate="visible"
+        className="bg-white rounded-xl shadow-md p-2 sm:p-4 border-2 border-gray-50"
+      >
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-2 sm:mb-3">
+          <h3 className="text-base sm:text-lg font-semibold text-gray-800 mb-2 sm:mb-0">Expenses Insights</h3>
+          <div className="flex space-x-1 overflow-x-auto pb-1">
+            {[
+              { value: 'area', icon: <AreaIcon size={11} /> },
+              { value: 'bar', icon: <BarChart2 size={11} /> },
+              { value: 'pie', icon: <PieIcon size={11} /> },
+              { value: 'treemap', icon: <TreemapIcon size={11} /> },
+              { value: 'scatter', icon: <ScatterIcon size={11} /> },
+              { value: 'radar', icon: <RadarIcon size={11} /> },
+              { value: 'funnel', icon: <FunnelIcon size={11} /> },
+            ].map((type) => (
+              <button
+                key={type.value}
+                onClick={() => setChartType(type.value)}
+                className={`p-1 sm:p-1.5 rounded-lg text-[11px] flex items-center min-h-[44px] min-w-[44px] ${chartType === type.value ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-100'}`}
+              >
+                {type.icon}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4 overflow-x-auto">
+          <div className="min-w-[500px] sm:min-w-0">
+            <h4 className="text-[11px] sm:text-xs font-medium text-gray-700 mb-2">Expenses Over Time</h4>
+            {expenseOverTimeData.length > 0 ? (
+              <ChartComponent
+                data={expenseOverTimeData}
+                title="Expenses Over Time"
+                dataKey="amount"
+                nameKey="date"
+              />
+            ) : (
+              <p className="text-gray-500 text-center py-3 sm:py-4 text-[11px] sm:text-xs">No expense data available.</p>
+            )}
+          </div>
+          <div className="min-w-[500px] sm:min-w-0">
+            <h4 className="text-[11px] sm:text-xs font-medium text-gray-700 mb-2">Expense Categories</h4>
+            {expenseCategoryData.length > 0 ? (
+              <ChartComponent
+                data={expenseCategoryData}
+                title="Expense Categories"
+                dataKey="value"
+                nameKey="name"
+              />
+            ) : (
+              <p className="text-gray-500 text-center py-3 sm:py-4 text-[11px] sm:text-xs">No expense data available.</p>
+            )}
+          </div>
+        </div>
+      </motion.div>
+
+      {/* Budget Insights */}
+      <motion.div
+        variants={cardVariants}
+        initial="hidden"
+        animate="visible"
+        className="bg-white rounded-xl shadow-md p-2 sm:p-4 border-2 border-gray-50"
+      >
+        <h3 className="text-base sm:text-lg font-semibold text-gray-800 mb-2 sm:mb-3">Budget Insights</h3>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4 overflow-x-auto">
+          <div className="min-w-[500px] sm:min-w-0">
+            <h4 className="text-[11px] sm:text-xs font-medium text-gray-700 mb-2">Budgets Over Time</h4>
+            {budgetOverTimeData.length > 0 ? (
+              <ChartComponent
+                data={budgetOverTimeData}
+                title="Budgets Over Time"
+                dataKey="amount"
+                nameKey="date"
+              />
+            ) : (
+              <p className="text-gray-500 text-center py-3 sm:py-4 text-[11px] sm:text-xs">No budget data available.</p>
+            )}
+          </div>
+          <div className="min-w-[500px] sm:min-w-0">
+            <h4 className="text-[11px] sm:text-xs font-medium text-gray-700 mb-2">Budget Categories</h4>
+            {budgetCategoryData.length > 0 ? (
+              <ChartComponent
+                data={budgetCategoryData}
+                title="Budget Categories"
+                dataKey="value"
+                nameKey="name"
+              />
+            ) : (
+              <p className="text-gray-500 text-center py-3 sm:py-4 text-[11px] sm:text-xs">No budget data available.</p>
+            )}
+          </div>
+        </div>
+      </motion.div>
+
+      {/* Comparison Insights */}
+      <motion.div
+        variants={cardVariants}
+        initial="hidden"
+        animate="visible"
+        className="bg-white rounded-xl shadow-md p-2 sm:p-4 border-2 border-gray-50"
+      >
+        <h3 className="text-base sm:text-lg font-semibold text-gray-800 mb-2 sm:mb-3">Comparison Insights</h3>
+        <div className="overflow-x-auto">
+          <h4 className="text-[11px] sm:text-xs font-medium text-gray-700 mb-2">Expenses vs Budget</h4>
+          {blendedChartData.length > 0 ? (
             <ChartComponent
-              data={areaChartData}
-              title="Expenses"
-              color="#DC2626"
-              dataKey="amount"
+              data={blendedChartData}
+              title="Expenses vs Budget"
+              dataKey="expense"
               nameKey="date"
+              isBlended={true}
             />
           ) : (
-            <p className="text-gray-500 text-center py-8">No expense data available.</p>
-          )}
-        </div>
-        <div className="bg-white rounded-xl shadow-lg p-6">
-          <h3 className="text-lg font-semibold text-gray-800 mb-4">Expense Categories</h3>
-          {pieChartData.length > 0 ? (
-            <ChartComponent
-              data={pieChartData}
-              title="Expenses"
-              color="#3B82F6"
-              dataKey="value"
-            />
-          ) : (
-            <p className="text-gray-500 text-center py-8">No expense data available.</p>
-          )}
-        </div>
-        <div className="bg-white rounded-xl shadow-lg p-6">
-          <h3 className="text-lg font-semibold text-gray-800 mb-4">Budget Allocation</h3>
-          {budgetChartData.length > 0 ? (
-            <ChartComponent
-              data={budgetChartData}
-              title="Budget"
-              color="#10B981"
-              dataKey="amount"
-              nameKey="category"
-            />
-          ) : (
-            <p className="text-gray-500 text-center py-8">No budget data available.</p>
-          )}
-        </div>
-        <div className="bg-white rounded-xl shadow-lg p-6">
-          <h3 className="text-lg font-semibold text-gray-800 mb-4">Recent Transactions</h3>
-          {summaryData?.recentTransactions && summaryData.recentTransactions.length > 0 ? (
-            <div className="space-y-4 max-h-64 overflow-y-auto pr-2">
-              {summaryData.recentTransactions.map((tx, index) => (
-                <motion.div
-                  key={tx._id}
-                  custom={index}
-                  variants={itemVariants}
-                  initial="hidden"
-                  animate="visible"
-                  className="flex justify-between items-center p-4 hover:bg-gray-50 rounded-xl border-b last:border-b-0"
-                >
-                  <div className="flex-1 mr-4 overflow-hidden">
-                    <p className="font-semibold text-gray-800 capitalize truncate">{tx.category}</p>
-                    <p className="text-sm text-gray-600 truncate">{tx.description || '-'}</p>
-                    <p className="text-xs text-gray-400 mt-1">{formatDateForDisplay(tx.date)}</p>
-                    {tx.source === 'manual' && <span className="text-xs text-blue-500 italic">(Manual)</span>}
-                    {tx.source === 'billscan' && <span className="text-xs text-purple-500 italic">(Scanned)</span>}
-                  </div>
-                  <div className={`font-semibold text-right whitespace-nowrap ${tx.type === 'credit' ? 'text-green-600' : 'text-red-600'}`}>
-                    {tx.type === 'credit' ? '+' : '-'}{formatCurrency(tx.amount)}
-                  </div>
-                </motion.div>
-              ))}
-            </div>
-          ) : (
-            <p className="text-gray-500 text-center py-8">No recent transactions found. Try scanning a bill or adding a manual transaction.</p>
+            <p className="text-gray-500 text-center py-3 sm:py-4 text-[11px] sm:text-xs">No data available for expenses or budget.</p>
           )}
         </div>
       </motion.div>
 
-      {/* Transaction List */}
+      {/* Expense History */}
       <motion.div
         variants={cardVariants}
         initial="hidden"
         animate="visible"
-        className="bg-white rounded-xl shadow-lg p-6"
+        className="bg-white rounded-xl shadow-md p-2 sm:p-4 border-2 border-gray-50"
       >
-        <h3 className="text-lg font-semibold text-gray-800 mb-4">Expense History</h3>
+        <h3 className="text-base sm:text-lg font-semibold text-gray-800 mb-2 sm:mb-3">Expense History</h3>
         {transactions.length > 0 ? (
           <>
-            <div className="space-y-3 max-h-96 overflow-y-auto pr-2">
-              {transactions.map((tx, index) => (
-                <motion.div
-                  key={tx._id}
-                  custom={index}
-                  variants={itemVariants}
-                  initial="hidden"
-                  animate="visible"
-                  className="flex flex-col sm:flex-row justify-between items-start sm:items-center p-3 border-b last:border-b-0 hover:bg-gray-50 rounded-lg"
-                >
-                  <div className="flex-1 mb-2 sm:mb-0 sm:mr-3">
-                    <p className="font-medium text-gray-800 capitalize">{tx.category}</p>
-                    <p className="text-sm text-gray-600 truncate">{tx.description || '-'}</p>
-                    <p className="text-xs text-gray-400">{formatDateForDisplay(tx.date)}</p>
-                    {tx.source === 'manual' && <span className="text-xs text-blue-500 italic">(Manual)</span>}
-                    {tx.source === 'billscan' && <span className="text-xs text-purple-500 italic">(Scanned)</span>}
-                  </div>
-                  <div className="font-semibold text-red-600 text-right w-full sm:w-auto">
-                    -{formatCurrency(tx.amount)}
-                  </div>
-                </motion.div>
-              ))}
+            <div className="overflow-x-auto">
+              <div className="min-w-[500px] max-h-72 overflow-y-auto">
+                <div className="grid grid-cols-4 gap-1 sm:gap-2 p-1 sm:p-2 bg-gray-50 rounded-lg sticky top-0 z-10">
+                  <p className="text-[11px] sm:text-xs font-semibold text-gray-700">Category</p>
+                  <p className="text-[11px] sm:text-xs font-semibold text-gray-700">Description</p>
+                  <p className="text-[11px] sm:text-xs font-semibold text-gray-700">Date</p>
+                  <p className="text-[11px] sm:text-xs font-semibold text-gray-700 text-right">Amount</p>
+                </div>
+                {transactions.map((tx, index) => (
+                  <motion.div
+                    key={tx._id}
+                    custom={index}
+                    variants={itemVariants}
+                    initial="hidden"
+                    animate="visible"
+                    className="grid grid-cols-4 gap-1 sm:gap-2 p-1 sm:p-2 border-b border-gray-200 hover:bg-gray-100 rounded-lg"
+                  >
+                    <p className="text-[11px] sm:text-xs text-gray-800 capitalize">{tx.category}</p>
+                    <p className="text-[11px] sm:text-xs text-gray-600 truncate">{tx.description || '-'}</p>
+                    <p className="text-[11px] sm:text-xs text-gray-600">{formatDateForMobile(tx.date)}</p>
+                    <p className="text-[11px] sm:text-xs text-red-600 font-semibold text-right">-{formatCurrency(tx.amount)}</p>
+                    {tx.source === 'manual' && <span className="text-[10px] text-blue-500 col-span-4">(Manual)</span>}
+                    {tx.source === 'billscan' && <span className="text-[10px] text-purple-500 col-span-4">(Scanned)</span>}
+                  </motion.div>
+                ))}
+              </div>
             </div>
-            <div className="flex justify-between items-center mt-6 text-sm">
-              <span className="text-gray-600">
+            <div className="flex justify-between items-center mt-2 sm:mt-3 text-[11px] sm:text-xs">
+              <span className="text-gray-600 text-[10px]">
                 Page {pagination.currentPage} of {pagination.totalPages} ({pagination.totalTransactions} items)
               </span>
-              <div className="space-x-2">
+              <div className="flex space-x-1">
                 <button
                   onClick={() => handlePageChange(pagination.currentPage - 1)}
                   disabled={pagination.currentPage <= 1 || isLoading}
-                  className="p-2 rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="p-1 sm:p-1.5 rounded-lg bg-gray-100 hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed min-h-[44px] min-w-[44px]"
                 >
-                  <ChevronLeft size={18} />
+                  <ChevronLeft size={12} />
                 </button>
                 <button
                   onClick={() => handlePageChange(pagination.currentPage + 1)}
                   disabled={pagination.currentPage >= pagination.totalPages || isLoading}
-                  className="p-2 rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="p-1 sm:p-1.5 rounded-lg bg-gray-100 hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed min-h-[44px] min-w-[44px]"
                 >
-                  <ChevronRight size={18} />
+                  <ChevronRight size={12} />
                 </button>
               </div>
             </div>
           </>
         ) : (
-          <p className="text-gray-500 text-center py-10">No expenses found matching your filters.</p>
+          <p className="text-gray-500 text-center py-3 sm:py-4 text-[11px] sm:text-xs">No expenses found.</p>
         )}
       </motion.div>
-
-      {/* Manual Transaction Modal */}
-      <AnimatePresence>
-        {isManualTxModalOpen && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
-          >
-            <motion.div
-              initial={{ scale: 0.95, y: 20 }}
-              animate={{ scale: 1, y: 0 }}
-              exit={{ scale: 0.95, y: 20 }}
-              className="bg-white rounded-xl p-6 w-full max-w-md shadow-xl"
-            >
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="text-lg font-semibold text-gray-800">Add Manual Transaction</h3>
-                <button
-                  onClick={() => setIsManualTxModalOpen(false)}
-                  className="text-gray-500 hover:text-gray-700"
-                >
-                  <IconX size={24} />
-                </button>
-              </div>
-              <p className="text-xs text-gray-500 mb-4">Record a past transaction (e.g., cash payment).</p>
-              {modalError && <p className="text-red-500 text-sm mb-3 bg-red-50 p-2 rounded">{modalError}</p>}
-              <form onSubmit={handleManualSubmit} className="space-y-4">
-                <div className="flex items-center space-x-4">
-                  <span className="text-sm font-medium text-gray-700">Type *:</span>
-                  <label className="flex items-center">
-                    <input
-                      type="radio"
-                      name="type"
-                      value="debit"
-                      checked={manualTxData.type === 'debit'}
-                      onChange={handleManualFormChange}
-                      required
-                      className="mr-1"
-                    /> Debit
-                  </label>
-                  <label className="flex items-center">
-                    <input
-                      type="radio"
-                      name="type"
-                      value="credit"
-                      checked={manualTxData.type === 'credit'}
-                      onChange={handleManualFormChange}
-                      className="mr-1"
-                    /> Credit
-                  </label>
-                </div>
-                <div>
-                  <label htmlFor="amountModal" className="block text-sm font-medium text-gray-700 mb-1">Amount *</label>
-                  <input
-                    id="amountModal"
-                    name="amount"
-                    type="number"
-                    step="0.01"
-                    min="0.01"
-                    value={manualTxData.amount}
-                    onChange={handleManualFormChange}
-                    required
-                    placeholder="Enter amount"
-                    className="w-full p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-                <div>
-                  <label htmlFor="categoryModal" className="block text-sm font-medium text-gray-700 mb-1">Category *</label>
-                  <input
-                    id="categoryModal"
-                    name="category"
-                    type="text"
-                    value={manualTxData.category}
-                    onChange={handleManualFormChange}
-                    required
-                    placeholder="e.g., Groceries, Salary"
-                    className="w-full p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-                <div>
-                  <label htmlFor="dateModal" className="block text-sm font-medium text-gray-700 mb-1">Date *</label>
-                  <input
-                    id="dateModal"
-                    name="date"
-                    type="date"
-                    value={manualTxData.date}
-                    onChange={handleManualFormChange}
-                    required
-                    className="w-full p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-                <div>
-                  <label htmlFor="descriptionModal" className="block text-sm font-medium text-gray-700 mb-1">Description (Optional)</label>
-                  <textarea
-                    id="descriptionModal"
-                    name="description"
-                    rows="2"
-                    value={manualTxData.description}
-                    onChange={handleManualFormChange}
-                    placeholder="Add a note about the transaction"
-                    className="w-full p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  ></textarea>
-                </div>
-                <button
-                  type="submit"
-                  disabled={isSubmittingManual}
-                  className={`w-full ${isSubmittingManual ? 'bg-gray-400' : 'bg-blue-500 hover:bg-blue-600'} text-white py-2 rounded-lg transition-colors flex items-center justify-center`}
-                >
-                  {isSubmittingManual ? <Loader2 className="animate-spin h-5 w-5 mr-2" /> : null}
-                  {isSubmittingManual ? 'Recording...' : 'Record Transaction'}
-                </button>
-              </form>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Scan Bill Modal */}
-      <AnimatePresence>
-        {isScanModalOpen && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
-          >
-            <motion.div
-              initial={{ scale: 0.95, y: 20 }}
-              animate={{ scale: 1, y: 0 }}
-              exit={{ scale: 0.95, y: 20 }}
-              className="bg-white rounded-xl p-6 w-full max-w-md shadow-xl"
-            >
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="text-lg font-semibold text-gray-800">Scan Bill</h3>
-                <button
-                  onClick={() => setIsScanModalOpen(false)}
-                  className="text-gray-500 hover:text-gray-700"
-                >
-                  <IconX size={24} />
-                </button>
-              </div>
-              <p className="text-xs text-gray-500 mb-4">Upload an image or PDF of a bill to extract transaction details.</p>
-              {scanError && <p className="text-red-500 text-sm mb-3 bg-red-50 p-2 rounded">{scanError}</p>}
-              <form onSubmit={handleScanSubmit} className="space-y-4">
-                <div>
-                  <label htmlFor="billImage" className="block text-sm font-medium text-gray-700 mb-1">Upload Bill *</label>
-                  <input
-                    id="billImage"
-                    type="file"
-                    accept="image/*,application/pdf"
-                    onChange={handleScanFileChange}
-                    required
-                    className="w-full p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-                <button
-                  type="submit"
-                  disabled={isScanning}
-                  className={`w-full ${isScanning ? 'bg-gray-400' : 'bg-blue-500 hover:bg-blue-600'} text-white py-2 rounded-lg transition-colors flex items-center justify-center`}
-                >
-                  {isScanning ? <Loader2 className="animate-spin h-5 w-5 mr-2" /> : null}
-                  {isScanning ? 'Scanning...' : 'Scan Bill'}
-                </button>
-              </form>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
     </div>
   );
-};
+});
 
 export default HomeView;

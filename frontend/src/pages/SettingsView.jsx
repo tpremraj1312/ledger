@@ -1,358 +1,225 @@
-// src/pages/SettingsView.jsx
-import React, { useState, useEffect, useCallback } from 'react';
-import { Link } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { User, CreditCard, Bell, Lock, PlusCircle, Star, Trash2, Loader2, CheckCircle, XCircle, Eye, EyeOff, Settings } from 'lucide-react'; // Added Settings
 
-const formatCurrency = (amount) => {
-  if (amount === undefined || amount === null) return '₹0.00';
-  return `₹${amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-};
-const getAuthToken = () => localStorage.getItem("token");
-
-const SettingsView = ({ accounts, refreshAccounts, isLoadingAccounts, accountsError }) => {
-  const [userInfo, setUserInfo] = useState(null);
-  const [isLoadingProfile, setIsLoadingProfile] = useState(true);
-  const [profileError, setProfileError] = useState(null);
-  const [passwordData, setPasswordData] = useState({
-    currentPassword: '',
-    newPassword: '',
-    confirmNewPassword: '',
+const SettingsView = () => {
+  // State for user profile
+  const [user, setUser] = useState({
+    username: '',
+    email: '',
+    password: '',
+    confirmPassword: '',
   });
-  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
-  const [showNewPassword, setShowNewPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [isChangingPassword, setIsChangingPassword] = useState(false);
-  const [passwordChangeError, setPasswordChangeError] = useState('');
-  const [passwordChangeSuccess, setPasswordChangeSuccess] = useState('');
-  const [isProcessingAction, setIsProcessingAction] = useState(false);
-  const [actionError, setActionError] = useState('');
 
-  const fetchUserProfile = async () => {
-    setIsLoadingProfile(true);
-    setProfileError(null);
-    const token = getAuthToken();
-    
-    if (!token) {
-      setProfileError("Authentication required. Please log in.");
-      setIsLoadingProfile(false);
-      return;
-    }
+  // State for budget preferences
+  const [budgetPrefs, setBudgetPrefs] = useState({
+    defaultPeriod: 'Monthly',
+    defaultType: 'expense',
+  });
 
-    try {
-      const response = await axios.get(`${import.meta.env.VITE_BACKEND_URL}/api/auth/me`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      setUserInfo(response.data);
-    } catch (err) {
-      console.error("Error fetching user profile:", err);
-      setProfileError(err.response?.data?.message || "Failed to load profile data.");
-    } finally {
-      setIsLoadingProfile(false);
-    }
-  };
+  // State for form errors and success messages
+  const [errors, setErrors] = useState({});
+  const [successMessage, setSuccessMessage] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
 
+  // Fetch current user data on component mount
   useEffect(() => {
-    fetchUserProfile();
+    const fetchUserData = async () => {
+      try {
+        // Replace with actual user ID or retrieve from auth context
+        const response = await axios.get('/api/users/me');
+        setUser({
+          username: response.data.username,
+          email: response.data.email,
+          password: '',
+          confirmPassword: '',
+        });
+      } catch (err) {
+        setErrors({ general: 'Failed to load user data' });
+      }
+    };
+    fetchUserData();
   }, []);
 
-  const handleSetPrimary = async (accountId) => {
-    setIsProcessingAction(true);
-    setActionError('');
-    const token = getAuthToken();
-    
-    if (!token) {
-      setActionError("Authentication required. Please log in.");
-      setIsProcessingAction(false);
-      return;
-    }
-
-    try {
-      await axios.patch(
-        `${import.meta.env.VITE_BACKEND_URL}/api/accounts/${accountId}/set-primary`,
-        {},
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      refreshAccounts(); // Refresh the accounts list
-    } catch (err) {
-      console.error("Error setting primary account:", err);
-      setActionError(err.response?.data?.message || "Failed to set primary account.");
-    } finally {
-      setIsProcessingAction(false);
-    }
-  };
-
-  const handleDeleteAccount = async (accountId) => {
-    if (!window.confirm("Are you sure you want to delete this account?")) {
-      return;
-    }
-
-    setIsProcessingAction(true);
-    setActionError('');
-    const token = getAuthToken();
-    
-    if (!token) {
-      setActionError("Authentication required. Please log in.");
-      setIsProcessingAction(false);
-      return;
-    }
-
-    try {
-      await axios.delete(
-        `${import.meta.env.VITE_BACKEND_URL}/api/accounts/${accountId}`,
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      refreshAccounts(); // Refresh the accounts list
-    } catch (err) {
-      console.error("Error deleting account:", err);
-      setActionError(err.response?.data?.message || "Failed to delete account.");
-    } finally {
-      setIsProcessingAction(false);
-    }
-  };
-
-  const handlePasswordInputChange = (e) => {
+  // Handle input changes for user profile
+  const handleUserChange = (e) => {
     const { name, value } = e.target;
-    setPasswordData(prev => ({ ...prev, [name]: value }));
-    setPasswordChangeError('');
-    setPasswordChangeSuccess('');
+    setUser((prev) => ({ ...prev, [name]: value }));
+    setErrors((prev) => ({ ...prev, [name]: '' }));
   };
 
-  const handleChangePassword = async (e) => {
+  // Handle input changes for budget preferences
+  const handleBudgetChange = (e) => {
+    const { name, value } = e.target;
+    setBudgetPrefs((prev) => ({ ...prev, [name]: value }));
+  };
+
+  // Validate form inputs
+  const validateForm = () => {
+    const newErrors = {};
+    if (!user.username.trim()) newErrors.username = 'Username is required';
+    if (!user.email.match(/\S+@\S+\.\S+/)) newErrors.email = 'Invalid email address';
+    if (user.password && user.password.length < 6) newErrors.password = 'Password must be at least 6 characters';
+    if (user.password && user.password !== user.confirmPassword) newErrors.confirmPassword = 'Passwords do not match';
+    return newErrors;
+  };
+
+  // Handle form submission
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    setPasswordChangeError('');
-    setPasswordChangeSuccess('');
+    setErrors({});
+    setSuccessMessage('');
+    const formErrors = validateForm();
 
-    const { currentPassword, newPassword, confirmNewPassword } = passwordData;
-
-    if (!currentPassword || !newPassword || !confirmNewPassword) {
-      setPasswordChangeError('All password fields are required.'); return;
-    }
-    if (newPassword.length < 6) {
-      setPasswordChangeError('New password must be at least 6 characters long.'); return;
-    }
-    if (newPassword !== confirmNewPassword) {
-      setPasswordChangeError('New passwords do not match.'); return;
+    if (Object.keys(formErrors).length > 0) {
+      setErrors(formErrors);
+      return;
     }
 
-    setIsChangingPassword(true);
-    const token = getAuthToken();
-    if (!token) { setPasswordChangeError("Authentication error."); setIsChangingPassword(false); return; }
-
+    setIsLoading(true);
     try {
-      const response = await axios.post(
-        `${import.meta.env.VITE_BACKEND_URL}/api/auth/change-password`,
-        { currentPassword, newPassword },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      setPasswordChangeSuccess(response.data.message || 'Password changed successfully!');
-      setPasswordData({ currentPassword: '', newPassword: '', confirmNewPassword: '' });
+      // Prepare data to send (only include password if provided)
+      const updateData = {
+        username: user.username,
+        email: user.email,
+        ...(user.password && { password: user.password }),
+        // Include budget preferences if needed by backend
+        budgetPreferences: budgetPrefs,
+      };
+
+      // Update user data via API
+      await axios.patch('/api/users/me', updateData);
+      setSuccessMessage('Settings updated successfully!');
+      // Clear password fields
+      setUser((prev) => ({ ...prev, password: '', confirmPassword: '' }));
     } catch (err) {
-      console.error("Change password error:", err);
-      setPasswordChangeError(err.response?.data?.message || 'Failed to change password.');
+      setErrors({ general: err.response?.data?.message || 'Failed to update settings' });
     } finally {
-      setIsChangingPassword(false);
+      setIsLoading(false);
     }
   };
 
   return (
-    <div className="space-y-6 p-4 md:p-6">
-      <h2 className="text-3xl font-bold text-gray-900 flex items-center">
-        <Settings className="mr-2 h-8 w-8 text-blue-600" /> Settings
-      </h2>
+    <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4">
+      <div className="bg-white p-8 rounded-lg shadow-lg w-full max-w-md">
+        <h1 className="text-2xl font-bold mb-6 text-center">Settings</h1>
 
-      {actionError && (
-        <div className="flex items-center bg-red-50 border-l-4 border-red-500 text-red-700 p-3 rounded-md">
-          <XCircle className="h-5 w-5 mr-2" />
-          <span>{actionError}</span>
-        </div>
-      )}
+        {/* General Error/Success Messages */}
+        {errors.general && <p className="text-red-500 mb-4">{errors.general}</p>}
+        {successMessage && <p className="text-green-500 mb-4">{successMessage}</p>}
 
-      {/* Profile Settings */}
-      <div className="bg-white rounded-xl shadow-md p-6 hover:shadow-lg transition-shadow">
-        <h3 className="text-xl font-semibold text-gray-800 flex items-center mb-4">
-          <User className="mr-2 h-6 w-6 text-indigo-500" /> Profile
-        </h3>
-        {isLoadingProfile ? (
-          <div className="flex items-center text-gray-500">
-            <Loader2 className="animate-spin h-5 w-5 mr-2" /> Loading profile...
+        {/* User Profile Form */}
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label htmlFor="username" className="block text-sm font-medium text-gray-700">
+              Username
+            </label>
+            <input
+              type="text"
+              id="username"
+              name="username"
+              value={user.username}
+              onChange={handleUserChange}
+              className="mt-1 block w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            {errors.username && <p className="text-red-500 text-sm mt-1">{errors.username}</p>}
           </div>
-        ) : profileError ? (
-          <p className="text-red-600 text-sm">{profileError}</p>
-        ) : userInfo ? (
-          <div className="grid grid-cols-1 gap-3 text-gray-700">
-            <p><span className="font-medium text-indigo-600">Username:</span> {userInfo.username}</p>
-            <p><span className="font-medium text-indigo-600">Email:</span> {userInfo.email}</p>
-          </div>
-        ) : (
-          <p className="text-gray-500 text-sm">Could not load profile information.</p>
-        )}
-      </div>
 
-      {/* Linked Bank Accounts */}
-      <div className="bg-white rounded-xl shadow-md p-6 hover:shadow-lg transition-shadow">
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4">
-          <h3 className="text-xl font-semibold text-gray-800 flex items-center mb-2 sm:mb-0">
-            <CreditCard className="mr-2 h-6 w-6 text-blue-500" /> Linked Bank Accounts
-          </h3>
-          <Link
-            to="/add-account"
-            className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white px-4 py-2 rounded-lg hover:from-blue-600 hover:to-indigo-700 transition-all flex items-center shadow-sm"
-          >
-            <PlusCircle size={18} className="mr-2" /> Add Account
-          </Link>
-        </div>
-        {isLoadingAccounts ? (
-          <div className="flex justify-center items-center py-6">
-            <Loader2 className="animate-spin h-8 w-8 text-blue-500" />
+          <div>
+            <label htmlFor="email" className="block text-sm font-medium text-gray-700">
+              Email
+            </label>
+            <input
+              type="email"
+              id="email"
+              name="email"
+              value={user.email}
+              onChange={handleUserChange}
+              className="mt-1 block w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            {errors.email && <p className="text-red-500 text-sm mt-1">{errors.email}</p>}
           </div>
-        ) : accountsError ? (
-          <div className="bg-red-50 border-l-4 border-red-500 text-red-700 p-4 rounded-md">
-            <p>{accountsError}</p>
-          </div>
-        ) : accounts.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {accounts.map((account) => (
-              <div key={account._id} className="bg-gray-50 p-4 rounded-lg shadow-sm hover:shadow-md transition-shadow">
-                <div className="flex justify-between items-start">
-                  <div>
-                    <p className="text-lg font-semibold text-gray-800 flex items-center">
-                      {account.bankName}
-                      {account.isPrimary && (
-                        <span className="ml-2 bg-yellow-100 text-yellow-800 text-xs px-2 py-1 rounded-full flex items-center">
-                          <Star size={12} className="mr-1" /> Primary
-                        </span>
-                      )}
-                    </p>
-                    <p className="text-sm text-gray-600">Account ...{account.accountNumber?.slice(-4)}</p>
-                    <p className="text-md text-gray-900 font-medium">{formatCurrency(account.balance)}</p>
-                  </div>
-                </div>
-                <div className="mt-3 flex space-x-2">
-                  <button
-                    onClick={() => handleSetPrimary(account._id)}
-                    disabled={account.isPrimary || isProcessingAction}
-                    className={`flex items-center px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
-                      account.isPrimary
-                        ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
-                        : 'bg-yellow-500 text-white hover:bg-yellow-600'
-                    }`}
-                  >
-                    <Star size={16} className="mr-1" /> Set Primary
-                  </button>
-                  <button
-                    onClick={() => handleDeleteAccount(account._id)}
-                    disabled={isProcessingAction || accounts.length <= 1}
-                    className="flex items-center px-3 py-1.5 bg-red-500 text-white rounded-lg text-sm font-medium hover:bg-red-600 transition-all disabled:bg-red-300 disabled:cursor-not-allowed"
-                  >
-                    <Trash2 size={16} className="mr-1" /> Delete
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <p className="text-gray-500 text-center py-4">No bank accounts linked yet.</p>
-        )}
-      </div>
 
-      {/* Security Section */}
-      <div className="bg-white rounded-xl shadow-md p-6 hover:shadow-lg transition-shadow">
-        <h3 className="text-xl font-semibold text-gray-800 flex items-center mb-4">
-          <Lock className="mr-2 h-6 w-6 text-gray-600" /> Security
-        </h3>
-        <form onSubmit={handleChangePassword} className="space-y-5 max-w-md">
-          {passwordChangeError && (
-            <div className="flex items-center bg-red-50 text-red-700 p-2 rounded-md">
-              <XCircle className="h-5 w-5 mr-2" /> {passwordChangeError}
+          <div>
+            <label htmlFor="password" className="block text-sm font-medium text-gray-700">
+              New Password
+            </label>
+            <input
+              type="password"
+              id="password"
+              name="password"
+              value={user.password}
+              onChange={handleUserChange}
+              className="mt-1 block w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="Leave blank to keep current password"
+            />
+            {errors.password && <p className="text-red-500 text-sm mt-1">{errors.password}</p>}
+          </div>
+
+          <div>
+            <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700">
+              Confirm New Password
+            </label>
+            <input
+              type="password"
+              id="confirmPassword"
+              name="confirmPassword"
+              value={user.confirmPassword}
+              onChange={handleUserChange}
+              className="mt-1 block w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="Confirm new password"
+            />
+            {errors.confirmPassword && <p className="text-red-500 text-sm mt-1">{errors.confirmPassword}</p>}
+          </div>
+
+          {/* Budget Preferences */}
+          <div>
+            <h2 className="text-lg font-semibold mt-6 mb-2">Budget Preferences</h2>
+            <div>
+              <label htmlFor="defaultPeriod" className="block text-sm font-medium text-gray-700">
+                Default Budget Period
+              </label>
+              <select
+                id="defaultPeriod"
+                name="defaultPeriod"
+                value={budgetPrefs.defaultPeriod}
+                onChange={handleBudgetChange}
+                className="mt-1 block w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="Weekly">Weekly</option>
+                <option value="Monthly">Monthly</option>
+                <option value="Quarterly">Quarterly</option>
+                <option value="Yearly">Yearly</option>
+              </select>
             </div>
-          )}
-          {passwordChangeSuccess && (
-            <div className="flex items-center bg-green-50 text-green-700 p-2 rounded-md">
-              <CheckCircle className="h-5 w-5 mr-2" /> {passwordChangeSuccess}
+
+            <div className="mt-4">
+              <label htmlFor="defaultType" className="block text-sm font-medium text-gray-700">
+                Default Budget Type
+              </label>
+              <select
+                id="defaultType"
+                name="defaultType"
+                value={budgetPrefs.defaultType}
+                onChange={handleBudgetChange}
+                className="mt-1 block w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="expense">Expense</option>
+                <option value="income">Income</option>
+              </select>
             </div>
-          )}
-
-          <div className="relative">
-            <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="currentPassword">Current Password</label>
-            <input
-              id="currentPassword"
-              name="currentPassword"
-              type={showCurrentPassword ? "text" : "password"}
-              value={passwordData.currentPassword}
-              onChange={handlePasswordInputChange}
-              required
-              className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-              placeholder="Enter current password"
-            />
-            <button
-              type="button"
-              onClick={() => setShowCurrentPassword(!showCurrentPassword)}
-              className="absolute right-3 top-10 text-gray-500 hover:text-gray-700"
-            >
-              {showCurrentPassword ? <EyeOff size={20} /> : <Eye size={20} />}
-            </button>
           </div>
 
-          <div className="relative">
-            <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="newPassword">New Password</label>
-            <input
-              id="newPassword"
-              name="newPassword"
-              type={showNewPassword ? "text" : "password"}
-              value={passwordData.newPassword}
-              onChange={handlePasswordInputChange}
-              required
-              className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-              placeholder="Min. 6 characters"
-            />
-            <button
-              type="button"
-              onClick={() => setShowNewPassword(!showNewPassword)}
-              className="absolute right-3 top-10 text-gray-500 hover:text-gray-700"
-            >
-              {showNewPassword ? <EyeOff size={20} /> : <Eye size={20} />}
-            </button>
-          </div>
-
-          <div className="relative">
-            <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="confirmNewPassword">Confirm New Password</label>
-            <input
-              id="confirmNewPassword"
-              name="confirmNewPassword"
-              type={showConfirmPassword ? "text" : "password"}
-              value={passwordData.confirmNewPassword}
-              onChange={handlePasswordInputChange}
-              required
-              className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-              placeholder="Retype new password"
-            />
-            <button
-              type="button"
-              onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-              className="absolute right-3 top-10 text-gray-500 hover:text-gray-700"
-            >
-              {showConfirmPassword ? <EyeOff size={20} /> : <Eye size={20} />}
-            </button>
-          </div>
-
+          {/* Submit Button */}
           <button
             type="submit"
-            disabled={isChangingPassword}
-            className="w-full bg-gradient-to-r from-indigo-500 to-blue-600 text-white py-3 rounded-lg hover:from-indigo-600 hover:to-blue-700 transition-all disabled:opacity-50 flex items-center justify-center"
+            disabled={isLoading}
+            className={`w-full p-2 mt-4 text-white rounded-md ${
+              isLoading ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-500 hover:bg-blue-600'
+            }`}
           >
-            {isChangingPassword ? <Loader2 className="animate-spin h-5 w-5 mr-2" /> : null}
-            {isChangingPassword ? 'Changing...' : 'Change Password'}
+            {isLoading ? 'Saving...' : 'Save Settings'}
           </button>
         </form>
-      </div>
-
-      {/* Notifications Placeholder */}
-      <div className="bg-gray-50 rounded-xl shadow-md p-6 opacity-75">
-        <h3 className="text-xl font-semibold text-gray-700 flex items-center mb-4">
-          <Bell className="mr-2 h-6 w-6 text-gray-500" /> Notifications
-        </h3>
-        <p className="text-gray-600 text-sm">Notification preferences coming soon...</p>
       </div>
     </div>
   );
