@@ -31,10 +31,10 @@ const CustomTooltip = ({ active, payload }) => {
   if (active && payload && payload.length) {
     const data = payload[0].payload;
     return (
-      <div className="bg-white p-4 border border-gray-100 rounded-lg shadow-lg backdrop-blur-sm bg-opacity-95 dark:bg-gray-800 dark:border-gray-700">
-        <p className="font-medium text-gray-900 dark:text-gray-100">{data.category || data.weekStart}</p>
-        {data.percentage && <p className="text-sm text-gray-600 dark:text-gray-300">Percentage: {data.percentage}%</p>}
-        <p className="text-sm font-medium text-indigo-600 dark:text-indigo-400">Amount: {formatCurrency(data.amount)}</p>
+      <div className="bg-white p-4 border border-gray-100 rounded-lg shadow-lg backdrop-blur-sm bg-opacity-95">
+        <p className="font-medium text-gray-900">{data.category || data.weekStart}</p>
+        {data.percentage && <p className="text-sm text-gray-600">Percentage: {data.percentage}%</p>}
+        <p className="text-sm font-medium text-indigo-600">Amount: {formatCurrency(data.amount)}</p>
       </div>
     );
   }
@@ -59,14 +59,14 @@ const AnalysisCard = ({ title, icon, children, className = "" }) => (
     initial="hidden"
     animate="visible"
     whileHover="hover"
-    className={`bg-white dark:bg-gray-800 rounded-2xl shadow-sm hover:shadow-xl transition-all duration-300 overflow-hidden ${className}`}
+    className={`bg-white rounded-2xl shadow-sm hover:shadow-xl transition-all duration-300 overflow-hidden ${className}`}
   >
     <div className="p-6 sm:p-8">
       <div className="flex items-center mb-4">
-        <div className="p-2 rounded-lg bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 mr-3">
+        <div className="p-2 rounded-lg bg-indigo-50 text-indigo-600 mr-3">
           {icon}
         </div>
-        <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100">{title}</h3>
+        <h3 className="text-lg font-semibold text-gray-800">{title}</h3>
       </div>
       {children}
     </div>
@@ -75,13 +75,13 @@ const AnalysisCard = ({ title, icon, children, className = "" }) => (
 
 // Empty State Component
 const EmptyState = ({ message }) => (
-  <div className="flex flex-col items-center justify-center p-8 bg-indigo-50 dark:bg-indigo-900/20 rounded-xl">
+  <div className="flex flex-col items-center justify-center p-8 bg-indigo-50 rounded-xl">
     <div className="w-20 h-20 mb-4 text-indigo-400 opacity-50">
       <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M20 12V8H6a2 2 0 01-2-2c0-1.1.9-2 2-2h12V2L23 7l-3 5zm-1 7H5a2 2 0 00-2 2c0 1.1.9 2 2 2h14v2l3-5-3-5v2z" />
       </svg>
     </div>
-    <p className="text-center text-gray-600 dark:text-gray-300">{message}</p>
+    <p className="text-center text-gray-600">{message}</p>
   </div>
 );
 
@@ -161,15 +161,15 @@ const AIAnalysisPage = () => {
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        className="flex flex-col justify-center items-center py-20 bg-gradient-to-br from-indigo-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 min-h-screen"
+        className="flex flex-col justify-center items-center py-20 bg-gradient-to-br from-indigo-50 to-indigo-100 min-h-screen"
       >
         <div className="w-16 h-16 relative">
           <div className="absolute inset-0 rounded-full border-t-4 border-indigo-500 animate-spin"></div>
-          <div className="absolute inset-3 rounded-full bg-white dark:bg-gray-800"></div>
-          <Loader2 size={32} className="absolute inset-0 m-auto text-indigo-600 dark:text-indigo-400" />
+          <div className="absolute inset-3 rounded-full bg-white"></div>
+          <Loader2 size={32} className="absolute inset-0 m-auto text-indigo-600" />
         </div>
-        <p className="mt-6 text-lg text-gray-700 dark:text-gray-300 font-medium">Processing your financial insights...</p>
-        <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">This may take a moment</p>
+        <p className="mt-6 text-lg text-gray-700 font-medium">Processing your financial insights...</p>
+        <p className="text-sm text-gray-500 mt-2">This may take a moment</p>
       </motion.div>
     );
   }
@@ -179,19 +179,19 @@ const AIAnalysisPage = () => {
       <motion.div
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
-        className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-br from-indigo-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 p-4"
+        className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-br from-indigo-50 to-indigo-100 p-4"
       >
-        <div className="bg-white dark:bg-gray-800 border-l-4 border-red-500 rounded-xl shadow-xl p-6 max-w-md w-full">
+        <div className="bg-white border-l-4 border-red-500 rounded-xl shadow-xl p-6 max-w-md w-full">
           <div className="flex items-center mb-4">
-            <div className="p-2 rounded-full bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 mr-3">
+            <div className="p-2 rounded-full bg-red-100 text-red-600 mr-3">
               <AlertTriangle size={24} />
             </div>
-            <h3 className="text-lg font-semibold text-gray-800 dark:text-white">Unable to Load Analysis</h3>
+            <h3 className="text-lg font-semibold text-gray-800">Unable to Load Analysis</h3>
           </div>
-          <p className="text-gray-600 dark:text-gray-300 mb-6">{error}</p>
+          <p className="text-gray-600 mb-6">{error}</p>
           <button
             onClick={fetchData}
-            className="w-full bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 px-4 py-3 rounded-lg hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors flex items-center justify-center font-medium"
+            className="w-full bg-red-100 text-red-600 px-4 py-3 rounded-lg hover:bg-red-200 transition-colors flex items-center justify-center font-medium"
           >
             <RefreshCw size={18} className="mr-2" /> Try Again
           </button>
@@ -211,13 +211,13 @@ const AIAnalysisPage = () => {
   };
 
   return (
-    <div className="bg-gradient-to-br from-indigo-50 via-purple-50 to-blue-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 min-h-screen pb-12">
+    <div className="bg-gradient-to-br from-indigo-50 via-purple-50 to-blue-50 min-h-screen pb-12">
       {/* Floating Particles for visual effect */}
       <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
         {[...Array(8)].map((_, i) => (
           <div
             key={i}
-            className="absolute rounded-full bg-indigo-600 opacity-5 dark:opacity-10"
+            className="absolute rounded-full bg-indigo-600 opacity-5"
             style={{
               width: `${Math.random() * 10 + 5}rem`,
               height: `${Math.random() * 10 + 5}rem`,
@@ -239,26 +239,26 @@ const AIAnalysisPage = () => {
         >
           <div className="flex flex-wrap justify-between items-center">
             <div className="mb-4 md:mb-0">
-              <h1 className="text-3xl md:text-4xl font-bold text-gray-900 dark:text-white flex items-center">
-                <span className="bg-clip-text text-transparent bg-gradient-to-r from-indigo-600 to-purple-600 dark:from-indigo-400 dark:to-purple-400">
+              <h1 className="text-3xl md:text-4xl font-bold text-gray-900 flex items-center">
+                <span className="bg-clip-text text-transparent bg-gradient-to-r from-indigo-600 to-purple-600">
                   Financial Intelligence
                 </span>
               </h1>
-              <p className="mt-2 text-gray-600 dark:text-gray-300">
+              <p className="mt-2 text-gray-600">
                 AI-powered insights for your financial journey
                 {filters.category !== 'All' && ` • ${filters.category}`}
               </p>
             </div>
             <div className="flex flex-wrap gap-3">
-              <div className="flex items-center space-x-2 bg-white dark:bg-gray-800 px-4 py-2 rounded-lg shadow-sm border border-gray-100 dark:border-gray-700">
-                <Calendar size={16} className="text-indigo-500 dark:text-indigo-400" />
-                <span className="text-sm text-gray-600 dark:text-gray-300">{dateRangeText()}</span>
+              <div className="flex items-center space-x-2 bg-white px-4 py-2 rounded-lg shadow-sm border border-gray-100">
+                <Calendar size={16} className="text-indigo-500" />
+                <span className="text-sm text-gray-600">{dateRangeText()}</span>
               </div>
               <button
                 onClick={() => setShowFilters(!showFilters)}
-                className="bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 px-4 py-2 rounded-lg shadow-sm hover:shadow-md border border-gray-100 dark:border-gray-700 hover:border-indigo-200 dark:hover:border-indigo-800 transition-all flex items-center"
+                className="bg-white text-gray-700 px-4 py-2 rounded-lg shadow-sm hover:shadow-md border border-gray-100 hover:border-indigo-200 transition-all flex items-center"
               >
-                <Filter size={16} className="mr-2 text-indigo-500 dark:text-indigo-400" />
+                <Filter size={16} className="mr-2 text-indigo-500" />
                 {showFilters ? 'Hide Filters' : 'Filters'}
               </button>
             </div>
@@ -275,10 +275,10 @@ const AIAnalysisPage = () => {
               transition={{ duration: 0.3, ease: 'easeInOut' }}
               className="mb-8 overflow-hidden"
             >
-              <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 backdrop-blur-sm bg-opacity-80 dark:bg-opacity-80 border border-gray-100 dark:border-gray-700">
+              <div className="bg-white rounded-2xl shadow-lg p-6 backdrop-blur-sm bg-opacity-80 border border-gray-100">
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                   <div>
-                    <label htmlFor="startDate" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    <label htmlFor="startDate" className="block text-sm font-medium text-gray-700 mb-2">
                       Start Date
                     </label>
                     <input
@@ -287,11 +287,11 @@ const AIAnalysisPage = () => {
                       name="startDate"
                       value={filters.startDate}
                       onChange={handleFilterChange}
-                      className="w-full p-3 border border-gray-200 dark:border-gray-700 rounded-xl bg-gray-50 dark:bg-gray-900 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-600 transition-shadow"
+                      className="w-full p-3 border border-gray-200 rounded-xl bg-gray-50 text-gray-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-shadow"
                     />
                   </div>
                   <div>
-                    <label htmlFor="endDate" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    <label htmlFor="endDate" className="block text-sm font-medium text-gray-700 mb-2">
                       End Date
                     </label>
                     <input
@@ -300,11 +300,11 @@ const AIAnalysisPage = () => {
                       name="endDate"
                       value={filters.endDate}
                       onChange={handleFilterChange}
-                      className="w-full p-3 border border-gray-200 dark:border-gray-700 rounded-xl bg-gray-50 dark:bg-gray-900 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-600 transition-shadow"
+                      className="w-full p-3 border border-gray-200 rounded-xl bg-gray-50 text-gray-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-shadow"
                     />
                   </div>
                   <div>
-                    <label htmlFor="category" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    <label htmlFor="category" className="block text-sm font-medium text-gray-700 mb-2">
                       Category
                     </label>
                     <div className="relative">
@@ -313,7 +313,7 @@ const AIAnalysisPage = () => {
                         name="category"
                         value={filters.category}
                         onChange={handleFilterChange}
-                        className="w-full p-3 border border-gray-200 dark:border-gray-700 rounded-xl bg-gray-50 dark:bg-gray-900 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-600 appearance-none pr-10 transition-shadow"
+                        className="w-full p-3 border border-gray-200 rounded-xl bg-gray-50 text-gray-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 appearance-none pr-10 transition-shadow"
                       >
                         {categories.map(cat => (
                           <option key={cat} value={cat}>{cat}</option>
@@ -330,7 +330,7 @@ const AIAnalysisPage = () => {
                 <div className="mt-4 flex justify-end">
                   <button 
                     onClick={fetchData}
-                    className="px-4 py-2 bg-indigo-600 dark:bg-indigo-700 text-white rounded-lg hover:bg-indigo-700 dark:hover:bg-indigo-600 transition-colors flex items-center"
+                    className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors flex items-center"
                   >
                     Apply Filters <ArrowRight size={16} className="ml-2" />
                   </button>
@@ -346,11 +346,11 @@ const AIAnalysisPage = () => {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5 }}
-            className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg overflow-hidden border border-gray-100 dark:border-gray-700"
+            className="bg-white rounded-2xl shadow-lg overflow-hidden border border-gray-100"
           >
             <div className="p-8">
               <EmptyState message="No financial data found. Add transactions and budgets to view AI insights." />
-              <p className="text-gray-500 dark:text-gray-400 text-center mt-6">{analysis?.budgetVsExpenses}</p>
+              <p className="text-gray-500 text-center mt-6">{analysis?.budgetVsExpenses}</p>
             </div>
           </motion.div>
         ) : (
@@ -358,14 +358,14 @@ const AIAnalysisPage = () => {
             {/* Budget vs. Expenses */}
             <AnalysisCard title="Budget vs. Expenses" icon={<PieChartIcon size={20} />}>
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                <div className="bg-gray-50 dark:bg-gray-900/50 p-6 rounded-xl">
-                  <div className="prose dark:prose-invert prose-p:text-gray-600 dark:prose-p:text-gray-300 prose-headings:text-gray-900 dark:prose-headings:text-gray-100">
+                <div className="bg-gray-50 p-6 rounded-xl">
+                  <div className="prose prose-p:text-gray-600 prose-headings:text-gray-900">
                     <p className="leading-relaxed">{analysis?.budgetVsExpenses}</p>
                   </div>
                 </div>
                 
-                <div className="bg-gray-50 dark:bg-gray-900/50 p-6 rounded-xl">
-                  <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-4">Category Breakdown</h4>
+                <div className="bg-gray-50 p-6 rounded-xl">
+                  <h4 className="text-sm font-medium text-gray-700 mb-4">Category Breakdown</h4>
                   {analysis?.visualizationData?.expenseBreakdown?.length > 0 ? (
                     <ResponsiveContainer width="100%" height={250}>
                       <PieChart>
@@ -398,14 +398,14 @@ const AIAnalysisPage = () => {
             {/* Spending Patterns */}
             <AnalysisCard title="Spending Patterns" icon={<TrendingUp size={20} />}>
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                <div className="bg-gray-50 dark:bg-gray-900/50 p-6 rounded-xl">
-                  <div className="prose dark:prose-invert prose-p:text-gray-600 dark:prose-p:text-gray-300 prose-headings:text-gray-900 dark:prose-headings:text-gray-100">
+                <div className="bg-gray-50 p-6 rounded-xl">
+                  <div className="prose prose-p:text-gray-600 prose-headings:text-gray-900">
                     <p className="leading-relaxed">{analysis?.spendingPatterns}</p>
                   </div>
                 </div>
                 
-                <div className="bg-gray-50 dark:bg-gray-900/50 p-6 rounded-xl">
-                  <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-4">Weekly Trends</h4>
+                <div className="bg-gray-50 p-6 rounded-xl">
+                  <h4 className="text-sm font-medium text-gray-700 mb-4">Weekly Trends</h4>
                   {analysis?.visualizationData?.weeklySpending?.length > 0 ? (
                     <ResponsiveContainer width="100%" height={250}>
                       <LineChart data={analysis.visualizationData.weeklySpending}>
@@ -451,24 +451,24 @@ const AIAnalysisPage = () => {
             <AnalysisCard 
               title="Smart Recommendations" 
               icon={<Lightbulb size={20} />}
-              className="bg-gradient-to-br from-indigo-50 to-blue-50 dark:from-gray-800 dark:to-gray-800/80"
+              className="bg-gradient-to-br from-indigo-50 to-blue-50"
             >
-              <div className="bg-white/80 dark:bg-gray-900/50 p-6 rounded-xl backdrop-blur-sm border border-indigo-100 dark:border-indigo-900/30">
-                <div className="prose dark:prose-invert max-w-none prose-p:text-gray-600 dark:prose-p:text-gray-300 prose-headings:text-gray-900 dark:prose-headings:text-gray-100">
+              <div className="bg-white/80 p-6 rounded-xl backdrop-blur-sm border border-indigo-100">
+                <div className="prose max-w-none prose-p:text-gray-600 prose-headings:text-gray-900">
                   <p className="leading-relaxed">{analysis?.recommendations}</p>
                 </div>
               </div>
               
               <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
                 {['Reduce non-essential spending', 'Set up automatic savings', 'Review subscriptions'].map((tip, index) => (
-                  <div key={index} className="p-4 bg-indigo-50 dark:bg-indigo-500/10 rounded-lg border border-indigo-100 dark:border-indigo-700/30">
+                  <div key={index} className="p-4 bg-indigo-50 rounded-lg border border-indigo-100">
                     <div className="flex items-center">
-                      <div className="p-1.5 bg-indigo-100 dark:bg-indigo-700/30 rounded-full text-indigo-600 dark:text-indigo-400 mr-2">
+                      <div className="p-1.5 bg-indigo-100 rounded-full text-indigo-600 mr-2">
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
                           <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                         </svg>
                       </div>
-                      <p className="text-sm text-gray-700 dark:text-gray-300 font-medium">{tip}</p>
+                      <p className="text-sm text-gray-700 font-medium">{tip}</p>
                     </div>
                   </div>
                 ))}
