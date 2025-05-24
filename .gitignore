@@ -1,7 +1,9 @@
 # Ignore node_modules folders
 frontend/node_modules/
 backend/node_modules/
-
+backend_admin/node_modules/
+backend_admin/.env
+*/node_modules/
 # Ignore logs
 *.log
 logs/
