@@ -19,7 +19,7 @@ const Notification = () => {
       setIsLoadingNotifications(true);
       setError('');
       try {
-        const response = await axios.get('http://localhost:5000/api/notifications', {
+        const response = await axios.get(`${import.meta.env.VITE_BACKEND_URL}/api/notifications`, {
           headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
         });
         setNotifications(response.data);
@@ -42,7 +42,7 @@ const Notification = () => {
       setIsLoadingSettings(true);
       setError('');
       try {
-        const response = await axios.get('http://localhost:5000/api/users/me', {
+        const response = await axios.get(`${import.meta.env.VITE_BACKEND_URL}/api/users/me`, {
           headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
         });
         setNotificationsEnabled(response.data.notificationsEnabled);
@@ -61,7 +61,7 @@ const Notification = () => {
     setIsLoadingSettings(true);
     setError('');
     try {
-      const response = await axios.patch('http://localhost:5000/api/notifications/toggle', {}, {
+      const response = await axios.patch(`${import.meta.env.VITE_BACKEND_URL}/api/notifications/toggle`, {}, {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
       });
       setNotificationsEnabled(response.data.notificationsEnabled);
@@ -79,7 +79,7 @@ const Notification = () => {
     setError('');
     setSuccess('');
     try {
-      const response = await axios.post('http://localhost:5000/api/notifications/refresh', {}, {
+      const response = await axios.post(`${import.meta.env.VITE_BACKEND_URL}/api/notifications/refresh`, {}, {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
       });
       setNotifications(response.data.notifications);
