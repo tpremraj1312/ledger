@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
 import {
   Wallet, Bell, LogOut, Home, Gauge, Banknote, TrendingUp, Settings, Scan, BarChart2, PlusCircle, Brain,
-  FileText, Loader2, X as IconX
+  FileText, Loader2, X as IconX, AlertTriangle
 } from 'lucide-react';
 import { useAuth } from '../context/authContext';
 import HomeView from './HomeView';
@@ -13,20 +13,28 @@ import InvestmentsView from './InvestmentsView';
 import SettingsView from './SettingsView';
 import CompareBudgetExpensePage from './CompareBudgetExpensePage';
 import AIAnalysis from './AIAnalysis';
-// Placeholder Components for Compare and AI Analysis
-// const CompareView = () => (
-//   <div className="text-gray-600 p-4">
-//     <h3 className="text-lg font-semibold text-gray-800 mb-4">Compare Budgets & Expenses</h3>
-//     <p>Placeholder for Compare Budget vs Expenses view.</p>
-//   </div>
-// );
+import Notification from './Notification';
 
-// const AIAnalysisView = () => (
-//   <div className="text-gray-600 p-4">
-//     <h3 className="text-lg font-semibold text-gray-800 mb-4">AI Analysis</h3>
-//     <p>Placeholder for AI Analysis view.</p>
-//   </div>
-// );
+// Notification Popup Component
+const NotificationPopup = ({ message, onClose }) => (
+  <motion.div
+    initial={{ opacity: 0, y: 20 }}
+    animate={{ opacity: 1, y: 0 }}
+    exit={{ opacity: 0, y: 20 }}
+    className="fixed bottom-4 right-4 bg-red-50/80 text-red-600 rounded-lg p-4 shadow-lg border border-red-100 max-w-sm z-50"
+  >
+    <div className="flex items-center gap-2">
+      <AlertTriangle className="w-5 h-5" />
+      <p className="text-sm">{message}</p>
+    </div>
+    <button
+      onClick={onClose}
+      className="absolute top-2 right-2 text-red-500 hover:text-red-700"
+    >
+      <IconX size={16} />
+    </button>
+  </motion.div>
+);
 
 // Helper Functions
 const formatCurrency = (amount) => {
@@ -73,6 +81,8 @@ const DashboardLayout = () => {
   const [scanError, setScanError] = useState('');
   const [isScanning, setIsScanning] = useState(false);
   const [scanDetails, setScanDetails] = useState(null);
+  const [notificationMessage, setNotificationMessage] = useState('');
+  const [showNotificationPopup, setShowNotificationPopup] = useState(false);
 
   const handleLogout = () => {
     logout();
@@ -115,7 +125,7 @@ const DashboardLayout = () => {
     };
 
     try {
-      await axios.post(`${import.meta.env.VITE_BACKEND_URL}/api/transactions`, payload, {
+      const response = await axios.post(`${import.meta.env.VITE_BACKEND_URL}/api/transactions`, payload, {
         headers: { Authorization: `Bearer ${token}` },
       });
       setIsManualTxModalOpen(false);
@@ -126,6 +136,12 @@ const DashboardLayout = () => {
         date: formatDateForInput(new Date()),
         description: '',
       });
+      // Show notification pop-up if budget is exceeded
+      if (response.data.notification) {
+        setNotificationMessage(response.data.notification.message);
+        setShowNotificationPopup(true);
+        setTimeout(() => setShowNotificationPopup(false), 5000); // Auto-close after 5 seconds
+      }
     } catch (err) {
       const errorMessage = err.response?.data?.message || 'Failed to record transaction.';
       setModalError(errorMessage);
@@ -212,7 +228,7 @@ const DashboardLayout = () => {
             <h1 className="text-xl font-bold text-gray-900 tracking-tight">Ledger</h1>
           </div>
           <div className="flex items-center gap-4">
-            <button className="relative p-2 text-gray-600 hover:text-blue-600 transition-colors duration-200">
+            <button className="relative p-2 text-gray-600 hover:text-blue-600 transition-colors duration-200" onClick={()=>{setActiveTab('notification')}}>
               <Bell size={20} />
               <span className="absolute top-0 right-0 w-2.5 h-2.5 bg-red-500 rounded-full border border-white animate-pulse"></span>
             </button>
@@ -274,6 +290,7 @@ const DashboardLayout = () => {
                 {activeTab === 'settings' && <SettingsView />}
                 {activeTab === 'compare' && <CompareBudgetExpensePage />}
                 {activeTab === 'ai-analysis' && <AIAnalysis />}
+                {activeTab === 'notification' && <Notification />}
                 {activeTab === 'scan' && <div className="text-gray-600">Scan Bill View (Placeholder)</div>}
                 {activeTab === 'add-transaction' && <div className="text-gray-600">Add Transaction View (Placeholder)</div>}
               </div>
@@ -523,6 +540,16 @@ const DashboardLayout = () => {
               </button>
             </motion.div>
           </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Notification Popup */}
+      <AnimatePresence>
+        {showNotificationPopup && (
+          <NotificationPopup
+            message={notificationMessage}
+            onClose={() => setShowNotificationPopup(false)}
+          />
         )}
       </AnimatePresence>
     </div>

@@ -15,6 +15,7 @@ import SendMoneyView from "./pages/SendMoneyView"; // <-- Import the new compone
 import ConsentCallback from "./pages/ConsentCallback";
 import AIAnalysisPage from "./pages/AIAnalysis";
 import CompareBudgetExpensePage from "./pages/CompareBudgetExpensePage";
+import Notification from "./pages/Notification";
 
 function App() {
   return (
@@ -39,6 +40,7 @@ function App() {
           <Route path="/consent/callback" element={<PrivateRoute><ConsentCallback /></PrivateRoute>} />
           <Route path="/dashboard/ai-analysis" element={<AIAnalysisPage />} />
           <Route path="/dashboard/compare-budget-expense" element={<CompareBudgetExpensePage />} />
+          <Route path="/dashboard/notification" element={<Notification />} />
           {/* Fallback or 404 can go here */}
         </Routes>
       </Router>

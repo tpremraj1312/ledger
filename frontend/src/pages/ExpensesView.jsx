@@ -280,6 +280,25 @@ const TransactionCard = ({ tx, toggleTransaction, expandedTransactions }) => {
     </motion.div>
   );
 };
+const NotificationPopup = ({ message, onClose }) => (
+  <motion.div
+    initial={{ opacity: 0, y: 20 }}
+    animate={{ opacity: 1, y: 0 }}
+    exit={{ opacity: 0, y: 20 }}
+    className="fixed bottom-4 right-4 bg-red-50/80 text-red-600 rounded-lg p-4 shadow-lg border border-red-100 max-w-sm z-50"
+  >
+    <div className="flex items-center gap-2">
+      <AlertTriangle className="w-5 h-5" />
+      <p className="text-sm">{message}</p>
+    </div>
+    <button
+      onClick={onClose}
+      className="absolute top-2 right-2 text-red-500 hover:text-red-700"
+    >
+      <IconX size={16} />
+    </button>
+  </motion.div>
+);
 
 const Pagination = ({ pagination, handlePageChange, isLoading }) => (
   <div className="flex justify-between items-center mt-3 text-xs">
@@ -343,6 +362,8 @@ const ExpensesView = () => {
   const [scanError, setScanError] = useState('');
   const [isScanning, setIsScanning] = useState(false);
   const [expandedTransactions, setExpandedTransactions] = useState({});
+  const [notificationMessage, setNotificationMessage] = useState('');
+  const [showNotificationPopup, setShowNotificationPopup] = useState(false);
 
   // Fetch transactions
   const fetchTransactions = useCallback(async (retryCount = 3, delay = 1000) => {
@@ -791,7 +812,7 @@ const ExpensesView = () => {
     };
 
     try {
-      await axios.post(`${import.meta.env.VITE_BACKEND_URL}/api/transactions`, payload, {
+      const response = await axios.post(`${import.meta.env.VITE_BACKEND_URL}/api/transactions`, payload, {
         headers: { Authorization: `Bearer ${token}` },
       });
       setIsManualTxModalOpen(false);
@@ -802,9 +823,16 @@ const ExpensesView = () => {
         date: formatDateForInput(new Date()),
         description: '',
       });
-      fetchTransactions();
+      if (response.data.notification) {
+        setNotificationMessage(response.data.notification.message);
+        setShowNotificationPopup(true);
+        // setTimeout(() => setShowNotificationPopup(false), 7000); // Auto-close after 5 seconds
+      }
+      await fetchTransactions();
+      setTimeout(() => setShowNotificationPopup(false), 7000);
     } catch (err) {
       const errorMessage = err.response?.data?.message || 'Failed to record transaction.';
+      console.log(err);
       setModalError(errorMessage);
     } finally {
       setIsSubmittingManual(false);
@@ -1185,6 +1213,15 @@ const ExpensesView = () => {
               </form>
             </motion.div>
           </motion.div>
+        )}
+      </AnimatePresence>
+      {/* Notification Popup */}
+      <AnimatePresence>
+        {showNotificationPopup && (
+          <NotificationPopup
+            message={notificationMessage}
+            onClose={() => setShowNotificationPopup(false)}
+          />
         )}
       </AnimatePresence>
     </div>

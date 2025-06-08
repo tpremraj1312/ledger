@@ -4,6 +4,8 @@ import multer from 'multer';
 import { parseBillWithGemini } from '../utils/billParser.js';
 import authMiddleware from '../middleware/authMiddleware.js';
 import Transaction from '../models/transaction.js';
+import budgetCheckMiddleware from '../middleware/budgetCheckMiddleware.js';
+import Notification from '../models/notification.js';
 
 const router = express.Router();
 
@@ -25,13 +27,16 @@ const upload = multer({
 // --- Add a New Transaction (Handles Manual and Bill Scan) ---
 // Route: POST /api/transactions
 // Access: Private
-router.post('/', authMiddleware, async (req, res) => {
+router.post('/', authMiddleware, budgetCheckMiddleware, async (req, res) => {
   const { type, amount: amountInput, category, description, source = 'manual', date } = req.body;
   const userId = req.user._id;
 
+  console.log('POST /api/transactions - userId:', userId);
+  console.log('POST /api/transactions - request body:', req.body);
+
   // --- Input Parsing and Validation ---
   const amount = parseFloat(amountInput);
-  if (isNaN(amount) || amount <= 0) {
+  if (isNaN(amount) || amount <= 0 || !Number.isFinite(amount)) {
     return res.status(400).json({ message: 'Invalid amount (must be a positive number)' });
   }
 
@@ -82,7 +87,21 @@ router.post('/', authMiddleware, async (req, res) => {
       date: transactionDate,
     });
 
+    console.log('POST /api/transactions - saving transaction:', newTransaction);
+
     await newTransaction.save();
+
+    // Create notification if budget was exceeded
+    let notification = null;
+    if (req.budgetNotification) {
+      notification = new Notification({
+        user: req.budgetNotification.user,
+        message: req.budgetNotification.message,
+        transaction: newTransaction._id,
+      });
+      await notification.save();
+      console.log('POST /api/transactions - notification created:', notification.message);
+    }
 
     // Log transaction creation
     console.log('New transaction created:', {
@@ -96,10 +115,20 @@ router.post('/', authMiddleware, async (req, res) => {
     });
 
     // --- Respond ---
-    res.status(201).json({ message: 'Transaction recorded successfully', transaction: newTransaction });
+    res.status(201).json({
+      message: 'Transaction recorded successfully',
+      transaction: newTransaction,
+      notification: notification ? {
+        _id: notification._id,
+        message: notification.message,
+        transaction: notification.transaction,
+        createdAt: notification.createdAt,
+        read: notification.read
+      } : null
+    });
 
   } catch (err) {
-    console.error('Transaction error:', err);
+    console.error('POST /api/transactions - error:', err);
     if (err.name === 'ValidationError') {
       const messages = Object.values(err.errors).map(e => e.message);
       return res.status(400).json({ message: 'Transaction validation failed', errors: messages });

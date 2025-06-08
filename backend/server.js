@@ -31,7 +31,8 @@ import billScanRoutes from "./routes/billscanRoutes.js";
 import InvestmentsRoutes from "./routes/investmentRoutes.js";
 import aiAnalysisRoutes from "./routes/aiAnalysisRoutes.js";
 import budgetComparisonRoutes from "./routes/budgetComparisionRoutes.js";
-
+import notificationRoutes from "./routes/notificationRoutes.js"
+import userRoutes from './routes/userRoutes.js';
 // Configure Passport
 configurePassport();
 
@@ -75,6 +76,8 @@ app.use("/api/billscan", authMiddleware, billScanRoutes);
 app.use("/api/investments", authMiddleware, InvestmentsRoutes);
 app.use("/api/ai-analysis", authMiddleware, aiAnalysisRoutes);
 app.use("/api/budget-comparison", authMiddleware, budgetComparisonRoutes);
+app.use("/api/notifications", authMiddleware, notificationRoutes);
+app.use('/api/users', authMiddleware, userRoutes);
 
 // Basic Root Route
 app.get("/", (req, res) => {
