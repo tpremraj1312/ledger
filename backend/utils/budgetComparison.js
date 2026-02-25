@@ -55,11 +55,11 @@ export const generateBudgetComparison = async (userId, { startDate, endDate, cat
     // Prepare comparison data
     const comparisonData = allCategories.map(cat => ({
       category: cat,
-      budget: budgetByCategory[cat] || 0,
-      expense: expenseByCategory[cat] || 0,
+      budget: parseFloat((budgetByCategory[cat] || 0).toFixed(2)),
+      expense: parseFloat((expenseByCategory[cat] || 0).toFixed(2)),
       budgetFormatted: formatCurrency(budgetByCategory[cat] || 0),
       expenseFormatted: formatCurrency(expenseByCategory[cat] || 0),
-      difference: (budgetByCategory[cat] || 0) - (expenseByCategory[cat] || 0),
+      difference: parseFloat(((budgetByCategory[cat] || 0) - (expenseByCategory[cat] || 0)).toFixed(2)),
       differenceFormatted: formatCurrency((budgetByCategory[cat] || 0) - (expenseByCategory[cat] || 0)),
       status: (expenseByCategory[cat] || 0) > (budgetByCategory[cat] || 0) ? 'Over Budget' : 'Under Budget',
     }));

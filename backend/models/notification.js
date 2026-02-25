@@ -12,10 +12,20 @@ const notificationSchema = new mongoose.Schema({
     required: [true, 'Notification message is required'],
     trim: true,
   },
+  type: {
+    type: String,
+    enum: ['TRANSACTION_ALERT', 'FAMILY_INVITE', 'INFO'],
+    default: 'TRANSACTION_ALERT',
+  },
   transaction: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Transaction',
-    required: true,
+    required: false, // Made optional to support other types of notifications
+  },
+  invite: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'FamilyInvite',
+    required: false,
   },
   read: {
     type: Boolean,

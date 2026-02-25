@@ -1,17 +1,40 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import axios from 'axios';
+import { useNavigate } from 'react-router-dom';
+import { useFinancial } from '../context/FinancialContext';
+import {
+  COMMON_AXIS_PROPS,
+  COMMON_TOOLTIP_PROPS,
+  CHART_COLORS,
+  formatCurrencyCompact,
+  formatDateChart
+} from '../utils/chartStyles';
+import { useFamily } from '../context/FamilyContext';
+import api from '../api/axios';
+import PeriodHeader from '../components/PeriodHeader';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
   PieChart, Pie, Cell, AreaChart, Area, ScatterChart, Scatter,
   RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis,
-  FunnelChart, Funnel, Treemap
+  FunnelChart, Funnel, Treemap, LabelList
 } from 'recharts';
 import {
   FileText, Loader2, AlertTriangle, PlusCircle, Filter, BarChart2, PieChart as PieIcon,
   AreaChart as AreaIcon, ScatterChart as ScatterIcon, Activity as RadarIcon,
-  Filter as FunnelIcon, LayoutGrid as TreemapIcon, ChevronLeft, ChevronRight, Brain
+  Filter as FunnelIcon, LayoutGrid as TreemapIcon, ChevronLeft, ChevronRight, Brain, Trophy, Users, Shield
 } from 'lucide-react';
+
+// Variants for animations
+const cardVariants = {
+  hidden: { opacity: 0, y: 20 },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.3 } },
+  hover: { scale: 1.02, transition: { duration: 0.2 } },
+};
+
+const itemVariants = {
+  hidden: { opacity: 0, x: -20 },
+  visible: { opacity: 1, x: 0, transition: { duration: 0.3 } },
+};
 
 // Helper Functions
 const formatCurrency = (amount) => {
@@ -19,188 +42,92 @@ const formatCurrency = (amount) => {
   return `₹${amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 };
 
-const formatDateForDisplay = (dateString) => {
-  if (!dateString) return '';
-  try {
-    return new Date(dateString).toLocaleDateString('en-IN', {
-      day: 'numeric', month: 'short', year: 'numeric'
-    });
-  } catch (e) { return dateString; }
-};
-
-const formatDateForMobile = (dateString) => {
-  if (!dateString) return '';
-  try {
-    return new Date(dateString).toLocaleDateString('en-IN', {
-      day: 'numeric', month: 'short'
-    });
-  } catch (e) { return dateString; }
-};
-
-const getAuthToken = () => localStorage.getItem('token');
-
-const HomeView = React.memo(({ setIsManualTxModalOpen, setIsScanModalOpen, setActiveTab = () => console.warn('setActiveTab not provided. Ensure DashboardLayout.jsx passes setActiveTab to HomeView.') }) => {
-  const [summaryData, setSummaryData] = useState(null);
-  const [transactions, setTransactions] = useState([]);
-  const [budgets, setBudgets] = useState([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [filters, setFilters] = useState({
-    startDate: '',
-    endDate: '',
-    category: 'All',
-  });
-  const [pagination, setPagination] = useState({
-    currentPage: 1,
-    totalPages: 1,
-    totalTransactions: 0,
-    limit: 10,
-  });
+const HomeView = React.memo(({ setIsManualTxModalOpen, setIsScanModalOpen, setActiveTab = () => console.warn('setActiveTab not provided.') }) => {
+  const { data, loading: isLoading, error, totals, refreshData } = useFinancial();
+  const { group, hasGroup, familyFinancialData } = useFamily();
   const [chartType, setChartType] = useState('area');
   const [showFilters, setShowFilters] = useState(false);
 
-  // Fetch Data
-  const fetchData = useCallback(async () => {
-    setIsLoading(true);
-    setError(null);
-    const token = getAuthToken();
-    if (!token) {
-      setError('Authentication token not found. Please log in.');
-      setIsLoading(false);
-      return;
-    }
+  // Derived data
+  const transactions = useMemo(() => data?.transactions || [], [data]);
+  const budgets = useMemo(() => data?.budgets || [], [data]);
+  const summaryData = useMemo(() => ({
+    totalExpenses: totals.expenses,
+    totalIncome: totals.income,
+    netSavings: totals.savings,
+    budgetUsage: totals.budgetUsage,
+    topCategory: data?.categoryBreakdown?.[0]?.category || 'N/A'
+  }), [totals, data]);
 
-    try {
-      const [summaryResponse, transactionsResponse, budgetsResponse] = await Promise.all([
-        axios.get(`${import.meta.env.VITE_BACKEND_URL}/api/dashboard/summary`, {
-          headers: { Authorization: `Bearer ${token}` },
-        }),
-        axios.get(`${import.meta.env.VITE_BACKEND_URL}/api/transactions`, {
-          headers: { Authorization: `Bearer ${token}` },
-          params: {
-            page: pagination.currentPage,
-            limit: pagination.limit,
-            ...(filters.startDate && { startDate: filters.startDate }),
-            ...(filters.endDate && { endDate: filters.endDate }),
-            ...(filters.category !== 'All' && { category: filters.category }),
-            type: 'debit',
-          },
-        }),
-        axios.get(`${import.meta.env.VITE_BACKEND_URL}/api/budgets`, {
-          headers: { Authorization: `Bearer ${token}` },
-        }),
-      ]);
-
-      setSummaryData(summaryResponse.data);
-      setTransactions(transactionsResponse.data.transactions || []);
-      setPagination(prev => ({
-        ...prev,
-        totalPages: transactionsResponse.data.pagination.totalPages || 1,
-        totalTransactions: transactionsResponse.data.pagination.totalTransactions || 0,
-        currentPage: transactionsResponse.data.pagination.currentPage || 1,
-      }));
-      setBudgets(budgetsResponse.data || []);
-    } catch (err) {
-      const message = err.code === 'ERR_NETWORK'
-        ? 'Unable to connect to the server. Please check if the backend is running on http://localhost:5000.'
-        : err.response?.data?.message || 'Failed to load dashboard data.';
-      setError(message);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [filters, pagination.currentPage, pagination.limit]);
-
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
-
-  // Handle Filters and Pagination
-  const handleFilterChange = useCallback((e) => {
-    const { name, value } = e.target;
-    setFilters(prev => ({ ...prev, [name]: value }));
-    setPagination(prev => ({ ...prev, currentPage: 1 }));
-  }, []);
-
-  const handlePageChange = useCallback((newPage) => {
-    if (newPage >= 1 && newPage <= pagination.totalPages) {
-      setPagination(prev => ({ ...prev, currentPage: newPage }));
-    }
-  }, [pagination.totalPages]);
-
-  // Calculate Chart and Overview Data
+  // Simplified Chart and Overview Data using Backend-Aggregated Values
   const {
     expenseOverTimeData,
     expenseCategoryData,
-    budgetOverTimeData,
     budgetCategoryData,
     blendedChartData,
     categories,
     overview,
   } = useMemo(() => {
-    const currentCategories = ['All', ...new Set([...transactions.map(tx => tx.category), ...budgets.map(b => b.category)])];
-
-    // Expenses Over Time (by date)
-    const expenseByDate = transactions.reduce((acc, tx) => {
-      const date = formatDateForDisplay(tx.date);
-      acc[date] = (acc[date] || 0) + tx.amount;
-      return acc;
-    }, {});
-    const expenseOverTime = Object.entries(expenseByDate)
-      .map(([date, amount]) => ({ date, amount }))
-      .sort((a, b) => new Date(a.date) - new Date(b.date));
-
-    // Expense Categories
-    const expenseByCategory = transactions.reduce((acc, tx) => {
-      acc[tx.category] = (acc[tx.category] || 0) + tx.amount;
-      return acc;
-    }, {});
-    const expenseCategory = Object.entries(expenseByCategory)
-      .map(([name, value]) => ({ name, value }))
-      .sort((a, b) => b.value - a.value);
-
-    // Budgets Over Time (by date)
+    const trend = data?.trendData || [];
+    const expenseCategory = data?.categoryBreakdown || [];
     const expenseBudgets = budgets.filter(b => b.type === 'expense');
-    const budgetByDate = expenseBudgets.reduce((acc, b) => {
-      const date = formatDateForDisplay(b.createdAt);
-      acc[date] = (acc[date] || 0) + b.amount;
-      return acc;
-    }, {});
-    const budgetOverTime = Object.entries(budgetByDate)
-      .map(([date, amount]) => ({ date, amount }))
-      .sort((a, b) => new Date(a.date) - new Date(b.date));
 
-    // Budget Categories
-    const budgetByCategory = expenseBudgets.reduce((acc, b) => {
+    // Categories list for potential filters
+    const currentCategories = ['All', ...new Set([
+      ...expenseCategory.map(c => c.name),
+      ...budgets.map(b => b.category)
+    ])];
+
+    // Expenses Over Time (Aggregated by backend)
+    const expenseOverTime = trend.map(t => ({
+      date: formatDateChart(t.date),
+      amount: t.amount,
+      rawDate: t.date
+    })).sort((a, b) => new Date(a.rawDate) - new Date(b.rawDate));
+
+    // Expense Categories (Pre-aggregated by backend)
+    const budgetCategory = expenseBudgets.reduce((acc, b) => {
       acc[b.category] = (acc[b.category] || 0) + b.amount;
       return acc;
     }, {});
-    const budgetCategory = Object.entries(budgetByCategory)
+
+    const budgetCategoryList = Object.entries(budgetCategory)
       .map(([name, value]) => ({ name, value }))
       .sort((a, b) => b.value - a.value);
 
-    // Blended Expenses and Budget
+    // Blended data for Comparison
     const allDates = [...new Set([
-      ...transactions.map(tx => formatDateForDisplay(tx.date)),
-      ...expenseBudgets.map(b => formatDateForDisplay(b.createdAt))
+      ...trend.map(t => formatDateChart(t.date)),
+      ...expenseBudgets.map(b => formatDateChart(b.createdAt))
     ])].sort((a, b) => new Date(a) - new Date(b));
+
+    // Map trend to display dates for lookup
+    const trendMap = trend.reduce((acc, t) => {
+      acc[formatDateChart(t.date)] = t.amount;
+      return acc;
+    }, {});
+
+    const budgetByDateMap = expenseBudgets.reduce((acc, b) => {
+      const date = formatDateChart(b.createdAt);
+      acc[date] = (acc[date] || 0) + b.amount;
+      return acc;
+    }, {});
+
     const blendedData = allDates.map(date => ({
       date,
-      expense: expenseByDate[date] || 0,
-      budget: budgetByDate[date] || 0,
+      expense: trendMap[date] || 0,
+      budget: budgetByDateMap[date] || 0,
     }));
 
-    const totalExpenses = transactions.reduce((sum, tx) => sum + tx.amount, 0);
-    const avgExpense = transactions.length > 0 ? totalExpenses / transactions.length : 0;
+    const totalExpenses = totals.expenses;
     const totalBudget = expenseBudgets.reduce((sum, b) => sum + b.amount, 0);
-    const topCategory = expenseCategory.length > 0
-      ? expenseCategory.reduce((max, curr) => curr.value > max.value ? curr : max).name
-      : 'N/A';
+    const avgExpense = transactions.length > 0 ? totalExpenses / transactions.length : 0;
+    const topCategory = expenseCategory.length > 0 ? expenseCategory[0].name : 'N/A';
 
     return {
       expenseOverTimeData: expenseOverTime,
       expenseCategoryData: expenseCategory,
-      budgetOverTimeData: budgetOverTime,
-      budgetCategoryData: budgetCategory,
+      budgetCategoryData: budgetCategoryList,
       blendedChartData: blendedData,
       categories: currentCategories,
       overview: {
@@ -208,519 +135,316 @@ const HomeView = React.memo(({ setIsManualTxModalOpen, setIsScanModalOpen, setAc
         avgExpense,
         totalBudget,
         topCategory,
-        transactionCount: transactions.length,
+        transactionCount: data?.transactions?.length || 0, // This is count of the list, fine for overview
         budgetCount: expenseBudgets.length,
       },
     };
-  }, [transactions, budgets]);
+  }, [data, totals, budgets, transactions.length]);
 
-  // Chart Component
+  // Chart Component (unchanged)
   const ChartComponent = React.memo(({ data, title, dataKey, nameKey = 'name', isBlended = false }) => {
-    const customTooltip = ({ active, payload }) => {
-      if (active && payload && payload.length) {
-        return (
-          <div className="bg-white/95 p-2 border border-gray-100 rounded-md shadow-md backdrop-blur-sm">
-            <p className="font-semibold text-gray-800 text-xs">{payload[0].payload[nameKey] || payload[0].payload.date}</p>
-            {payload.map((entry, index) => (
-              <p key={index} className="text-gray-600 text-xs">{`${entry.name}: ${formatCurrency(entry.value)}`}</p>
-            ))}
-          </div>
-        );
-      }
-      return null;
-    };
-
-    const maxValue = isBlended
-      ? Math.max(...data.map(d => Math.max(d.expense, d.budget)), 1000)
-      : Math.max(...data.map(d => d[dataKey]), 1000);
-
-    // Optimize X-axis labels for mobile
-    const isMobile = window.innerWidth < 640;
-    const tickFormatter = (value, index) => {
-      if (isMobile && nameKey === 'date' && index % 3 !== 0) return '';
-      return isMobile && nameKey === 'date' ? formatDateForMobile(value) : value;
-    };
-
-    switch (chartType) {
-      case 'pie':
-        return (
-          <ResponsiveContainer width="100%" height={isMobile ? 200 : 300}>
-            <PieChart>
-              <Pie
-                data={data}
-                dataKey={dataKey}
-                nameKey={nameKey}
-                cx="50%"
-                cy="50%"
-                outerRadius={isMobile ? 60 : 100}
-                label={isMobile ? false : ({ name, value }) => `${name}: ${formatCurrency(value)}`}
-                labelLine={isMobile ? false : true}
-                isAnimationActive
-                animationDuration={400}
-              >
-                {data.map((_, index) => (
-                  <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                ))}
-              </Pie>
-              <Tooltip content={customTooltip} />
-              <Legend wrapperStyle={{ fontSize: isMobile ? 10 : 12 }} />
-            </PieChart>
-          </ResponsiveContainer>
-        );
-      case 'area':
-        return (
-          <ResponsiveContainer width="100%" height={isMobile ? 200 : 300}>
-            <AreaChart data={data} margin={{ top: 10, right: 10, left: -20, bottom: 20 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-              <XAxis
-                dataKey={nameKey}
-                fontSize={isMobile ? 10 : 12}
-                stroke="#374151"
-                angle={isMobile ? -45 : -30}
-                textAnchor="end"
-                height={isMobile ? 50 : 40}
-                tickFormatter={tickFormatter}
-              />
-              <YAxis
-                fontSize={isMobile ? 10 : 12}
-                stroke="#374151"
-                tickFormatter={(value) => `₹${value / 1000}k`}
-                domain={[0, maxValue * 1.1]}
-                width={isMobile ? 40 : 50}
-              />
-              <Tooltip content={customTooltip} />
-              <Legend wrapperStyle={{ fontSize: isMobile ? 10 : 12 }} />
-              {isBlended ? (
-                <>
-                  <Area
-                    type="monotone"
-                    dataKey="expense"
-                    name="Expenses"
-                    fill="#EF4444"
-                    fillOpacity={0.4}
-                    stroke="#EF4444"
-                    strokeWidth={2}
-                    isAnimationActive
-                    animationDuration={400}
-                  />
-                  <Area
-                    type="monotone"
-                    dataKey="budget"
-                    name="Budget"
-                    fill="#059669"
-                    fillOpacity={0.4}
-                    stroke="#059669"
-                    strokeWidth={2}
-                    isAnimationActive
-                    animationDuration={400}
-                  />
-                </>
-              ) : (
-                <Area
-                  type="monotone"
-                  dataKey={dataKey}
-                  name={title}
-                  fill={COLORS[0]}
-                  fillOpacity={0.4}
-                  stroke={COLORS[0]}
-                  strokeWidth={2}
-                  isAnimationActive
-                  animationDuration={400}
-                />
-              )}
-            </AreaChart>
-          </ResponsiveContainer>
-        );
-      case 'scatter':
-        return (
-          <ResponsiveContainer width="100%" height={isMobile ? 200 : 300}>
-            <ScatterChart margin={{ top: 10, right: 10, left: -20, bottom: 20 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-              <XAxis
-                dataKey={nameKey}
-                type="category"
-                fontSize={isMobile ? 10 : 12}
-                stroke="#374151"
-                angle={isMobile ? -45 : -30}
-                textAnchor="end"
-                height={isMobile ? 50 : 40}
-                tickFormatter={tickFormatter}
-              />
-              <YAxis
-                fontSize={isMobile ? 10 : 12}
-                stroke="#374151"
-                tickFormatter={(value) => `₹${value / 1000}k`}
-                domain={[0, maxValue * 1.1]}
-                width={isMobile ? 40 : 50}
-              />
-              <Tooltip content={customTooltip} />
-              <Legend wrapperStyle={{ fontSize: isMobile ? 10 : 12 }} />
-              <Scatter name={title} data={data} fill={COLORS[0]} isAnimationActive animationDuration={400} />
-            </ScatterChart>
-          </ResponsiveContainer>
-        );
-      case 'radar':
-        return (
-          <ResponsiveContainer width="100%" height={isMobile ? 200 : 300}>
-            <RadarChart data={data}>
-              <PolarGrid stroke="#e5e7eb" />
-              <PolarAngleAxis dataKey={nameKey} stroke="#374151" fontSize={isMobile ? 10 : 12} />
-              <PolarRadiusAxis
-                stroke="#374151"
-                fontSize={isMobile ? 10 : 12}
-                tickFormatter={(value) => `₹${value / 1000}k`}
-                domain={[0, maxValue * 1.1]}
-              />
-              <Tooltip content={customTooltip} />
-              <Legend wrapperStyle={{ fontSize: isMobile ? 10 : 12 }} />
-              <Radar name={title} dataKey={dataKey} stroke={COLORS[0]} fill={COLORS[0]} fillOpacity={0.6} isAnimationActive animationDuration={400} />
-            </RadarChart>
-          </ResponsiveContainer>
-        );
-      case 'funnel':
-        return (
-          <ResponsiveContainer width="100%" height={isMobile ? 200 : 300}>
-            <FunnelChart>
-              <Tooltip content={customTooltip} />
-              <Funnel
-                data={data}
-                dataKey={dataKey}
-                nameKey={nameKey}
-                isAnimationActive
-                animationDuration={400}
-                label={{
-                  position: 'right',
-                  fill: '#333',
-                  fontSize: isMobile ? 10 : 12,
-                  formatter: (entry) => `${entry[nameKey]}: ${formatCurrency(entry[dataKey])}`,
-                }}
-              >
-                {data.map((_, index) => (
-                  <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                ))}
-              </Funnel>
-            </FunnelChart>
-          </ResponsiveContainer>
-        );
-      case 'treemap':
-        return (
-          <ResponsiveContainer width="100%" height={isMobile ? 200 : 300}>
-            <Treemap
-              data={data}
-              dataKey={dataKey}
-              nameKey={nameKey}
-              stroke="#fff"
-              aspectRatio={4 / 3}
-              isAnimationActive
-              animationDuration={400}
-              content={({ depth, x, y, width, height, index, name, value }) => (
-                <g>
-                  <rect
-                    x={x}
-                    y={y}
-                    width={width}
-                    height={height}
-                    fill={COLORS[index % COLORS.length]}
-                    stroke="#fff"
-                  />
-                  {width > (isMobile ? 40 : 60) && height > (isMobile ? 12 : 16) && (
-                    <text x={x + 3} y={y + (isMobile ? 10 : 12)} fill="#fff" fontSize={isMobile ? 8 : 10}>
-                      {name} ({formatCurrency(value)})
-                    </text>
-                  )}
-                </g>
-              )}
-            >
-              <Tooltip content={customTooltip} />
-            </Treemap>
-          </ResponsiveContainer>
-        );
-      default:
-        return (
-          <ResponsiveContainer width="100%" height={isMobile ? 200 : 300}>
-            <BarChart data={data} margin={{ top: 10, right: 10, left: -20, bottom: 20 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-              <XAxis
-                dataKey={nameKey}
-                fontSize={isMobile ? 10 : 12}
-                stroke="#374151"
-                angle={isMobile ? -45 : -30}
-                textAnchor="end"
-                height={isMobile ? 50 : 40}
-                tickFormatter={tickFormatter}
-              />
-              <YAxis
-                fontSize={isMobile ? 10 : 12}
-                stroke="#374151"
-                tickFormatter={(value) => `₹${value / 1000}k`}
-                domain={[0, maxValue * 1.1]}
-                width={isMobile ? 40 : 50}
-              />
-              <Tooltip content={customTooltip} />
-              <Legend wrapperStyle={{ fontSize: isMobile ? 10 : 12 }} />
-              {isBlended ? (
-                <>
-                  <Bar dataKey="expense" name="Expenses" fill="#EF4444" isAnimationActive animationDuration={400} />
-                  <Bar dataKey="budget" name="Budget" fill="#059669" isAnimationActive animationDuration={400} />
-                </>
-              ) : (
-                <Bar dataKey={dataKey} name={title} fill={COLORS[0]} isAnimationActive animationDuration={400} />
-              )}
-            </BarChart>
-          </ResponsiveContainer>
-        );
+    if (!data || data.length === 0) {
+      return (
+        <div className="h-[300px] flex items-center justify-center bg-gray-50/50 rounded-xl border border-dashed border-gray-200">
+          <p className="text-gray-400 text-sm">No data available for the selected period</p>
+        </div>
+      );
     }
+
+    return (
+      <div className="h-[300px] w-full">
+        <ResponsiveContainer width="100%" height="100%">
+          {isBlended ? (
+            <AreaChart data={data}>
+              <defs>
+                <linearGradient id="colorExpense" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor={CHART_COLORS[0]} stopOpacity={0.1} />
+                  <stop offset="95%" stopColor={CHART_COLORS[0]} stopOpacity={0} />
+                </linearGradient>
+                <linearGradient id="colorBudget" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor={CHART_COLORS[1]} stopOpacity={0.1} />
+                  <stop offset="95%" stopColor={CHART_COLORS[1]} stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F3F4F6" />
+              <XAxis
+                dataKey={nameKey}
+                {...COMMON_AXIS_PROPS}
+                tickFormatter={formatDateChart}
+              />
+              <YAxis
+                {...COMMON_AXIS_PROPS}
+                tickFormatter={formatCurrencyCompact}
+              />
+              <Tooltip {...COMMON_TOOLTIP_PROPS} />
+              <Area
+                type="monotone"
+                dataKey="expense"
+                stroke={CHART_COLORS[0]}
+                fillOpacity={1}
+                fill="url(#colorExpense)"
+                name="Expenses"
+              />
+              <Area
+                type="monotone"
+                dataKey="budget"
+                stroke={CHART_COLORS[1]}
+                fillOpacity={1}
+                fill="url(#colorBudget)"
+                name="Budget"
+              />
+              <Legend />
+            </AreaChart>
+          ) : (
+            <BarChart data={data} layout={nameKey === 'name' ? 'vertical' : 'horizontal'}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F3F4F6" />
+              {nameKey === 'name' ? (
+                <>
+                  <XAxis type="number" {...COMMON_AXIS_PROPS} tickFormatter={formatCurrencyCompact} />
+                  <YAxis
+                    type="category"
+                    dataKey={nameKey}
+                    {...COMMON_AXIS_PROPS}
+                    width={100}
+                  />
+                </>
+              ) : (
+                <>
+                  <XAxis
+                    dataKey={nameKey}
+                    {...COMMON_AXIS_PROPS}
+                    tickFormatter={formatDateChart}
+                  />
+                  <YAxis
+                    {...COMMON_AXIS_PROPS}
+                    tickFormatter={formatCurrencyCompact}
+                  />
+                </>
+              )}
+              <Tooltip {...COMMON_TOOLTIP_PROPS} />
+              <Bar
+                dataKey={dataKey}
+                fill={CHART_COLORS[0]}
+                radius={[0, 4, 4, 0]}
+                name="Amount"
+              >
+                {data.map((entry, index) => (
+                  <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                ))}
+              </Bar>
+            </BarChart>
+          )}
+        </ResponsiveContainer>
+      </div>
+    );
   });
-
-  // Animation Variants
-  const cardVariants = {
-    hidden: { opacity: 0, y: 8 },
-    visible: { opacity: 1, y: 0, transition: { duration: 0.2, ease: 'easeOut' } },
-    hover: { scale: 1.03, transition: { duration: 0.15 } },
-  };
-
-  const itemVariants = {
-    hidden: { opacity: 0, x: -4 },
-    visible: (i) => ({
-      opacity: 1,
-      x: 0,
-      transition: { delay: i * 0.04, duration: 0.15, ease: 'easeOut' },
-    }),
-  };
-
-  const drawerVariants = {
-    hidden: { x: '100%', opacity: 0 },
-    visible: { x: 0, opacity: 1, transition: { duration: 0.25, ease: 'easeOut' } },
-    exit: { x: '100%', opacity: 0, transition: { duration: 0.15, ease: 'easeIn' } },
-  };
-
-  const COLORS = ['#2563EB', '#059669', '#D97706', '#7C3AED', '#DB2777', '#6D28D9', '#EA580C'];
 
   if (isLoading) {
     return (
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        className="flex flex-col items-center justify-center py-12 min-h-[calc(100vh-4rem)] bg-gray-50"
-      >
-        <Loader2 className="animate-spin h-6 w-6 text-blue-600" />
-        <p className="mt-2 text-xs font-medium text-gray-600">Loading your financial insights...</p>
-      </motion.div>
+      <div className="flex flex-col items-center justify-center h-full space-y-4">
+        <Loader2 className="animate-spin text-blue-600 w-12 h-12" />
+        <p className="text-gray-600 font-medium">Loading dashboard data...</p>
+      </div>
     );
   }
 
   if (error) {
     return (
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        className="flex items-center justify-center min-h-[calc(100vh-4rem)] bg-gray-50 p-4"
-      >
-        <div className="bg-white p-4 rounded-xl shadow-md max-w-sm w-full border border-red-50">
-          <div className="flex items-center">
-            <AlertTriangle className="w-4 h-4 text-red-500 mr-2" />
-            <div>
-              <strong className="font-semibold text-gray-800 text-sm">Error</strong>
-              <p className="mt-1 text-xs text-gray-600">{error}</p>
-            </div>
-          </div>
-        </div>
-      </motion.div>
+      <div className="flex flex-col items-center justify-center h-full space-y-4 text-center p-4">
+        <AlertTriangle className="text-red-500 w-12 h-12" />
+        <p className="text-red-600 font-medium">{error}</p>
+        <button
+          onClick={refreshData}
+          className="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition-colors"
+        >
+          Retry
+        </button>
+      </div>
     );
   }
 
   return (
-    <div className="min-h-[calc(100vh-4rem)] bg-gray-50 p-2 sm:p-4 lg:p-5 space-y-3 sm:space-y-4">
-      {/* Header */}
-      <motion.div
-        initial={{ opacity: 0, y: -8 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="flex justify-between items-center sticky top-0 bg-white p-2 sm:p-3 rounded-xl shadow-sm z-10"
-      >
-        <h2 className="text-base sm:text-lg font-bold text-gray-900">Financial Dashboard</h2>
-        <button
-          onClick={() => setShowFilters(true)}
-          className="p-1.5 min-h-[44px] min-w-[44px] bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center text-sm font-medium"
-        >
-          <Filter size={17} className="mr-4 sm:mr-1.5 ml-4 sm:ml-1.5" /> <span className="sm:inline mr-4 sm:mr-1.5 ml-4 sm:ml-1.5">Filter</span>
-        </button>
-      </motion.div>
-
-      {/* Quick Actions */}
+    <div className="space-y-6 md:space-y-8">
+      {/* Action Buttons */}
       <motion.div
         variants={cardVariants}
         initial="hidden"
         animate="visible"
-        className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3"
+        className="grid grid-cols-2 lg:grid-cols-5 gap-3 md:gap-4"
       >
-        {[
-          { id: 'scan', icon: <FileText size={18} />, label: 'Scan Bill', color: 'bg-gradient-to-br from-blue-600 to-blue-800', action: () => setIsScanModalOpen(true), order: 'order-1' },
-          { id: 'manual', icon: <PlusCircle size={18} />, label: 'Add Transaction', color: 'bg-gradient-to-br from-green-600 to-green-800', action: () => setIsManualTxModalOpen(true), order: 'order-2' },
-          { id: 'compare', icon: <BarChart2 size={18} />, label: 'Compare Budget vs Expenses', color: 'bg-gradient-to-br from-purple-600 to-purple-800', action: () => setActiveTab('compare'), order: 'order-3' },
-          { id: 'ai-analysis', icon: <Brain size={18} />, label: 'AI Analysis', color: 'bg-gradient-to-br from-orange-600 to-orange-800', action: () => setActiveTab('ai-analysis'), order: 'order-4' },
-        ].map((action) => (
-          <motion.button
-            key={action.id}
-            variants={cardVariants}
-            whileHover="hover"
-            whileTap={{ scale: 0.95 }}
-            className={`${action.color} ${action.order} text-white p-3 sm:p-4 rounded-xl shadow-md border border-gray-100 relative overflow-hidden group hover:shadow-lg transition-all duration-150 min-h-[110px]`}
-            onClick={action.action}
-          >
-            <div className="absolute inset-0 bg-white/10 group-hover:bg-white/20 transition-opacity"></div>
-            <div className="relative flex flex-col items-center space-y-2">
-              {action.icon}
-              <span className="text-[11px] sm:text-xs font-semibold text-center leading-tight line-clamp-2">{action.label}</span>
-            </div>
-          </motion.button>
-        ))}
+        <motion.button
+          variants={cardVariants}
+          whileHover="hover"
+          onClick={() => setIsScanModalOpen(true)}
+          className="p-4 md:p-6 rounded-2xl shadow-md bg-gradient-to-br from-blue-500 to-blue-600 text-white flex flex-col items-center justify-center transition-all hover:shadow-lg hover:scale-[1.02]"
+        >
+          <FileText className="w-7 h-7 mb-2" />
+          <p className="text-sm md:text-base font-medium">Scan Bill</p>
+        </motion.button>
+
+        <motion.button
+          variants={cardVariants}
+          whileHover="hover"
+          onClick={() => setActiveTab('gamification')}
+          className="p-4 md:p-6 rounded-2xl shadow-md bg-gradient-to-br from-green-500 to-emerald-600 text-white flex flex-col items-center justify-center transition-all hover:shadow-lg hover:scale-[1.02]"
+        >
+          <Trophy className="w-7 h-7 mb-2" />
+          <p className="text-sm md:text-base font-medium">Gamification</p>
+        </motion.button>
+
+        <motion.button
+          variants={cardVariants}
+          whileHover="hover"
+          onClick={() => setActiveTab('compare')}
+          className="p-4 md:p-6 rounded-2xl shadow-md bg-gradient-to-br from-purple-500 to-violet-600 text-white flex flex-col items-center justify-center transition-all hover:shadow-lg hover:scale-[1.02]"
+        >
+          <BarChart2 className="w-7 h-7 mb-2" />
+          <p className="text-sm md:text-base font-medium text-center">Compare Budget vs Expenses</p>
+        </motion.button>
+
+        <motion.button
+          variants={cardVariants}
+          whileHover="hover"
+          onClick={() => setActiveTab('ai-analysis')}
+          className="p-4 md:p-6 rounded-2xl shadow-md bg-gradient-to-br from-orange-500 to-amber-600 text-white flex flex-col items-center justify-center transition-all hover:shadow-lg hover:scale-[1.02]"
+        >
+          <Brain className="w-7 h-7 mb-2" />
+          <p className="text-sm md:text-base font-medium">AI Analysis</p>
+        </motion.button>
+
+        <motion.button
+          variants={cardVariants}
+          whileHover="hover"
+          onClick={() => setActiveTab('tax-advisor')}
+          className="p-4 md:p-6 rounded-2xl shadow-md bg-gradient-to-br from-teal-500 to-emerald-600 text-white flex flex-col items-center justify-center transition-all hover:shadow-lg hover:scale-[1.02]"
+        >
+          <Shield className="w-7 h-7 mb-2" />
+          <p className="text-sm md:text-base font-medium">Optimize My Taxes</p>
+        </motion.button>
       </motion.div>
 
-      {/* Filters Drawer (Mobile) / Card (Desktop) */}
-      <AnimatePresence>
-        {showFilters && (
-          <motion.div
-            variants={drawerVariants}
-            initial="hidden"
-            animate="visible"
-            exit="exit"
-            className="fixed inset-y-0 right-0 w-[90%] sm:w-72 bg-white p-3 sm:p-4 rounded-l-xl shadow-lg z-50 sm:static sm:bg-white/95 sm:rounded-xl sm:shadow-md"
-          >
-            <div className="flex justify-between items-center mb-2 sm:mb-3">
-              <h3 className="text-base font-semibold text-gray-800">Filters</h3>
-              <button
-                onClick={() => setShowFilters(false)}
-                className="text-gray-600 hover:text-gray-800 p-1 min-h-[44px] min-w-[44px]"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-            <div className="space-y-2 sm:space-y-3">
-              <div>
-                <label htmlFor="startDate" className="block text-[11px] sm:text-xs font-medium text-gray-700">Start Date</label>
-                <input
-                  type="date"
-                  id="startDate"
-                  name="startDate"
-                  value={filters.startDate}
-                  onChange={handleFilterChange}
-                  className="mt-1 w-full p-1.5 sm:p-2 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-[11px] sm:text-xs"
-                />
-              </div>
-              <div>
-                <label htmlFor="endDate" className="block text-[11px] sm:text-xs font-medium text-gray-700">End Date</label>
-                <input
-                  type="date"
-                  id="endDate"
-                  name="endDate"
-                  value={filters.endDate}
-                  onChange={handleFilterChange}
-                  className="mt-1 w-full p-1.5 sm:p-2 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-[11px] sm:text-xs"
-                />
-              </div>
-              <div>
-                <label htmlFor="category" className="block text-[11px] sm:text-xs font-medium text-gray-700">Category</label>
-                <select
-                  id="category"
-                  name="category"
-                  value={filters.category}
-                  onChange={handleFilterChange}
-                  className="mt-1 w-full p-1.5 sm:p-2 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-[11px] sm:text-xs"
-                >
-                  {categories.map(cat => (
-                    <option key={cat} value={cat}>{cat}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-      {showFilters && <div className="fixed inset-0 bg-black/60 z-40 sm:hidden" onClick={() => setShowFilters(false)}></div>}
+      {/* Period Header */}
+      <div className="flex justify-start">
+        <PeriodHeader />
+      </div>
 
       {/* Overview Cards */}
       <motion.div
         variants={cardVariants}
         initial="hidden"
         animate="visible"
-        className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3"
+        className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4"
       >
         {[
-          { label: 'Total Expenses', value: formatCurrency(overview.totalExpenses), color: 'text-blue-600', bg: 'bg-blue-50' },
-          { label: 'Total Budget', value: formatCurrency(overview.totalBudget), color: 'text-green-600', bg: 'bg-green-50' },
-          { label: 'Top Category', value: overview.topCategory, color: 'text-purple-600', bg: 'bg-purple-50', capitalize: true },
-          { label: 'Transactions', value: overview.transactionCount, color: 'text-orange-600', bg: 'bg-orange-50' },
+          { label: 'Total Expenses', value: formatCurrency(overview.totalExpenses), color: 'text-blue-700', bg: 'bg-blue-50/80' },
+          { label: 'Total Budget', value: formatCurrency(overview.totalBudget), color: 'text-emerald-700', bg: 'bg-emerald-50/80' },
+          { label: 'Top Category', value: overview.topCategory, color: 'text-purple-700', bg: 'bg-purple-50/80', capitalize: true },
+          { label: 'Transactions', value: overview.transactionCount, color: 'text-amber-700', bg: 'bg-amber-50/80' },
         ].map((item, index) => (
           <motion.div
             key={item.label}
             variants={cardVariants}
             whileHover="hover"
-            className={`p-2 sm:p-3 rounded-xl shadow-md ${item.bg} border-2 border-gray-50`}
+            className={`p-4 md:p-5 rounded-2xl shadow-sm ${item.bg} border border-gray-100/80`}
             custom={index}
           >
-            <p className="text-[11px] sm:text-xs text-gray-600">{item.label}</p>
-            <p className={`text-sm sm:text-base font-semibold ${item.color} ${item.capitalize ? 'capitalize' : ''}`}>{item.value}</p>
+            <p className="text-xs md:text-sm text-gray-600 mb-1">{item.label}</p>
+            <p className={`text-lg md:text-xl font-bold ${item.color} ${item.capitalize ? 'capitalize' : ''}`}>
+              {item.value}
+            </p>
           </motion.div>
         ))}
       </motion.div>
+
+      {/* Family Snapshot Section */}
+      {hasGroup && (
+        <motion.div
+          variants={cardVariants}
+          initial="hidden"
+          animate="visible"
+          className="bg-gradient-to-br from-violet-600 to-indigo-700 rounded-3xl p-8 text-white shadow-xl shadow-violet-100/50 relative overflow-hidden"
+        >
+          <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-bl-full -mr-16 -mt-16" />
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 relative z-10">
+            <div>
+              <div className="flex items-center gap-3 mb-2">
+                <div className="p-2 bg-white/20 backdrop-blur-md rounded-xl">
+                  <Users size={20} />
+                </div>
+                <h3 className="text-xl font-black">{group?.name} Snapshot</h3>
+              </div>
+              <p className="text-white/70 text-sm font-medium">Your collective financial footprint this month.</p>
+            </div>
+
+            <div className="grid grid-cols-2 sm:flex gap-4 sm:gap-8">
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-widest text-white/50 mb-1">Group Spending</p>
+                <p className="text-2xl font-black">{formatCurrency(familyFinancialData?.totalExpense || 0)}</p>
+              </div>
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-widest text-white/50 mb-1">Active Budget</p>
+                <p className="text-2xl font-black">{formatCurrency(familyFinancialData?.totalBudget || 0)}</p>
+              </div>
+              <button
+                onClick={() => setActiveTab('family-dashboard')}
+                className="col-span-2 sm:col-auto bg-white text-violet-700 px-6 py-3 rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-gray-50 transition-all shadow-lg active:scale-95"
+              >
+                Go to Hub
+              </button>
+            </div>
+          </div>
+        </motion.div>
+      )}
 
       {/* Expenses Insights */}
       <motion.div
         variants={cardVariants}
         initial="hidden"
         animate="visible"
-        className="bg-white rounded-xl shadow-md p-2 sm:p-4 border-2 border-gray-50"
+        className="bg-white rounded-2xl shadow-sm border border-gray-100/80 p-5 md:p-6"
       >
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-2 sm:mb-3">
-          <h3 className="text-base sm:text-lg font-semibold text-gray-800 mb-2 sm:mb-0">Expenses Insights</h3>
-          <div className="flex flex-wrap gap-1">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-5">
+          <h3 className="text-lg md:text-xl font-bold text-gray-900 mb-3 sm:mb-0">Expenses Insights</h3>
+          <div className="flex flex-wrap gap-2">
             {[
-              { value: 'area', icon: <AreaIcon size={12} /> },
-              { value: 'bar', icon: <BarChart2 size={12} /> },
-              { value: 'pie', icon: <PieIcon size={12} /> },
-              { value: 'treemap', icon: <TreemapIcon size={12} /> },
-              { value: 'scatter', icon: <ScatterIcon size={12} /> },
-              { value: 'radar', icon: <RadarIcon size={12} /> },
-              { value: 'funnel', icon: <FunnelIcon size={12} /> },
+              { value: 'area', icon: <AreaIcon size={16} /> },
+              { value: 'bar', icon: <BarChart2 size={16} /> },
+              { value: 'pie', icon: <PieIcon size={16} /> },
+              { value: 'treemap', icon: <TreemapIcon size={16} /> },
+              { value: 'scatter', icon: <ScatterIcon size={16} /> },
+              { value: 'radar', icon: <RadarIcon size={16} /> },
+              { value: 'funnel', icon: <FunnelIcon size={16} /> },
             ].map((type) => (
               <button
                 key={type.value}
                 onClick={() => setChartType(type.value)}
-                className={`p-1 rounded-lg text-xs flex items-center min-h-[36px] min-w-[36px] ${chartType === type.value ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-100'}`}
+                className={`p-2 rounded-lg transition ${chartType === type.value ? 'bg-indigo-100 text-indigo-700' : 'text-gray-600 hover:bg-gray-100'}`}
               >
                 {type.icon}
               </button>
             ))}
           </div>
         </div>
-        <div className="space-y-4">
+
+        <div className="space-y-8">
           <div>
-            <h4 className="text-[11px] sm:text-xs font-medium text-gray-700 mb-2">Expenses Over Time</h4>
-            {expenseOverTimeData.length > 0 ? (
-              <ChartComponent
-                data={expenseOverTimeData}
-                title="Expenses Over Time"
-                dataKey="amount"
-                nameKey="date"
-              />
-            ) : (
-              <p className="text-gray-500 text-center py-3 text-xs">No expense data available.</p>
-            )}
+            <h4 className="text-base font-semibold text-gray-800 mb-3">Expenses Over Time</h4>
+            <ChartComponent
+              data={expenseOverTimeData}
+              title="Expenses Over Time"
+              dataKey="amount"
+              nameKey="date"
+            />
           </div>
+
           <div>
-            <h4 className="text-[11px] sm:text-xs font-medium text-gray-700 mb-2">Expense Categories</h4>
-            {expenseCategoryData.length > 0 ? (
-              <ChartComponent
-                data={expenseCategoryData}
-                title="Expense Categories"
-                dataKey="value"
-                nameKey="name"
-              />
-            ) : (
-              <p className="text-gray-500 text-center py-3 text-xs">No expense data available.</p>
-            )}
+            <h4 className="text-base font-semibold text-gray-800 mb-3">Expense Categories</h4>
+            <ChartComponent
+              data={expenseCategoryData}
+              title="Expense Categories"
+              dataKey="value"
+              nameKey="name"
+            />
           </div>
         </div>
       </motion.div>
@@ -730,61 +454,36 @@ const HomeView = React.memo(({ setIsManualTxModalOpen, setIsScanModalOpen, setAc
         variants={cardVariants}
         initial="hidden"
         animate="visible"
-        className="bg-white rounded-xl shadow-md p-2 sm:p-4 border-2 border-gray-50"
+        className="bg-white rounded-2xl shadow-sm border border-gray-100/80 p-5 md:p-6"
       >
-        <h3 className="text-base sm:text-lg font-semibold text-gray-800 mb-2 sm:mb-3">Budget Insights</h3>
-        <div className="space-y-4">
-          <div>
-            <h4 className="text-[11px] sm:text-xs font-medium text-gray-700 mb-2">Budgets Over Time</h4>
-            {budgetOverTimeData.length > 0 ? (
-              <ChartComponent
-                data={budgetOverTimeData}
-                title="Budgets Over Time"
-                dataKey="amount"
-                nameKey="date"
-              />
-            ) : (
-              <p className="text-gray-500 text-center py-3 text-xs">No budget data available.</p>
-            )}
-          </div>
-          <div>
-            <h4 className="text-[11px] sm:text-xs font-medium text-gray-700 mb-2">Budget Categories</h4>
-            {budgetCategoryData.length > 0 ? (
-              <ChartComponent
-                data={budgetCategoryData}
-                title="Budget Categories"
-                dataKey="value"
-                nameKey="name"
-              />
-            ) : (
-              <p className="text-gray-500 text-center py-3 text-xs">No budget data available.</p>
-            )}
-          </div>
+        <h3 className="text-lg md:text-xl font-bold text-gray-900 mb-5">Budget Insights</h3>
+        {/* Budget vs comparison chart often redundant with blendedChartData below */}
+        <div>
+          <h4 className="text-base font-semibold text-gray-800 mb-3">Budget Categories</h4>
+          <ChartComponent
+            data={budgetCategoryData}
+            title="Budget Categories"
+            dataKey="value"
+            nameKey="name"
+          />
         </div>
       </motion.div>
 
-      {/* Comparison Insights */}
+      {/* Comparison */}
       <motion.div
         variants={cardVariants}
         initial="hidden"
         animate="visible"
-        className="bg-white rounded-xl shadow-md p-2 sm:p-4 border-2 border-gray-50"
+        className="bg-white rounded-2xl shadow-sm border border-gray-100/80 p-5 md:p-6"
       >
-        <h3 className="text-base sm:text-lg font-semibold text-gray-800 mb-2 sm:mb-3">Comparison Insights</h3>
-        <div>
-          <h4 className="text-[11px] sm:text-xs font-medium text-gray-700 mb-2">Expenses vs Budget</h4>
-          {blendedChartData.length > 0 ? (
-            <ChartComponent
-              data={blendedChartData}
-              title="Expenses vs Budget"
-              dataKey="expense"
-              nameKey="date"
-              isBlended={true}
-            />
-          ) : (
-            <p className="text-gray-500 text-center py-3 text-xs">No data available for expenses or budget.</p>
-          )}
-        </div>
+        <h3 className="text-lg md:text-xl font-bold text-gray-900 mb-5">Comparison Insights</h3>
+        <ChartComponent
+          data={blendedChartData}
+          title="Expenses vs Budget"
+          dataKey="expense"
+          nameKey="date"
+          isBlended={true}
+        />
       </motion.div>
 
       {/* Expense History */}
@@ -792,58 +491,50 @@ const HomeView = React.memo(({ setIsManualTxModalOpen, setIsScanModalOpen, setAc
         variants={cardVariants}
         initial="hidden"
         animate="visible"
-        className="bg-white rounded-xl shadow-md p-2 sm:p-4 border-2 border-gray-50"
+        className="bg-white rounded-2xl shadow-sm border border-gray-100/80 p-5 md:p-6"
       >
-        <h3 className="text-base sm:text-lg font-semibold text-gray-800 mb-2 sm:mb-3">Expense History</h3>
+        <h3 className="text-lg md:text-xl font-bold text-gray-900 mb-5">Recent Expenses</h3>
+
         {transactions.length > 0 ? (
           <>
-            <div className="space-y-2">
-              {transactions.map((tx, index) => (
+            <div className="space-y-3">
+              {transactions.slice(0, 10).map((tx, index) => (  // limit to 10 most recent
                 <motion.div
                   key={tx._id}
                   custom={index}
                   variants={itemVariants}
                   initial="hidden"
                   animate="visible"
-                  className="p-2 sm:p-3 bg-gray-50 rounded-lg shadow-sm border border-gray-200"
+                  className="p-4 bg-gray-50/60 rounded-xl border border-gray-100"
                 >
-                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 sm:gap-2">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                     <div className="flex-1">
-                      <p className="text-xs sm:text-sm font-semibold text-gray-800 capitalize">{tx.category}</p>
-                      <p className="text-[10px] sm:text-xs text-gray-600 truncate">{tx.description || '-'}</p>
-                      <p className="text-[10px] sm:text-xs text-gray-500">{formatDateForMobile(tx.date)}</p>
-                      {tx.source === 'manual' && <span className="text-[9px] sm:text-[10px] text-blue-500">(Manual)</span>}
-                      {tx.source === 'billscan' && <span className="text-[9px] sm:text-[10px] text-purple-500">(Scanned)</span>}
+                      <p className="font-medium text-gray-900 capitalize">{tx.category}</p>
+                      <p className="text-sm text-gray-600 mt-0.5">{tx.description || '—'}</p>
+                      <p className="text-xs text-gray-500 mt-1">{formatDateChart(tx.date)}</p>
+                      {tx.source && (
+                        <span className={`inline-block mt-1 text-xs px-2 py-0.5 rounded-full ${tx.source === 'manual' ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700'
+                          }`}>
+                          {tx.source === 'manual' ? 'Manual' : 'Scanned'}
+                        </span>
+                      )}
                     </div>
-                    <p className="text-xs sm:text-sm text-red-600 font-semibold text-right">-{formatCurrency(tx.amount)}</p>
+                    <p className="text-lg font-semibold text-red-600 text-right">
+                      -{formatCurrency(tx.amount)}
+                    </p>
                   </div>
                 </motion.div>
               ))}
             </div>
-            <div className="flex justify-between items-center mt-3 text-xs">
-              <span className="text-gray-600 text-[10px]">
-                Page {pagination.currentPage} of {pagination.totalPages} ({pagination.totalTransactions} items)
-              </span>
-              <div className="flex space-x-1">
-                <button
-                  onClick={() => handlePageChange(pagination.currentPage - 1)}
-                  disabled={pagination.currentPage <= 1 || isLoading}
-                  className="p-1 rounded-lg bg-gray-100 hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed min-h-[36px] min-w-[36px]"
-                >
-                  <ChevronLeft size={12} />
-                </button>
-                <button
-                  onClick={() => handlePageChange(pagination.currentPage + 1)}
-                  disabled={pagination.currentPage >= pagination.totalPages || isLoading}
-                  className="p-1 rounded-lg bg-gray-100 hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed min-h-[36px] min-w-[36px]"
-                >
-                  <ChevronRight size={12} />
-                </button>
-              </div>
-            </div>
+
+            {transactions.length > 10 && (
+              <p className="text-center text-sm text-gray-500 mt-6">
+                Showing 10 most recent of {transactions.length} transactions
+              </p>
+            )}
           </>
         ) : (
-          <p className="text-gray-500 text-center py-3 text-xs">No expenses found.</p>
+          <p className="text-gray-500 text-center py-12">No expenses recorded in this period.</p>
         )}
       </motion.div>
     </div>

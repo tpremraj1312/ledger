@@ -44,24 +44,53 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer utilities {
+  .glass-panel {
+    @apply bg-fintech-card backdrop-blur-xl border border-fintech-border rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.04)];
+  }
+  
+  .glass-card {
+    @apply bg-glass-gradient backdrop-blur-md border border-black/5 shadow-lg;
+  }
+
+  .neon-text {
+    text-shadow: 0 0 10px rgba(59, 130, 246, 0.3), 0 0 20px rgba(59, 130, 246, 0.2);
+  }
+  
+  .text-gradient {
+    @apply bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-violet-600;
+  }
+}
+
 @keyframes float {
-  0% {
-    transform: translateY(0px);
-  }
-  50% {
-    transform: translateY(-10px);
-  }
-  100% {
-    transform: translateY(0px);
-  }
+  0% { transform: translateY(0px); }
+  50% { transform: translateY(-10px); }
+  100% { transform: translateY(0px); }
+}
+
+@keyframes float-slow {
+  0% { transform: translateY(0px) rotate(0deg); }
+  50% { transform: translateY(-15px) rotate(1deg); }
+  100% { transform: translateY(0px) rotate(0deg); }
 }
 
 .animate-float {
   animation: float 3s ease-in-out infinite;
 }
 
-.bg-grid-white\/10 {
-  background-image: linear-gradient(to right, rgba(255, 255, 255, 0.1) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(255, 255, 255, 0.1) 1px, transparent 1px);
+.animate-float-slow {
+  animation: float-slow 6s ease-in-out infinite;
+}
+
+.bg-grid-black\/5 {
+  background-image: linear-gradient(to right, rgba(0, 0, 0, 0.05) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(0, 0, 0, 0.05) 1px, transparent 1px);
   background-size: 40px 40px;
+}
+
+/* Base landing page resets */
+.landing-light-theme {
+  @apply bg-fintech-base text-slate-800;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  overflow-x: hidden;
 }

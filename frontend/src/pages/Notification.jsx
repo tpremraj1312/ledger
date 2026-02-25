@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { Bell, Settings, Loader2, RefreshCw } from 'lucide-react';
+import { Bell, Settings, Loader2, RefreshCw, Check, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { acceptInvite, declineInvite } from '../services/familyService';
 
 const Notification = () => {
   const [activeTab, setActiveTab] = useState('list');
@@ -93,6 +94,34 @@ const Notification = () => {
     }
   };
 
+  const handleAcceptInvite = async (inviteId) => {
+    setIsRefreshing(true);
+    try {
+      await acceptInvite(inviteId);
+      setSuccess('Successfully joined the family group!');
+      setTimeout(() => setSuccess(''), 5000);
+      await refreshNotifications();
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to accept invitation.');
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
+  const handleDeclineInvite = async (inviteId) => {
+    setIsRefreshing(true);
+    try {
+      await declineInvite(inviteId);
+      setSuccess('Invitation declined.');
+      setTimeout(() => setSuccess(''), 5000);
+      await refreshNotifications();
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to decline invitation.');
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-4xl mx-auto">
       <h2 className="text-2xl font-bold text-gray-900 mb-6 flex items-center gap-2">
@@ -104,21 +133,19 @@ const Notification = () => {
       <div className="flex border-b border-gray-200 mb-6">
         <button
           onClick={() => setActiveTab('list')}
-          className={`px-4 py-2 text-sm font-medium ${
-            activeTab === 'list'
-              ? 'border-b-2 border-blue-600 text-blue-600'
-              : 'text-gray-600 hover:text-blue-600'
-          } transition-colors duration-200`}
+          className={`px-4 py-2 text-sm font-medium ${activeTab === 'list'
+            ? 'border-b-2 border-blue-600 text-blue-600'
+            : 'text-gray-600 hover:text-blue-600'
+            } transition-colors duration-200`}
         >
           Notification List
         </button>
         <button
           onClick={() => setActiveTab('settings')}
-          className={`px-4 py-2 text-sm font-medium ${
-            activeTab === 'settings'
-              ? 'border-b-2 border-blue-600 text-blue-600'
-              : 'text-gray-600 hover:text-blue-600'
-          } transition-colors duration-200`}
+          className={`px-4 py-2 text-sm font-medium ${activeTab === 'settings'
+            ? 'border-b-2 border-blue-600 text-blue-600'
+            : 'text-gray-600 hover:text-blue-600'
+            } transition-colors duration-200`}
         >
           Settings
         </button>
@@ -153,9 +180,8 @@ const Notification = () => {
                 <button
                   onClick={refreshNotifications}
                   disabled={isRefreshing}
-                  className={`flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors duration-200 ${
-                    isRefreshing ? 'opacity-50 cursor-not-allowed' : ''
-                  }`}
+                  className={`flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors duration-200 ${isRefreshing ? 'opacity-50 cursor-not-allowed' : ''
+                    }`}
                 >
                   {isRefreshing ? (
                     <Loader2 className="animate-spin h-5 w-5" />
@@ -178,12 +204,28 @@ const Notification = () => {
                   {notifications.map((notification) => (
                     <li
                       key={notification._id}
-                      className={`p-4 rounded-lg shadow-sm ${
-                        notification.read ? 'bg-gray-50' : 'bg-red-50/80'
-                      } transition-all duration-200 hover:shadow-md`}
+                      className={`p-4 rounded-lg shadow-sm ${notification.read ? 'bg-gray-50' : notification.type === 'FAMILY_INVITE' ? 'bg-blue-50/50 border border-blue-100' : 'bg-red-50/80'} transition-all duration-200 hover:shadow-md`}
                     >
                       <p className="text-gray-800 font-medium">{notification.message}</p>
-                      <p className="text-sm text-gray-500 mt-1">
+
+                      {notification.type === 'FAMILY_INVITE' && !notification.read && notification.invite && (
+                        <div className="flex gap-3 mt-3 mb-1">
+                          <button
+                            onClick={() => handleAcceptInvite(notification.invite)}
+                            className="flex items-center justify-center gap-1.5 px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 transition"
+                          >
+                            <Check size={16} /> Accept
+                          </button>
+                          <button
+                            onClick={() => handleDeclineInvite(notification.invite)}
+                            className="flex items-center justify-center gap-1.5 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-300 transition"
+                          >
+                            <X size={16} /> Decline
+                          </button>
+                        </div>
+                      )}
+
+                      <p className="text-xs text-gray-500 mt-2">
                         {new Date(notification.createdAt).toLocaleString('en-IN', {
                           dateStyle: 'medium',
                           timeStyle: 'short',

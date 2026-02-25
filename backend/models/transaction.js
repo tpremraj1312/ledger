@@ -108,10 +108,36 @@ const transactionSchema = new mongoose.Schema({
     enum: ['pending', 'completed', 'failed'],
     default: 'pending',
   },
+  // Family Budget fields
+  familyGroupId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'FamilyGroup',
+    default: null,
+    index: true,
+  },
+  spentBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    default: null,
+  },
+  mode: {
+    type: String,
+    enum: ['PERSONAL', 'FAMILY'],
+    default: 'PERSONAL',
+  },
+  isDeleted: {
+    type: Boolean,
+    default: false,
+    index: true,
+  },
   createdAt: {
     type: Date,
     default: Date.now,
   },
 });
+
+// Compound indexes for family queries
+transactionSchema.index({ familyGroupId: 1, date: 1 });
+transactionSchema.index({ familyGroupId: 1, category: 1 });
 
 export default mongoose.model('Transaction', transactionSchema);

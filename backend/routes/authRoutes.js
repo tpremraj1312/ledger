@@ -297,6 +297,7 @@ router.get("/me", authMiddleware, async (req, res) => {
       _id: user._id,
       username: user.username,
       email: user.email,
+      currentFamilyId: user.currentFamilyId || null,
       createdAt: user.createdAt,
     });
   } catch (err) {

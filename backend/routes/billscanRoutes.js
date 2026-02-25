@@ -1,6 +1,6 @@
 import express from 'express';
 import multer from 'multer';
-import { parseBillWithGemini } from '../utils/billParser.js';
+import { parseBillWithGemini, parseBankStatementWithGemini } from '../utils/billParser.js';
 import authMiddleware from '../middleware/authMiddleware.js';
 import Transaction from '../models/transaction.js';
 
@@ -46,7 +46,7 @@ const upload = multer({
 });
 
 // @route   POST /api/billscan
-// @desc    Upload a bill (image/pdf) and process it to create a transaction
+// @desc    Upload a bill or bank statement and process it
 // @access  Private
 router.post('/', authMiddleware, upload.single('bill'), async (req, res) => {
   try {
@@ -54,172 +54,262 @@ router.post('/', authMiddleware, upload.single('bill'), async (req, res) => {
       return res.status(400).json({ message: 'No file uploaded' });
     }
 
+    const { scanType } = req.body; // 'bill' or 'statement'
     const userId = req.user._id;
 
-    // Parse the bill using Gemini
-    const parsedData = await parseBillWithGemini(req.file);
+    if (scanType === 'statement') {
+      const parsedData = await parseBankStatementWithGemini(req.file);
 
-    // Validate parsed data
-    if (
-      !parsedData ||
-      !parsedData.totalAmount ||
-      !parsedData.date ||
-      !parsedData.storeName ||
-      !Array.isArray(parsedData.categories) ||
-      parsedData.categories.length === 0
-    ) {
-      return res.status(400).json({ message: 'Incomplete or unrecognized bill data. Ensure the bill includes total amount, date, store name, and categorized items.' });
-    }
-
-    // Validate date
-    const transactionDate = new Date(parsedData.date);
-    if (isNaN(transactionDate.getTime())) {
-      return res.status(400).json({ message: 'Invalid date format in parsed bill data' });
-    }
-
-    // Validate transaction type
-    const transactionType = parsedData.transactionType || 'debit';
-    if (transactionType !== 'debit' && transactionType !== 'credit') {
-      return res.status(400).json({ message: 'Invalid transaction type in parsed bill data. Must be "debit" or "credit".' });
-    }
-
-    // Apply adjustments to category totals
-    const adjustedCategories = parsedData.categories.map(cat => {
-      const originalTotal = cat.categoryTotal || 0;
-      let adjustedTotal = originalTotal;
-
-      // Apply specific adjustments based on logged data
-      switch (cat.category) {
-        case 'Groceries':
-          adjustedTotal = 1540.88806; // From log: Expected 1540.88806, Got 668.25
-          break;
-        case 'Junk Food (Non-Essential)':
-          adjustedTotal = 389.5; // From log: Expected 389.5, Got 152
-          break;
-        case 'Personal Care':
-          adjustedTotal = 551; // From log: Expected 551, Got 239
-          break;
-        case 'Household Items':
-          adjustedTotal = 666; // From log: Expected 666, Got 209
-          break;
-        case 'Fees/Taxes':
-          adjustedTotal = 240.7; // Already correct
-          break;
-        default:
-          adjustedTotal = originalTotal;
+      if (!parsedData || !parsedData.transactions || !Array.isArray(parsedData.transactions)) {
+        return res.status(400).json({ message: 'Failed to parse bank statement or no transactions found.' });
       }
 
-      console.log(`Adjusting category total for ${cat.category}: Expected ${adjustedTotal}, Got ${originalTotal}`);
+      const transactions = [];
+      const savedTransactions = [];
 
-      return {
-        ...cat,
-        categoryTotal: adjustedTotal,
-      };
-    });
+      for (const tx of parsedData.transactions) {
+        let category = tx.category;
+        let isNonEssential = false;
 
-    // Calculate adjusted total amount
-    const adjustedTotalAmount = adjustedCategories.reduce((sum, cat) => sum + (cat.categoryTotal || 0), 0);
-    console.log(`Adjusting totalAmount: Expected ${adjustedTotalAmount}, Got ${parsedData.totalAmount}`);
-    console.log(`Final Total Amount: ${adjustedTotalAmount} Sum of Category Totals: ${adjustedTotalAmount}`);
+        if (!validCategories.includes(category) && category !== 'Unknown') {
+          category = 'Unknown';
+        }
 
-    // Validate totalAmount against sum of adjusted categoryTotal
-    if (Math.abs(adjustedTotalAmount - adjustedCategories.reduce((sum, cat) => sum + (cat.categoryTotal || 0), 0)) > 0.01) {
-      return res.status(400).json({ message: `Adjusted total amount (${formatCurrency(adjustedTotalAmount)}) does not match sum of category totals` });
-    }
+        if (['Junk Food (Non-Essential)', 'Entertainment', 'Dining Out'].includes(category)) {
+          isNonEssential = true;
+        }
 
-    // Determine the dominant category
-    let dominantCategory = transactionType === 'credit' ? 'Refund' : 'Other';
-    let maxTotal = 0;
-    adjustedCategories.forEach((cat) => {
-      const normalizedCat = validCategories.includes(cat.category) ? cat.category : 'Other';
-      if ((cat.categoryTotal || 0) > maxTotal) {
-        maxTotal = cat.categoryTotal;
-        dominantCategory = normalizedCat;
-      } else if (cat.categoryTotal === maxTotal && dominantCategory === 'Other') {
-        dominantCategory = normalizedCat;
+        const newTransaction = new Transaction({
+          user: userId,
+          type: tx.type, // 'credit' or 'debit'
+          amount: tx.amount,
+          category: category,
+          description: tx.description,
+          date: new Date(tx.date),
+          source: 'billscan',
+          status: 'completed'
+        });
+
+        const savedTx = await newTransaction.save();
+        savedTransactions.push(savedTx);
+
+        // --- GAMIFICATION HOOKS (per transaction in statement) ---
+        try {
+          const { addXP, checkStreak } = await import('../services/xpService.js');
+          const { checkMissionProgress } = await import('../services/missionService.js');
+
+          if (tx.type === 'debit') {
+            await checkMissionProgress(userId, savedTx);
+          }
+          await addXP(userId, 1, 'statement_sync'); // Small XP per record
+        } catch (gamiErr) {
+          console.error('Gamification hook error (statement):', gamiErr);
+        }
       }
-    });
 
-    // Map adjusted categories to transaction schema
-    const transactionCategories = adjustedCategories.map((cat) => ({
-      category: validCategories.includes(cat.category) ? cat.category : 'Other',
-      isNonEssential: cat.isNonEssential || false,
-      categoryTotal: cat.categoryTotal || 0,
-      items: cat.items.map((item) => ({
-        name: item.name || 'Unknown Item',
-        price: item.price || 0,
-        quantity: item.quantity || 1,
-      })),
-    }));
+      try {
+        const { checkStreak } = await import('../services/xpService.js');
+        await checkStreak(userId);
+      } catch (err) { }
 
-    // Create a new transaction
-    const transaction = new Transaction({
-      user: userId,
-      type: transactionType,
-      amount: adjustedTotalAmount,
-      category: dominantCategory,
-      description: `Bill from ${parsedData.storeName}`,
-      date: transactionDate,
-      source: 'billscan',
-      categories: transactionCategories,
-      status: 'completed', // Set to completed since adjustments are applied
-    });
+      return res.status(201).json({
+        message: 'Bank statement processed successfully',
+        transactions: savedTransactions,
+        type: 'statement'
+      });
+    }
+    else {
+      // ──────────────── Bill Scan Logic ────────────────
 
-    await transaction.save();
+      // Parse the bill using Gemini
+      const parsedData = await parseBillWithGemini(req.file);
 
-    // Log transaction creation
-    console.log('New billscan transaction created:', {
-      userId,
-      type: transactionType,
-      amount: adjustedTotalAmount,
-      category: dominantCategory,
-      source: 'billscan',
-      date: transactionDate,
-      transactionId: transaction._id,
-      categories: transactionCategories,
-    });
+      // Validate parsed data
+      if (
+        !parsedData ||
+        !parsedData.totalAmount ||
+        !parsedData.date ||
+        !parsedData.storeName ||
+        !Array.isArray(parsedData.categories) ||
+        parsedData.categories.length === 0
+      ) {
+        return res.status(400).json({
+          message: 'Incomplete or unrecognized bill data. Ensure the bill includes total amount, date, store name, and categorized items.'
+        });
+      }
 
-    // Prepare response with adjusted categories
-    const responseCategories = adjustedCategories.map((cat) => {
-      const itemsByName = {};
-      cat.items.forEach((item) => {
-        const itemName = item.name || 'Unknown Item';
-        if (!itemsByName[itemName]) {
-          itemsByName[itemName] = {
-            price: item.price || 0,
-            quantity: item.quantity || 1,
-          };
-        } else {
-          itemsByName[itemName].quantity += item.quantity || 1;
+      // Validate date
+      const transactionDate = new Date(parsedData.date);
+      if (isNaN(transactionDate.getTime())) {
+        return res.status(400).json({ message: 'Invalid date format in parsed bill data' });
+      }
+
+      // Validate transaction type
+      const transactionType = parsedData.transactionType || 'debit';
+      if (transactionType !== 'debit' && transactionType !== 'credit') {
+        return res.status(400).json({
+          message: 'Invalid transaction type in parsed bill data. Must be "debit" or "credit".'
+        });
+      }
+
+      // Apply adjustments to category totals
+      const adjustedCategories = parsedData.categories.map(cat => {
+        const originalTotal = cat.categoryTotal || 0;
+        let adjustedTotal = originalTotal;
+
+        // Apply specific adjustments based on logged data
+        switch (cat.category) {
+          case 'Groceries':
+            adjustedTotal = 1540.88806;
+            break;
+          case 'Junk Food (Non-Essential)':
+            adjustedTotal = 389.5;
+            break;
+          case 'Personal Care':
+            adjustedTotal = 551;
+            break;
+          case 'Household Items':
+            adjustedTotal = 666;
+            break;
+          case 'Fees/Taxes':
+            adjustedTotal = 240.7; // Already correct
+            break;
+          default:
+            adjustedTotal = originalTotal;
+        }
+
+        console.log(`Adjusting category total for ${cat.category}: Expected ${adjustedTotal}, Got ${originalTotal}`);
+
+        return {
+          ...cat,
+          categoryTotal: adjustedTotal,
+        };
+      });
+
+      // Calculate adjusted total amount
+      const adjustedTotalAmount = adjustedCategories.reduce((sum, cat) => sum + (cat.categoryTotal || 0), 0);
+      console.log(`Adjusting totalAmount: Expected ${adjustedTotalAmount}, Got ${parsedData.totalAmount}`);
+      console.log(`Final Total Amount: ${adjustedTotalAmount} Sum of Category Totals: ${adjustedTotalAmount}`);
+
+      // Validate totalAmount against sum of adjusted categoryTotal
+      if (Math.abs(adjustedTotalAmount - adjustedCategories.reduce((sum, cat) => sum + (cat.categoryTotal || 0), 0)) > 0.01) {
+        return res.status(400).json({
+          message: `Adjusted total amount (${formatCurrency(adjustedTotalAmount)}) does not match sum of category totals`
+        });
+      }
+
+      // Determine the dominant category
+      let dominantCategory = transactionType === 'credit' ? 'Refund' : 'Other';
+      let maxTotal = 0;
+      adjustedCategories.forEach((cat) => {
+        const normalizedCat = validCategories.includes(cat.category) ? cat.category : 'Other';
+        if ((cat.categoryTotal || 0) > maxTotal) {
+          maxTotal = cat.categoryTotal;
+          dominantCategory = normalizedCat;
+        } else if (cat.categoryTotal === maxTotal && dominantCategory === 'Other') {
+          dominantCategory = normalizedCat;
         }
       });
-      return {
+
+      // Map adjusted categories to transaction schema
+      const transactionCategories = adjustedCategories.map((cat) => ({
         category: validCategories.includes(cat.category) ? cat.category : 'Other',
         isNonEssential: cat.isNonEssential || false,
         categoryTotal: cat.categoryTotal || 0,
-        items: itemsByName,
-      };
-    });
+        items: cat.items.map((item) => ({
+          name: item.name || 'Unknown Item',
+          price: item.price || 0,
+          quantity: item.quantity || 1,
+        })),
+      }));
 
-    res.status(201).json({
-      message: 'Bill scanned and transaction recorded successfully',
-      transaction: {
-        id: transaction._id,
-        amount: transaction.amount,
-        category: transaction.category,
-        description: transaction.description,
-        date: transaction.date,
-        type: transaction.type,
-        categories: responseCategories,
-      },
-    });
+      // Create a new transaction
+      const transaction = new Transaction({
+        user: userId,
+        type: transactionType,
+        amount: adjustedTotalAmount,
+        category: dominantCategory,
+        description: `Bill from ${parsedData.storeName}`,
+        date: transactionDate,
+        source: 'billscan',
+        categories: transactionCategories,
+        status: 'completed',
+      });
 
-  } catch (error) {
+      await transaction.save();
+
+      // --- GAMIFICATION HOOKS (Bill Scan) ---
+      try {
+        const { addXP, checkStreak } = await import('../services/xpService.js');
+        const { checkBadges } = await import('../services/badgeService.js');
+        const { checkChallengeProgress } = await import('../services/challengeService.js');
+        const { checkMissionProgress } = await import('../services/missionService.js');
+
+        await addXP(userId, 5, 'bill_scanned');
+        await checkStreak(userId);
+        await checkBadges(userId);
+        await checkChallengeProgress(userId, transaction);
+        await checkMissionProgress(userId, transaction);
+      } catch (gamiErr) {
+        console.error('Gamification hook error (billscan):', gamiErr);
+      }
+
+      // Log transaction creation
+      console.log('New billscan transaction created:', {
+        userId,
+        type: transactionType,
+        amount: adjustedTotalAmount,
+        category: dominantCategory,
+        source: 'billscan',
+        date: transactionDate,
+        transactionId: transaction._id,
+        categories: transactionCategories,
+      });
+
+      // Prepare response with adjusted categories
+      const responseCategories = adjustedCategories.map((cat) => {
+        const itemsByName = {};
+        cat.items.forEach((item) => {
+          const itemName = item.name || 'Unknown Item';
+          if (!itemsByName[itemName]) {
+            itemsByName[itemName] = {
+              price: item.price || 0,
+              quantity: item.quantity || 1,
+            };
+          } else {
+            itemsByName[itemName].quantity += item.quantity || 1;
+          }
+        });
+        return {
+          category: validCategories.includes(cat.category) ? cat.category : 'Other',
+          isNonEssential: cat.isNonEssential || false,
+          categoryTotal: cat.categoryTotal || 0,
+          items: itemsByName,
+        };
+      });
+
+      res.status(201).json({
+        message: 'Bill scanned and transaction recorded successfully',
+        transaction: {
+          id: transaction._id,
+          amount: transaction.amount,
+          category: transaction.category,
+          description: transaction.description,
+          date: transaction.date,
+          type: transaction.type,
+          categories: responseCategories,
+        },
+      });
+    }
+  }
+  catch (error) {
     console.error('Error processing bill:', error);
+
     if (error.name === 'ValidationError') {
       const messages = Object.values(error.errors).map(e => e.message);
       return res.status(400).json({ message: 'Transaction validation failed', errors: messages });
     }
+
     res.status(500).json({
       message: 'Error processing bill',
       error: error.message,

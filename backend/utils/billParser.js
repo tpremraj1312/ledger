@@ -59,8 +59,8 @@ const repairJson = (rawText) => {
 // Helper function to correct category assignments
 const correctCategory = (itemName, currentCategory) => {
   const name = itemName.toLowerCase();
-  if (name.includes('butter') || name.includes('atta') || name.includes('rice') || 
-      name.includes('dal') || name.includes('sugar') || name.includes('oil')) {
+  if (name.includes('butter') || name.includes('atta') || name.includes('rice') ||
+    name.includes('dal') || name.includes('sugar') || name.includes('oil')) {
     return 'Groceries';
   }
   if (name.includes('choco') || name.includes('candy')) {
@@ -77,7 +77,7 @@ const correctCategory = (itemName, currentCategory) => {
 
 export const parseBillWithGemini = async (file) => {
   try {
-    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
 
     const base64Data = file.buffer.toString('base64');
 
@@ -269,7 +269,7 @@ Output:
 
       // Validate isNonEssential
       cat.isNonEssential = ['Junk Food (Non-Essential)', 'Entertainment', 'Dining Out'].includes(cat.category) ||
-                          (cat.category === 'Electronics' && cat.items.some(item => item.name.toLowerCase().includes('gaming')));
+        (cat.category === 'Electronics' && cat.items.some(item => item.name.toLowerCase().includes('gaming')));
 
       // Validate items
       if (!Array.isArray(cat.items) || cat.items.length === 0) {
@@ -321,7 +321,7 @@ Output:
           categoryMap.set(correctedCategory, {
             category: correctedCategory,
             isNonEssential: ['Junk Food (Non-Essential)', 'Entertainment', 'Dining Out'].includes(correctedCategory) ||
-                           (correctedCategory === 'Electronics' && item.name.toLowerCase().includes('gaming')),
+              (correctedCategory === 'Electronics' && item.name.toLowerCase().includes('gaming')),
             items: [],
             categoryTotal: 0
           });
@@ -360,5 +360,85 @@ Output:
   } catch (error) {
     console.error('Gemini API Error:', error);
     throw new Error(`Failed to parse bill: ${error.message}`);
+  }
+};
+
+export const parseBankStatementWithGemini = async (file) => {
+  try {
+    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+    const base64Data = file.buffer.toString('base64');
+
+    const prompt = `
+    Analyze this bank statement (image/pdf) and extract the transaction details in JSON format:
+    {
+      "transactions": [
+        {
+          "date": string (YYYY-MM-DD),
+          "description": string,
+          "amount": number, // POSITIVE NUMBER
+          "type": string ("credit" or "debit"),
+          "category": string (One of: ${validCategories.join(', ')} or "Unknown")
+        }
+      ]
+    }
+
+    Rules:
+    1. Extract all visible transactions.
+    2. "credit" means money added to the account (Deposits, Refunds, Salary).
+    3. "debit" means money removed from the account (Purchases, Withdrawals, Fees).
+    4. Categorize based on the description:
+       - "Salary", "Dividend", "Interest" -> "Salary"
+       - "Refund", "Reversal" -> "Refund"
+       - "UPI-Zomato", "Swiggy", "McDonalds" -> "Dining Out" or "Junk Food (Non-Essential)"
+       - "Uber", "Ola", "Petrol" -> "Transportation"
+       - "Amazon", "Flipkart" -> "Groceries", "Electronics", or "Shopping" based on context (default "Other" if unsure)
+       - "Netflix", "Spotify" -> "Entertainment"
+    5. If the category is not clear from the description or does not match valid categories, STRICTLY use "Unknown". Do NOT guess "Other" if you are not sure.
+    6. Ensure the extracted amount is always a positive number.
+    7. Date must be in YYYY-MM-DD format.
+    `;
+
+    const result = await model.generateContent({
+      contents: [
+        {
+          role: 'user',
+          parts: [
+            { text: prompt },
+            {
+              inlineData: {
+                mimeType: file.mimetype,
+                data: base64Data,
+              }
+            }
+          ]
+        }
+      ]
+    });
+
+    const response = await result.response;
+    let rawText = await response.text();
+    let cleanedText = repairJson(rawText);
+
+    // Sometimes repairJson returns something that is not valid JSON if the model returns markdown like ```json ... ```
+    // Ideally repairJson handles it, but let's be safe.
+
+    let parsed;
+    try {
+      parsed = JSON.parse(cleanedText);
+    } catch (e) {
+      // Fallback: try to just extract the JSON array/object if repair failed
+      const jsonMatch = rawText.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        parsed = JSON.parse(jsonMatch[0]);
+      } else {
+        throw e;
+      }
+    }
+
+    return parsed;
+
+  } catch (error) {
+    console.error('Gemini Bank Statement Error:', error);
+    throw new Error(`Failed to parse bank statement: ${error.message}`);
   }
 };

@@ -1,10 +1,14 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import axios from 'axios';
 import {
-  PieChart, Pie, Cell, Tooltip, ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Legend
+  PieChart, Pie, Cell, Tooltip, ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Legend, BarChart, Bar, AreaChart, Area, ReferenceLine, ReferenceDot, ReferenceArea, ScatterChart, Scatter
 } from 'recharts';
-import { Filter, Loader2, AlertTriangle, RefreshCw, TrendingUp, PieChart as PieChartIcon, Lightbulb, Calendar, ArrowRight } from 'lucide-react';
+import { Filter, Loader2, AlertTriangle, RefreshCw, TrendingUp, PieChart as PieChartIcon, Lightbulb, Calendar, ArrowRight, Brain } from 'lucide-react';
+import {
+  COMMON_AXIS_PROPS,
+  COMMON_TOOLTIP_PROPS,
+  CHART_COLORS,
+  formatCurrencyCompact,
+  formatDateChart
+} from '../utils/chartStyles';
 
 // Helper Functions
 const formatCurrency = (amount) => {
@@ -45,10 +49,10 @@ const CustomTooltip = ({ active, payload }) => {
 const cardVariants = {
   hidden: { opacity: 0, y: 20 },
   visible: { opacity: 1, y: 0, transition: { duration: 0.5, ease: 'easeOut' } },
-  hover: { 
-    y: -5, 
-    boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)', 
-    transition: { duration: 0.2 } 
+  hover: {
+    y: -5,
+    boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
+    transition: { duration: 0.2 }
   },
 };
 
@@ -146,9 +150,25 @@ const AIAnalysisPage = () => {
     }
   }, [filters]);
 
+  // fetchData is now manually triggered via button
   useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+    // Initial load only fetches categories, not analysis
+    const fetchCats = async () => {
+      const token = getAuthToken();
+      const transactionsResponse = await axios.get(`${import.meta.env.VITE_BACKEND_URL}/api/transactions`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const budgetsResponse = await axios.get(`${import.meta.env.VITE_BACKEND_URL}/api/budgets`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const transactionCategories = transactionsResponse.data.transactions.map(tx => tx.category);
+      const budgetCategories = budgetsResponse.data.map(b => b.category);
+      const uniqueCategories = ['All', ...new Set([...transactionCategories, ...budgetCategories])];
+      setCategories(uniqueCategories);
+      setIsLoading(false);
+    };
+    fetchCats();
+  }, []);
 
   // Handle Filter Changes
   const handleFilterChange = (e) => {
@@ -245,9 +265,17 @@ const AIAnalysisPage = () => {
                 </span>
               </h1>
               <p className="mt-2 text-gray-600">
-                AI-powered insights for your financial journey
+                AI-powered insights for the current month
                 {filters.category !== 'All' && ` • ${filters.category}`}
               </p>
+              <button
+                onClick={fetchData}
+                disabled={isLoading}
+                className="mt-4 px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl font-bold shadow-lg hover:shadow-indigo-200/50 transition-all active:scale-95 disabled:opacity-50 flex items-center"
+              >
+                {isLoading ? <Loader2 className="animate-spin mr-2" size={20} /> : <Brain className="mr-2" size={20} />}
+                Generate Analysis
+              </button>
             </div>
             <div className="flex flex-wrap gap-3">
               <div className="flex items-center space-x-2 bg-white px-4 py-2 rounded-lg shadow-sm border border-gray-100">
@@ -328,7 +356,7 @@ const AIAnalysisPage = () => {
                   </div>
                 </div>
                 <div className="mt-4 flex justify-end">
-                  <button 
+                  <button
                     onClick={fetchData}
                     className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors flex items-center"
                   >
@@ -363,7 +391,7 @@ const AIAnalysisPage = () => {
                     <p className="leading-relaxed">{analysis?.budgetVsExpenses}</p>
                   </div>
                 </div>
-                
+
                 <div className="bg-gray-50 p-6 rounded-xl">
                   <h4 className="text-sm font-medium text-gray-700 mb-4">Category Breakdown</h4>
                   {analysis?.visualizationData?.expenseBreakdown?.length > 0 ? (
@@ -403,7 +431,7 @@ const AIAnalysisPage = () => {
                     <p className="leading-relaxed">{analysis?.spendingPatterns}</p>
                   </div>
                 </div>
-                
+
                 <div className="bg-gray-50 p-6 rounded-xl">
                   <h4 className="text-sm font-medium text-gray-700 mb-4">Weekly Trends</h4>
                   {analysis?.visualizationData?.weeklySpending?.length > 0 ? (
@@ -416,25 +444,25 @@ const AIAnalysisPage = () => {
                           </linearGradient>
                         </defs>
                         <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
-                        <XAxis 
-                          dataKey="weekStart" 
+                        <XAxis
+                          dataKey="weekStart"
                           tick={{ fontSize: 12, fill: '#6B7280' }}
                           axisLine={{ stroke: '#E5E7EB' }}
                           tickLine={false}
                         />
-                        <YAxis 
-                          fontSize={12} 
+                        <YAxis
+                          fontSize={12}
                           tickFormatter={(value) => `₹${value / 1000}k`}
                           axisLine={false}
-                          tickLine={false} 
+                          tickLine={false}
                           tick={{ fill: '#6B7280' }}
                         />
                         <Tooltip content={<CustomTooltip />} />
-                        <Line 
-                          type="monotone" 
-                          dataKey="amount" 
-                          stroke="#6366F1" 
-                          strokeWidth={3} 
+                        <Line
+                          type="monotone"
+                          dataKey="amount"
+                          stroke="#6366F1"
+                          strokeWidth={3}
                           dot={{ r: 4, strokeWidth: 2, fill: "#fff" }}
                           activeDot={{ r: 6, stroke: "#6366F1", strokeWidth: 2 }}
                         />
@@ -448,8 +476,8 @@ const AIAnalysisPage = () => {
             </AnalysisCard>
 
             {/* Recommendations */}
-            <AnalysisCard 
-              title="Smart Recommendations" 
+            <AnalysisCard
+              title="Smart Recommendations"
               icon={<Lightbulb size={20} />}
               className="bg-gradient-to-br from-indigo-50 to-blue-50"
             >
@@ -458,7 +486,7 @@ const AIAnalysisPage = () => {
                   <p className="leading-relaxed">{analysis?.recommendations}</p>
                 </div>
               </div>
-              
+
               <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
                 {['Reduce non-essential spending', 'Set up automatic savings', 'Review subscriptions'].map((tip, index) => (
                   <div key={index} className="p-4 bg-indigo-50 rounded-lg border border-indigo-100">

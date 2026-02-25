@@ -43,8 +43,11 @@ const getPeriodDateRange = (period, referenceDate = new Date()) => {
 
 // Add a Budget Item
 router.post('/', authMiddleware, async (req, res) => {
-    const { category, amount, period = 'Monthly', type = 'expense' } = req.body;
+    const { category, amount, period = 'Monthly', type = 'expense', month, year } = req.body;
     const userId = req.user._id;
+
+    const currentMonth = month || new Date().getUTCMonth() + 1;
+    const currentYear = year || new Date().getUTCFullYear();
 
     // Validation
     if (!category?.trim() || amount === undefined || !period || !type) {
@@ -61,13 +64,29 @@ router.post('/', authMiddleware, async (req, res) => {
     }
 
     try {
-        // Create new budget instead of updating existing one
+        const existingBudget = await Budget.findOne({
+            user: userId,
+            category: category.trim(),
+            month: currentMonth,
+            year: currentYear,
+            period,
+            type
+        });
+
+        if (existingBudget) {
+            existingBudget.amount = amount;
+            await existingBudget.save();
+            return res.status(200).json({ message: 'Budget updated successfully', budget: existingBudget });
+        }
+
         const newBudget = new Budget({
             user: userId,
             category: category.trim(),
             amount,
             period,
-            type
+            type,
+            month: currentMonth,
+            year: currentYear
         });
         const savedBudget = await newBudget.save();
         res.status(201).json({ message: 'Budget created successfully', budget: savedBudget });
@@ -78,6 +97,60 @@ router.post('/', authMiddleware, async (req, res) => {
             return res.status(400).json({ message: 'Budget validation failed', errors: messages });
         }
         res.status(500).json({ message: 'Failed to create budget', error: err.message });
+    }
+});
+
+// Copy Previous Month Budget
+router.post('/copy-previous', authMiddleware, async (req, res) => {
+    const userId = req.user._id;
+    const { month, year } = req.body; // Target month/year
+
+    try {
+        const prevMonth = month === 1 ? 12 : month - 1;
+        const prevYear = month === 1 ? year - 1 : year;
+
+        const previousBudgets = await Budget.find({
+            user: userId,
+            month: prevMonth,
+            year: prevYear
+        });
+
+        if (previousBudgets.length === 0) {
+            return res.status(404).json({ message: 'No budget found for previous month' });
+        }
+
+        const newBudgets = [];
+        for (const budget of previousBudgets) {
+            // Check if already exists in target month
+            const exists = await Budget.findOne({
+                user: userId,
+                category: budget.category,
+                month,
+                year,
+                type: budget.type
+            });
+
+            if (!exists) {
+                newBudgets.push({
+                    user: userId,
+                    category: budget.category,
+                    amount: budget.amount,
+                    period: budget.period,
+                    type: budget.type,
+                    month,
+                    year
+                });
+            }
+        }
+
+        if (newBudgets.length > 0) {
+            await Budget.insertMany(newBudgets);
+        }
+
+        res.status(201).json({ message: `Successfully copied ${newBudgets.length} budget items.` });
+    } catch (error) {
+        console.error('Error copying budget:', error);
+        res.status(500).json({ message: 'Failed to copy budgets' });
     }
 });
 

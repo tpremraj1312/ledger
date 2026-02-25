@@ -1,97 +1,98 @@
 // src/context/authContext.jsx
-import { createContext, useContext, useEffect, useState, useCallback } from "react"; // Added useCallback
+
+import { createContext, useContext, useEffect, useState, useMemo, useCallback } from "react";
 import axios from "axios";
 
-// --- Axios Default Configuration ---
-// Set the base URL for all requests
-axios.defaults.baseURL = `${import.meta.env.VITE_BACKEND_URL}`; // Or your backend URL from .env
-
-// Function to set the Authorization header default
-const setAuthTokenHeader = (token) => {
-  if (token) {
-    axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-    console.log("Axios default header set"); // For debugging
-  } else {
-    delete axios.defaults.headers.common['Authorization'];
-    console.log("Axios default header removed"); // For debugging
-  }
-};
-// --- End Axios Config ---
-
+axios.defaults.baseURL = import.meta.env.VITE_BACKEND_URL;
 
 const AuthContext = createContext();
 
+const setAuthHeader = (token) => {
+  if (token) {
+    axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
+  } else {
+    delete axios.defaults.headers.common["Authorization"];
+  }
+};
+
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true); // Keep track of initial load
-  const [isAuthenticated, setIsAuthenticated] = useState(false); // Explicit auth state
+  const [loading, setLoading] = useState(true);
 
-  // Using useCallback to memoize fetchUser
   const fetchUser = useCallback(async () => {
-    // No need to get token here if using default headers/interceptors
-    // setLoading(true); // fetchUser doesn't necessarily mean app loading state
     try {
-      // Request will automatically have the header if set via defaults
-      const response = await axios.get("/api/auth/me");
-      setUser(response.data);
-      setIsAuthenticated(true);
-      return true; // Indicate success
+      const res = await axios.get("/api/auth/me");
+      setUser(res.data);
+      return res.data;
     } catch (err) {
-      console.error("Auth error during fetchUser:", err);
-      // Don't logout here automatically, let the caller decide
+      localStorage.removeItem("token");
+      setAuthHeader(null);
       setUser(null);
-      setIsAuthenticated(false);
-      setAuthTokenHeader(null); // Remove invalid token header
-      localStorage.removeItem("token"); // Remove invalid token storage
-      return false; // Indicate failure
-    } finally {
-      // setLoading(false); // Only set initial loading to false once
+      return null;
     }
-  }, []); // No dependencies needed as it relies on axios defaults
-
-  const login = useCallback(async (token) => {
-    if (token) {
-      localStorage.setItem("token", token);
-      setAuthTokenHeader(token); // Set default header for subsequent requests
-      const success = await fetchUser(); // Fetch user info immediately
-      return success; // Return true/false based on fetchUser result
-    }
-    return false;
-  }, [fetchUser]); // Depends on fetchUser
-
-  const logout = useCallback(() => {
-    localStorage.removeItem("token");
-    setAuthTokenHeader(null); // Remove default header
-    setUser(null);
-    setIsAuthenticated(false);
-     // Optional: redirect here or let the component calling logout handle it
-     // window.location.href = '/login'; // Force reload/redirect
   }, []);
 
-  // Initial load check
   useEffect(() => {
-    const token = localStorage.getItem("token");
-    if (token) {
-      setAuthTokenHeader(token); // Set header for initial fetch
-      fetchUser().finally(() => setLoading(false)); // Fetch user and update loading once done
-    } else {
-      setLoading(false); // No token, loading finished
-    }
-  }, [fetchUser]); // Depends on fetchUser
+    const init = async () => {
+      const token = localStorage.getItem("token");
+
+      if (!token) {
+        setLoading(false);
+        return;
+      }
+
+      try {
+        setAuthHeader(token);
+        await fetchUser();
+      } catch (err) {
+        // handled inside fetchUser
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    init();
+  }, [fetchUser]);
+
+  const login = async (token) => {
+    localStorage.setItem("token", token);
+    setAuthHeader(token);
+    const res = await axios.get("/api/auth/me");
+    setUser(res.data);
+  };
+
+  const logout = () => {
+    localStorage.removeItem("token");
+    setAuthHeader(null);
+    setUser(null);
+  };
+
+  // Refresh user data (e.g., after creating/joining/leaving family)
+  const refreshUser = useCallback(async () => {
+    return await fetchUser();
+  }, [fetchUser]);
+
+  const value = useMemo(() => ({
+    user,
+    loading,
+    isAuthenticated: !!user,
+    login,
+    logout,
+    refreshUser,
+    updateProfile: async (data) => {
+      const res = await axios.patch("/api/settings/profile", data);
+      setUser(res.data);
+      return res.data;
+    },
+    updateSettings: async (category, preferences) => {
+      const res = await axios.patch("/api/settings/preferences", { category, preferences });
+      setUser(res.data);
+      return res.data;
+    },
+  }), [user, loading, refreshUser]);
 
   return (
-    <AuthContext.Provider
-      value={{
-        user,
-        // isAuthenticated: !!user, // Use explicit state
-        isAuthenticated,
-        login,
-        logout,
-        loading, // Use this for initial app load check
-        // Removed error state as errors are handled per action now
-        fetchUser // Expose fetchUser if needed elsewhere
-      }}
-    >
+    <AuthContext.Provider value={value}>
       {children}
     </AuthContext.Provider>
   );

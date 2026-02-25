@@ -75,33 +75,94 @@ router.post('/', authMiddleware, budgetCheckMiddleware, async (req, res) => {
   }
 
   try {
-    // --- Create Transaction Record ---
-    const newTransaction = new Transaction({
-      user: userId,
-      type,
-      amount,
-      category: normalizedCategory,
-      description: (description || '').replace(/<[^>]*>/g, ''),
-      status: 'completed',
-      source,
-      date: transactionDate,
+    const { withTransaction } = await import('../utils/transactionWrapper.js');
+    const FamilyGroup = (await import('../models/FamilyGroup.js')).default;
+
+    const result = await withTransaction(async (session) => {
+      // --- Check if user is in an active family ---
+      // --- Check if user is in an active family ---
+      const activeGroup = await FamilyGroup.findOne({
+        'members.user': userId,
+        isActive: true,
+      }).session(session);
+
+      let role = null;
+
+      if (activeGroup) {
+        // Find member safely – skip entries without user
+        const memberRecord = activeGroup.members.find(m => {
+          // Guard against missing/undefined user
+          return m?.user && m.user.toString() === userId.toString();
+        });
+
+        role = memberRecord?.role || null;
+
+        // Optional: log bad data so you can clean it later
+        if (activeGroup.members.some(m => !m?.user)) {
+          console.warn(`FamilyGroup ${activeGroup._id} has members without user!`);
+        }
+      }
+
+      // VIEWER role Cannot create any transaction in a family group
+      if (activeGroup && role === 'VIEWER') {
+        throw new Error('VIEWER_RESTRICTION: Viewers cannot create transactions in a family group.');
+      }
+
+      const txData = {
+        user: userId,
+        type,
+        amount,
+        category: normalizedCategory,
+        description: (description || '').replace(/<[^>]*>/g, ''),
+        status: 'completed',
+        source,
+        date: transactionDate,
+        isDeleted: false,
+      };
+
+      // --- AUTO-TAGGING LOGIC ---
+      if (activeGroup) {
+        txData.familyGroupId = activeGroup._id;
+        txData.mode = 'FAMILY';
+        txData.spentBy = userId;
+      } else {
+        txData.mode = 'PERSONAL';
+      }
+
+      const newTransaction = new Transaction(txData);
+
+      console.log('POST /api/transactions - saving transaction:', newTransaction);
+      await newTransaction.save({ session });
+
+      // Create notification if budget was exceeded
+      let notification = null;
+      if (req.budgetNotification) {
+        const Notification = (await import('../models/notification.js')).default;
+        notification = new Notification({
+          user: req.budgetNotification.user,
+          message: req.budgetNotification.message,
+          transaction: newTransaction._id,
+        });
+        await notification.save({ session });
+        console.log('POST /api/transactions - notification created:', notification.message);
+      }
+
+      // --- GAMIFICATION HOOKS ---
+      const { addXP, checkStreak } = await import('../services/xpService.js');
+      const { checkBadges } = await import('../services/badgeService.js');
+      const { checkChallengeProgress } = await import('../services/challengeService.js');
+      const { checkMissionProgress } = await import('../services/missionService.js');
+
+      await addXP(userId, activeGroup ? 10 : 2, activeGroup ? 'family_transaction_added' : 'transaction_added', session);
+      await checkStreak(userId, session);
+      await checkBadges(userId, session);
+      await checkChallengeProgress(userId, newTransaction, session);
+      await checkMissionProgress(userId, newTransaction, session);
+
+      return { newTransaction, notification };
     });
 
-    console.log('POST /api/transactions - saving transaction:', newTransaction);
-
-    await newTransaction.save();
-
-    // Create notification if budget was exceeded
-    let notification = null;
-    if (req.budgetNotification) {
-      notification = new Notification({
-        user: req.budgetNotification.user,
-        message: req.budgetNotification.message,
-        transaction: newTransaction._id,
-      });
-      await notification.save();
-      console.log('POST /api/transactions - notification created:', notification.message);
-    }
+    const { newTransaction, notification } = result;
 
     // Log transaction creation
     console.log('New transaction created:', {
@@ -129,6 +190,9 @@ router.post('/', authMiddleware, budgetCheckMiddleware, async (req, res) => {
 
   } catch (err) {
     console.error('POST /api/transactions - error:', err);
+    if (err.message.startsWith('VIEWER_RESTRICTION')) {
+      return res.status(403).json({ message: err.message });
+    }
     if (err.name === 'ValidationError') {
       const messages = Object.values(err.errors).map(e => e.message);
       return res.status(400).json({ message: 'Transaction validation failed', errors: messages });
@@ -146,7 +210,7 @@ router.get('/', authMiddleware, async (req, res) => {
   const skip = (parseInt(page, 10) - 1) * parseInt(limit, 10);
 
   try {
-    const query = { user: userId };
+    const query = { user: userId, isDeleted: false };
 
     if (type && (type === 'debit' || type === 'credit' || type === 'all')) {
       if (type !== 'all') {
@@ -324,6 +388,132 @@ router.post('/billscan', authMiddleware, upload.single('bill'), async (req, res)
   } catch (err) {
     console.error('Bill Scan Error:', err);
     return res.status(500).json({ message: 'Failed to scan and save bill', error: err.message });
+  }
+});
+
+// --- Delete a Transaction ---
+// Route: DELETE /api/transactions/:id
+// Access: Private
+router.delete('/:id', authMiddleware, async (req, res) => {
+  try {
+    const transaction = await Transaction.findById(req.params.id);
+
+    if (!transaction) {
+      return res.status(404).json({ message: 'Transaction not found' });
+    }
+
+    // Ensure user owns the transaction
+    if (transaction.user.toString() !== req.user._id.toString()) {
+      return res.status(401).json({ message: 'User not authorized' });
+    }
+
+    // Role-based check if it's a family transaction
+    if (transaction.familyGroupId) {
+      const FamilyGroup = (await import('../models/FamilyGroup.js')).default;
+      const group = await FamilyGroup.findOne({ _id: transaction.familyGroupId, isActive: true });
+      if (group) {
+        const member = group.members.find(m => m.user && m.user.toString() === req.user._id.toString());
+        const role = member ? member.role : null;
+
+        if (role === 'VIEWER') {
+          return res.status(403).json({ message: 'Viewers cannot delete transactions.' });
+        }
+      }
+    }
+
+    await transaction.deleteOne();
+
+    // --- GAMIFICATION UPDATE (On Delete) ---
+    try {
+      const { checkChallengeProgress } = await import('../services/challengeService.js');
+      const { checkMissionProgress } = await import('../services/missionService.js');
+      const { checkBadges } = await import('../services/badgeService.js');
+
+      // We re-check challenges/missions. 
+      // Note: Reverting XP is complex, so we skip it for now or implement later.
+      // But we should re-eval challenges (e.g. if I deleted a big expense, I might now pass a spending limit)
+      await checkChallengeProgress(req.user._id, transaction);
+      // For missions, it's tricky since they accumulate. We might leave missions as is or implement complex revert logic.
+    } catch (err) { console.error(err); }
+    // ----------------------------------------
+
+    res.json({ message: 'Transaction removed' });
+  } catch (err) {
+    console.error('Error deleting transaction:', err);
+    if (err.kind === 'ObjectId') {
+      return res.status(404).json({ message: 'Transaction not found' });
+    }
+    res.status(500).json({ message: 'Server Error' });
+  }
+});
+
+// --- Delete All Transactions ---
+// Route: DELETE /api/transactions/all
+// Access: Private
+router.delete('/all/delete', authMiddleware, async (req, res) => {
+  try {
+    const userId = req.user._id;
+    await Transaction.deleteMany({ user: userId });
+    res.json({ message: 'All transactions deleted successfully' });
+  } catch (err) {
+    console.error('Error deleting all transactions:', err);
+    res.status(500).json({ message: 'Server Error' });
+  }
+});
+
+// --- Update a Transaction ---
+// Route: PUT /api/transactions/:id
+// Access: Private
+router.put('/:id', authMiddleware, async (req, res) => {
+  try {
+    const { category, description, isNonEssential } = req.body;
+    const transaction = await Transaction.findById(req.params.id);
+
+    if (!transaction) {
+      return res.status(404).json({ message: 'Transaction not found' });
+    }
+
+    // Ensure user owns the transaction
+    if (transaction.user.toString() !== req.user._id.toString()) {
+      return res.status(401).json({ message: 'User not authorized' });
+    }
+
+    // Role-based check if it's a family transaction
+    if (transaction.familyGroupId) {
+      const FamilyGroup = (await import('../models/FamilyGroup.js')).default;
+      const group = await FamilyGroup.findOne({ _id: transaction.familyGroupId, isActive: true });
+      if (group) {
+        const member = group.members.find(m => m.user && m.user.toString() === req.user._id.toString());
+        const role = member ? member.role : null;
+
+        if (role === 'VIEWER') {
+          return res.status(403).json({ message: 'Viewers cannot edit transactions.' });
+        }
+      }
+    }
+
+    // Update fields
+    if (category) transaction.category = category;
+    if (description) transaction.description = description;
+    if (isNonEssential !== undefined) transaction.isNonEssential = isNonEssential; // If schema supports it directly on Tx
+
+    // If transaction has sub-categories (billscan), update them if needed? 
+    // For now, assuming we are just updating the main category for single-category bank txs.
+
+    await transaction.save();
+
+    // --- GAMIFICATION UPDATE (On Edit) ---
+    try {
+      const { checkChallengeProgress } = await import('../services/challengeService.js');
+      // Re-check challenges with updated transaction
+      await checkChallengeProgress(req.user._id, transaction);
+    } catch (err) { console.error(err); }
+    // -------------------------------------
+
+    res.json(transaction);
+  } catch (err) {
+    console.error('Error updating transaction:', err);
+    res.status(500).json({ message: 'Server Error' });
   }
 });
 

@@ -5,7 +5,7 @@ dotenv.config();
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 export const getInvestmentRecommendations = async ({ amount, riskLevel, investmentType, durationYears }) => {
-  const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+  const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash-lite' });
 
   const prompt = `
 Given the following user preferences:
@@ -26,7 +26,10 @@ Return only a JSON array in the format:
     "risk": "Low / Moderate / High",
     "description": "Detailed explanation of the plan",
     "recommendedFor": "string (e.g., beginners, high-risk takers, retirees)",
-    "link": "https://example.com/invest-now"  // A real or dummy link where user can invest
+    "whyThisPlan": "Explanation of why this plan fits the user profile",
+    "riskAnalysis": "Brief explanation of risks involved",
+    "beginnerExplanation": "Simple 1-sentence explanation for a 5-year old",
+    "link": "https://example.com/invest-now"
   }
 ]
 

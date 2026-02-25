@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import axios from 'axios';
+import api from '../api/axios';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer, Legend,
   PieChart, Pie, Cell, AreaChart, Area, ScatterChart, Scatter,
@@ -10,7 +10,7 @@ import {
   Plus, Trash2, X, Filter, BarChart2,
   PieChart as PieIcon, AreaChart as AreaIcon,
   ScatterChart as ScatterIcon, Activity as RadarIcon,
-  Filter as FunnelIcon, TrendingUp 
+  Filter as FunnelIcon, TrendingUp
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -80,11 +80,10 @@ const ChartTypeSelector = ({ chartType, setChartType, isMobile }) => (
         onClick={() => setChartType(value)}
         whileHover={{ scale: 1.05 }}
         whileTap={{ scale: 0.95 }}
-        className={`flex items-center gap-1 px-1 sm:px-2 py-0.5 sm:py-1 rounded-lg text-[10px] sm:text-xs font-medium transition-all ${
-          chartType === value
-            ? 'bg-indigo-600 text-white shadow-sm'
-            : 'bg-gray-100 text-gray-700 hover:bg-indigo-50 hover:text-indigo-600'
-        }`}
+        className={`flex items-center gap-1 px-1 sm:px-2 py-0.5 sm:py-1 rounded-lg text-[10px] sm:text-xs font-medium transition-all ${chartType === value
+          ? 'bg-indigo-600 text-white shadow-sm'
+          : 'bg-gray-100 text-gray-700 hover:bg-indigo-50 hover:text-indigo-600'
+          }`}
       >
         {icon} {label}
       </motion.button>
@@ -501,12 +500,12 @@ const BudgetView = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [newBudget, setNewBudget] = useState({ category: '', amount: '', period: 'Monthly', type: 'expense' });
   const [searchQuery, setSearchQuery] = useState('');
-  const [filter, setFilter] = useState({ 
-    type: 'all', 
-    period: 'all', 
-    category: 'all', 
-    startDate: '', 
-    endDate: '' 
+  const [filter, setFilter] = useState({
+    type: 'all',
+    period: 'all',
+    category: 'all',
+    startDate: '',
+    endDate: ''
   });
   const [chartType, setChartType] = useState('bar');
   const [showFilter, setShowFilter] = useState(false);
@@ -520,9 +519,7 @@ const BudgetView = () => {
         setErrorMessage('Please log in to view budgets.');
         return;
       }
-      const res = await axios.get(`${import.meta.env.VITE_BACKEND_URL}/api/budgets`, { 
-        headers: { Authorization: `Bearer ${token}` } 
-      });
+      const res = await api.get('/api/budgets');
       setBudgets(res.data || []);
     } catch (err) {
       setErrorMessage(err.response?.data?.message || 'Failed to fetch budgets.');
@@ -541,11 +538,11 @@ const BudgetView = () => {
     }
 
     try {
-      await axios.post(`${import.meta.env.VITE_BACKEND_URL}/api/budgets`, {
+      await api.post('/api/budgets', {
         ...newBudget,
         amount: parseFloat(newBudget.amount),
         category: newBudget.category.trim(),
-      }, { headers: { Authorization: `Bearer ${token}` } });
+      });
       await fetchBudgets();
       setIsModalOpen(false);
       setNewBudget({ category: '', amount: '', period: 'Monthly', type: 'expense' });
@@ -563,9 +560,7 @@ const BudgetView = () => {
       return;
     }
     try {
-      await axios.delete(`${import.meta.env.VITE_BACKEND_URL}/api/budgets/${id}`, { 
-        headers: { Authorization: `Bearer ${token}` } 
-      });
+      await api.delete(`/api/budgets/${id}`);
       fetchBudgets();
       setErrorMessage('');
     } catch (err) {

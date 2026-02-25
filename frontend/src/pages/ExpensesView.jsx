@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import axios from 'axios';
+import api from '../api/axios';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useFinancial } from '../context/FinancialContext';
+import PeriodHeader from '../components/PeriodHeader';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
   PieChart, Pie, Cell, AreaChart, Area, ScatterChart, Scatter,
@@ -11,7 +13,8 @@ import {
   PlusCircle, X as IconX, Filter, BarChart2, PieChart as PieIcon,
   AreaChart as AreaIcon, ScatterChart as ScatterIcon, Activity as RadarIcon,
   Filter as FunnelIcon, LayoutGrid as TreemapIcon, Loader2, AlertTriangle,
-  ChevronLeft, ChevronRight, ChevronDown, ChevronUp, ArrowLeft
+  ChevronLeft, ChevronRight, ChevronDown, ChevronUp, ArrowLeft, Trash2,
+  TrendingUp, TrendingDown, Clock, CheckCircle2, Eye, Plus, Pause, Play, Activity
 } from 'lucide-react';
 
 // Helper Functions
@@ -50,62 +53,20 @@ const formatDateForMobile = (dateString) => {
 const getAuthToken = () => localStorage.getItem('token');
 
 // Subcomponents
-const Header = ({ setShowFilters, showFilters, setIsManualTxModalOpen, setIsScanModalOpen }) => (
+const OverviewCard = ({ title, value, color, icon: Icon }) => (
   <motion.div
-    initial={{ opacity: 0, y: -8 }}
+    initial={{ opacity: 0, y: 10 }}
     animate={{ opacity: 1, y: 0 }}
-    className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 sm:mb-6 gap-3 sticky top-0 bg-white p-2 sm:p-3 rounded-xl shadow-sm z-10"
+    whileHover={{ y: -2 }}
+    className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex items-center gap-4"
   >
-    <div className="flex items-center gap-2 sm:gap-3">
-      <button
-        onClick={() => window.history.back()}
-        className="flex items-center gap-1 sm:gap-2 p-1 sm:p-2 bg-white text-gray-700 rounded-lg shadow-sm hover:bg-gray-100 transition-colors border border-gray-200 min-h-[44px] min-w-[44px]"
-        aria-label="Go back"
-      >
-        <ArrowLeft size={16} />
-        <span className="text-sm sm:inline hidden">Back</span>
-      </button>
-      <h2 className="text-base sm:text-lg font-bold text-gray-900">Transaction Insights</h2>
+    <div className={`p-3 rounded-lg bg-${color}-50 text-${color}-600`}>
+      <Icon size={20} />
     </div>
-    <div className="flex flex-wrap gap-1 sm:gap-2">
-      <button
-        onClick={() => setShowFilters(!showFilters)}
-        className="flex items-center gap-1 sm:gap-2 p-1 sm:p-2 bg-white text-gray-700 rounded-lg shadow-sm hover:bg-gray-100 transition-colors border border-gray-200 min-h-[44px] min-w-[44px]"
-        aria-label={showFilters ? 'Hide filters' : 'Show filters'}
-      >
-        <Filter size={16} />
-        <span className="text-sm sm:inline">{showFilters ? 'Hide Filters' : 'Show Filters'}</span>
-      </button>
-      <button
-        onClick={() => setIsManualTxModalOpen(true)}
-        className="flex items-center gap-1 sm:gap-2 p-1 sm:p-2 bg-gradient-to-r from-green-500 to-green-600 text-white rounded-lg shadow-sm hover:from-green-600 hover:to-green-700 transition-colors min-h-[44px] min-w-[44px]"
-        aria-label="Add manual transaction"
-      >
-        <PlusCircle size={16} />
-        <span className="text-sm sm:inline">Add Manual</span>
-      </button>
-      <button
-        onClick={() => setIsScanModalOpen(true)}
-        className="flex items-center gap-1 sm:gap-2 p-1 sm:p-2 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg shadow-sm hover:from-blue-600 hover:to-blue-700 transition-colors min-h-[44px] min-w-[44px]"
-        aria-label="Scan bill"
-      >
-        <PlusCircle size={16} />
-        <span className="text-sm sm:inline">Scan Bill</span>
-      </button>
+    <div>
+      <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">{title}</p>
+      <p className="text-xl font-bold text-gray-900">{formatCurrency(value)}</p>
     </div>
-  </motion.div>
-);
-
-const OverviewCard = ({ title, value, color, gradient }) => (
-  <motion.div
-    variants={{ hidden: { opacity: 0, y: 8 }, visible: { opacity: 1, y: 0, transition: { duration: 0.2 } }, hover: { scale: 1.03 } }}
-    initial="hidden"
-    animate="visible"
-    whileHover="hover"
-    className={`p-2 sm:p-3 rounded-xl shadow-md ${gradient} border-2 border-gray-50`}
-  >
-    <p className="text-[11px] sm:text-xs text-gray-600">{title}</p>
-    <p className={`text-sm sm:text-base font-semibold ${color} ${title === 'Top Category' ? 'capitalize' : ''}`}>{value}</p>
   </motion.div>
 );
 
@@ -214,7 +175,7 @@ const ChartSelector = ({ chartType, setChartType }) => (
   </div>
 );
 
-const TransactionCard = ({ tx, toggleTransaction, expandedTransactions }) => {
+const TransactionCard = ({ tx, toggleTransaction, expandedTransactions, handleDelete }) => {
   const categoriesSum = tx.source === 'billscan' && tx.categories
     ? tx.categories.reduce((sum, cat) => sum + (cat.categoryTotal || 0), 0)
     : tx.amount;
@@ -254,9 +215,21 @@ const TransactionCard = ({ tx, toggleTransaction, expandedTransactions }) => {
             </p>
           )}
         </div>
-        <p className={`text-xs sm:text-sm font-semibold text-right ${tx.type === 'credit' ? 'text-green-600' : 'text-red-600'}`}>
-          {tx.type === 'credit' ? '+' : '-'}{formatCurrency(tx.amount)}
-        </p>
+        <div className="flex flex-col items-end gap-1">
+          <p className={`text-xs sm:text-sm font-semibold text-right ${tx.type === 'credit' ? 'text-green-600' : 'text-red-600'}`}>
+            {tx.type === 'credit' ? '+' : '-'}{formatCurrency(tx.amount)}
+          </p>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              if (window.confirm('Are you sure you want to delete this transaction?')) handleDelete(tx._id);
+            }}
+            className="text-gray-400 hover:text-red-500 p-1"
+            aria-label="Delete transaction"
+          >
+            <Trash2 size={14} />
+          </button>
+        </div>
       </div>
       {tx.source === 'billscan' && expandedTransactions[tx._id] && tx.categories && (
         <motion.div
@@ -328,24 +301,10 @@ const Pagination = ({ pagination, handlePageChange, isLoading }) => (
 
 // Main Component
 const ExpensesView = () => {
-  // State definitions
-  const [transactions, setTransactions] = useState([]);
-  const [allTransactions, setAllTransactions] = useState([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [filters, setFilters] = useState({
-    startDate: '',
-    endDate: '',
-    category: 'All',
-    type: 'all',
-  });
-  const [pagination, setPagination] = useState({
-    currentPage: 1,
-    totalPages: 1,
-    totalTransactions: 0,
-    limit: 10,
-  });
-  const [chartType, setChartType] = useState('area');
+  const { data, loading: isLoading, error, filters: globalFilters, updateFilters, refreshData, totals } = useFinancial();
+
+  // State definitions (Keep only view-specific state)
+  const [chartType, setChartType] = useState('bar');
   const [showFilters, setShowFilters] = useState(false);
   const [isManualTxModalOpen, setIsManualTxModalOpen] = useState(false);
   const [isScanModalOpen, setIsScanModalOpen] = useState(false);
@@ -361,81 +320,43 @@ const ExpensesView = () => {
   const [scanFile, setScanFile] = useState(null);
   const [scanError, setScanError] = useState('');
   const [isScanning, setIsScanning] = useState(false);
+  const [scanType, setScanType] = useState('bill');
+  const [unknownTransactions, setUnknownTransactions] = useState([]);
+  const [isUnknownModalOpen, setIsUnknownModalOpen] = useState(false);
   const [expandedTransactions, setExpandedTransactions] = useState({});
   const [notificationMessage, setNotificationMessage] = useState('');
   const [showNotificationPopup, setShowNotificationPopup] = useState(false);
+  const [isRecurringModalOpen, setIsRecurringModalOpen] = useState(false);
+  const [recurringList, setRecurringList] = useState([]);
+  const [isAddingRecurring, setIsAddingRecurring] = useState(false);
+  const [newRecurringData, setNewRecurringData] = useState({
+    amount: '',
+    category: '',
+    frequency: 'monthly',
+    description: '',
+    isEssential: true
+  });
 
-  // Fetch transactions
-  const fetchTransactions = useCallback(async (retryCount = 3, delay = 1000) => {
-    setIsLoading(true);
-    setError(null);
-    const token = getAuthToken();
-    if (!token) {
-      setError('Authentication token not found. Please log in.');
-      setIsLoading(false);
-      return;
-    }
+  // Derived data
+  const transactions = data?.transactions || [];
+  const allTransactions = data?.transactions || [];
+  const budgets = data?.budgets || [];
 
-    const params = {
-      ...(filters.startDate && { startDate: filters.startDate }),
-      ...(filters.endDate && { endDate: filters.endDate }),
-      ...(filters.category !== 'All' && { category: filters.category }),
-      ...(filters.type !== 'all' && { type: filters.type }),
-    };
-
-    try {
-      const paginatedParams = {
-        ...params,
-        page: pagination.currentPage,
-        limit: pagination.limit,
-      };
-      const paginatedResponse = await axios.get(`${import.meta.env.VITE_BACKEND_URL}/api/transactions`, {
-        headers: { Authorization: `Bearer ${token}` },
-        params: paginatedParams,
-      });
-      setTransactions(paginatedResponse.data.transactions || []);
-      setPagination(prev => ({
-        ...prev,
-        totalPages: paginatedResponse.data.pagination.totalPages,
-        totalTransactions: paginatedResponse.data.pagination.totalTransactions,
-        currentPage: paginatedResponse.data.pagination.currentPage,
-      }));
-
-      const allResponse = await axios.get(`${import.meta.env.VITE_BACKEND_URL}/api/transactions`, {
-        headers: { Authorization: `Bearer ${token}` },
-        params: { ...params, limit: 10000 },
-      });
-      setAllTransactions(allResponse.data.transactions || []);
-
-      setIsLoading(false);
-    } catch (err) {
-      if (retryCount > 1) {
-        await new Promise(resolve => setTimeout(resolve, delay));
-        return fetchTransactions(retryCount - 1, delay * 2);
-      }
-      const message = err.code === 'ERR_NETWORK'
-        ? 'Unable to connect to the server. Please check if the backend is running on http://localhost:5000.'
-        : err.response?.data?.message || 'Failed to load transactions.';
-      setError(message);
-      setTransactions([]);
-      setAllTransactions([]);
-      setIsLoading(false);
-    }
-  }, [filters, pagination.currentPage, pagination.limit]);
-
-  useEffect(() => {
-    fetchTransactions();
-  }, [fetchTransactions]);
+  // Local Pagination
+  const [pagination, setPagination] = useState({
+    currentPage: 1,
+    limit: 10,
+  });
 
   // Handlers
   const handleFilterChange = (e) => {
     const { name, value } = e.target;
-    setFilters(prev => ({ ...prev, [name]: value }));
-    setPagination(prev => ({ ...prev, currentPage: 1 }));
+    updateFilters({ [name]: value });
   };
 
   const handlePageChange = (newPage) => {
-    if (newPage >= 1 && newPage <= pagination.totalPages) {
+    const totalPagesCount = Math.ceil(transactions.length / pagination.limit);
+    if (newPage >= 1 && newPage <= totalPagesCount) {
       setPagination(prev => ({ ...prev, currentPage: newPage }));
     }
   };
@@ -611,7 +532,7 @@ const ExpensesView = () => {
               <YAxis
                 fontSize={isMobile ? 10 : 12}
                 stroke="#374151"
-                tickFormatter={(value) => `₹${value/1000}k`}
+                tickFormatter={(value) => `₹${value / 1000}k`}
                 width={isMobile ? 40 : 50}
               />
               <Tooltip content={customTooltip} />
@@ -654,7 +575,7 @@ const ExpensesView = () => {
                 name={title}
                 fontSize={isMobile ? 10 : 12}
                 stroke="#374151"
-                tickFormatter={(value) => `₹${value/1000}k`}
+                tickFormatter={(value) => `₹${value / 1000}k`}
                 width={isMobile ? 40 : 50}
               />
               <Tooltip content={customTooltip} />
@@ -670,7 +591,7 @@ const ExpensesView = () => {
               <PolarGrid stroke="#e5e7eb" />
               <PolarAngleAxis dataKey="name" stroke="#374151" fontSize={isMobile ? 10 : 12} />
               <PolarRadiusAxis
-                tickFormatter={(value) => `₹${value/1000}k`}
+                tickFormatter={(value) => `₹${value / 1000}k`}
                 stroke="#374151"
                 fontSize={isMobile ? 10 : 12}
               />
@@ -758,7 +679,7 @@ const ExpensesView = () => {
               <YAxis
                 fontSize={isMobile ? 10 : 12}
                 stroke="#374151"
-                tickFormatter={(value) => `₹${value/1000}k`}
+                tickFormatter={(value) => `₹${value / 1000}k`}
                 width={isMobile ? 40 : 50}
               />
               <Tooltip content={customTooltip} />
@@ -812,9 +733,7 @@ const ExpensesView = () => {
     };
 
     try {
-      const response = await axios.post(`${import.meta.env.VITE_BACKEND_URL}/api/transactions`, payload, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const response = await api.post('/api/transactions', payload);
       setIsManualTxModalOpen(false);
       setManualTxData({
         type: 'debit',
@@ -828,7 +747,7 @@ const ExpensesView = () => {
         setShowNotificationPopup(true);
         // setTimeout(() => setShowNotificationPopup(false), 7000); // Auto-close after 5 seconds
       }
-      await fetchTransactions();
+      await refreshData();
       setTimeout(() => setShowNotificationPopup(false), 7000);
     } catch (err) {
       const errorMessage = err.response?.data?.message || 'Failed to record transaction.';
@@ -838,6 +757,89 @@ const ExpensesView = () => {
       setIsSubmittingManual(false);
     }
   };
+
+  const handleDeleteTransaction = async (id) => {
+    try {
+      const token = getAuthToken();
+      await api.delete(`/api/transactions/${id}`);
+      setNotificationMessage('Transaction deleted successfully');
+      setShowNotificationPopup(true);
+      setTimeout(() => setShowNotificationPopup(false), 3000);
+      fetchTransactions();
+    } catch (err) {
+      console.error("Failed to delete transaction", err);
+      setNotificationMessage('Failed to delete transaction');
+      setShowNotificationPopup(true);
+    }
+  };
+
+  const handleClearAll = async () => {
+    if (!window.confirm('Are you sure you want to delete ALL transactions? This cannot be undone.')) return;
+
+    try {
+      const token = getAuthToken();
+      await api.delete('/api/transactions/all/delete');
+      setNotificationMessage('All transactions deleted successfully');
+      setShowNotificationPopup(true);
+      setTimeout(() => setShowNotificationPopup(false), 3000);
+      fetchTransactions();
+    } catch (err) {
+      console.error("Failed to delete all transactions", err);
+      setNotificationMessage('Failed to delete all transactions');
+      setShowNotificationPopup(true);
+    }
+  };
+
+  // Recurring Expense Handlers
+  const fetchRecurringExpenses = async () => {
+    try {
+      const response = await api.get('/api/recurring');
+      setRecurringList(response.data);
+    } catch (err) {
+      console.error('Failed to fetch recurring expenses', err);
+    }
+  };
+
+  const handleAddRecurring = async (e) => {
+    e.preventDefault();
+    try {
+      await api.post('/api/recurring', newRecurringData);
+      setNewRecurringData({ amount: '', category: '', frequency: 'monthly', description: '', isEssential: true });
+      setIsAddingRecurring(false);
+      fetchRecurringExpenses();
+      refreshData();
+    } catch (err) {
+      console.error('Failed to add recurring expense', err);
+    }
+  };
+
+  const handleDeleteRecurring = async (id) => {
+    if (!window.confirm('Delete this recurring payment?')) return;
+    try {
+      await api.delete(`/api/recurring/${id}`);
+      fetchRecurringExpenses();
+      refreshData();
+    } catch (err) {
+      console.error('Failed to delete recurring expense', err);
+    }
+  };
+
+  const toggleRecurringStatus = async (item) => {
+    const newStatus = item.status === 'active' ? 'paused' : 'active';
+    try {
+      await api.put(`/api/recurring/${item._id}`, { status: newStatus });
+      fetchRecurringExpenses();
+      refreshData();
+    } catch (err) {
+      console.error('Failed to update recurring status', err);
+    }
+  };
+
+  useEffect(() => {
+    if (isRecurringModalOpen) {
+      fetchRecurringExpenses();
+    }
+  }, [isRecurringModalOpen]);
 
   // Scan Transaction Handlers
   const handleScanFileChange = (e) => {
@@ -866,17 +868,26 @@ const ExpensesView = () => {
 
     const formData = new FormData();
     formData.append('bill', scanFile);
+    formData.append('scanType', scanType);
 
     try {
-      await axios.post(`${import.meta.env.VITE_BACKEND_URL}/api/billscan`, formData, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'multipart/form-data',
-        },
+      const response = await api.post('/api/billscan', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
       });
+
       setIsScanModalOpen(false);
       setScanFile(null);
-      fetchTransactions();
+      setScanType('bill');
+
+      if (response.data.type === 'statement' && response.data.transactions) {
+        const unknown = response.data.transactions.filter(tx => tx.category === 'Unknown');
+        if (unknown.length > 0) {
+          setUnknownTransactions(unknown);
+          setIsUnknownModalOpen(true);
+        }
+      }
+
+      await refreshData();
     } catch (err) {
       const errorMessage = err.response?.data?.message || 'Failed to process bill scan.';
       setScanError(errorMessage);
@@ -885,345 +896,677 @@ const ExpensesView = () => {
     }
   };
 
+  const handleUpdateUnknownCategory = async (txId, newCategory) => {
+    try {
+      const token = getAuthToken();
+      await api.put(`/api/transactions/${txId}`, { category: newCategory });
+
+      setUnknownTransactions(prev => prev.filter(tx => tx._id !== txId));
+      if (unknownTransactions.length <= 1) {
+        setIsUnknownModalOpen(false);
+        await refreshData();
+      }
+    } catch (err) {
+      console.error("Failed to update category", err);
+    }
+  };
+
   const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#6366F1', '#EC4899', '#8B5CF6', '#F97316', '#22D3EE', '#F43F5E', '#4B5563'];
 
   return (
-    <div className="min-h-[calc(100vh-4rem)] bg-gray-50 p-2 sm:p-4 lg:p-6 font-sans">
-      <Header
-        setShowFilters={setShowFilters}
-        showFilters={showFilters}
-        setIsManualTxModalOpen={setIsManualTxModalOpen}
-        setIsScanModalOpen={setIsScanModalOpen}
-      />
-
-      {/* Overview Section */}
-      {!isLoading && !error && allTransactions.length > 0 && (
-        <motion.div
-          variants={{ hidden: { opacity: 0, y: 8 }, visible: { opacity: 1, y: 0 } }}
-          initial="hidden"
-          animate="visible"
-          className="mb-4 sm:mb-6"
-        >
-          <h3 className="text-base sm:text-lg font-semibold text-gray-800 mb-3 sm:mb-4">Transaction Overview</h3>
-          <div className="grid grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-3">
-            <OverviewCard
-              title="Total Expenses"
-              value={formatCurrency(overview.totalExpenses)}
-              color="text-blue-600"
-              gradient="bg-blue-50"
-            />
-            <OverviewCard
-              title="Total Income"
-              value={formatCurrency(overview.totalIncome)}
-              color="text-green-600"
-              gradient="bg-green-50"
-            />
-            <OverviewCard
-              title="Non-Essential Expenses"
-              value={formatCurrency(overview.nonEssentialExpenses)}
-              color="text-red-600"
-              gradient="bg-red-50"
-            />
-            <OverviewCard
-              title="Average Expense"
-              value={formatCurrency(overview.avgExpense)}
-              color="text-green-600"
-              gradient="bg-green-50"
-            />
-            <OverviewCard
-              title="Top Category"
-              value={overview.topCategory}
-              color="text-purple-600"
-              gradient="bg-purple-50"
-            />
-            <OverviewCard
-              title="Total Transactions"
-              value={overview.transactionCount + overview.incomeCount}
-              color="text-orange-600"
-              gradient="bg-orange-50"
-            />
+    <div className="min-h-screen bg-gray-50 px-4 py-8 md:px-8 lg:px-12 font-sans overflow-x-hidden">
+      <div className="max-w-7xl mx-auto">
+        <header className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8">
+          <div>
+            <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight mb-1">Financial Analysis</h1>
+            <p className="text-gray-500 font-medium">Detailed tracking and recurring management</p>
           </div>
-        </motion.div>
-      )}
+          <div className="flex flex-wrap items-center gap-4">
+            <PeriodHeader />
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setShowFilters(!showFilters)}
+                className={`p-2.5 rounded-xl border transition-all ${showFilters
+                  ? 'bg-indigo-600 border-indigo-500 text-white shadow-sm'
+                  : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
+                  }`}
+              >
+                <Filter size={18} />
+              </button>
+              <button
+                onClick={() => setIsScanModalOpen(true)}
+                className="flex items-center gap-2 px-4 py-2.5 bg-white border border-gray-200 text-gray-700 rounded-xl hover:bg-gray-50 transition-all font-semibold shadow-sm"
+              >
+                <Eye size={18} className="text-indigo-500" />
+                <span className="hidden sm:inline">Scan Receipt</span>
+              </button>
+              <button
+                onClick={() => setIsManualTxModalOpen(true)}
+                className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl transition-all font-bold shadow-sm"
+              >
+                <Plus size={18} />
+                <span>Add Record</span>
+              </button>
+            </div>
+          </div>
+        </header>
 
-      {/* Filters Section */}
-      <AnimatePresence>
-        {showFilters && (
-          <FilterPanel
-            filters={filters}
-            handleFilterChange={handleFilterChange}
-            categories={categories}
-            pagination={pagination}
-            handleLimitChange={handleLimitChange}
+        {/* Global Summary Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+          <OverviewCard
+            title="Total Income"
+            value={totals.income}
+            color="emerald"
+            icon={TrendingUp}
           />
-        )}
-      </AnimatePresence>
+          <OverviewCard
+            title="Total Expenses"
+            value={totals.expenses}
+            color="rose"
+            icon={TrendingDown}
+          />
+          <OverviewCard
+            title="Net Savings"
+            value={totals.savings}
+            color="indigo"
+            icon={CheckCircle2}
+          />
+          <OverviewCard
+            title="Non-Essential"
+            value={totals.nonEssential}
+            color="amber"
+            icon={AlertTriangle}
+          />
+        </div>
 
-      {/* Chart Type Selector */}
-      {!isLoading && !error && allTransactions.length > 0 && (
-        <motion.div
-          variants={{ hidden: { opacity: 0, y: 8 }, visible: { opacity: 1, y: 0 } }}
-          initial="hidden"
-          animate="visible"
-          className="bg-white rounded-xl shadow-md p-2 sm:p-4 mb-4 sm:mb-6 border border-gray-100"
-        >
-          <h3 className="text-base sm:text-lg font-semibold text-gray-800 mb-2 sm:mb-3">Chart Type</h3>
-          <ChartSelector chartType={chartType} setChartType={setChartType} />
-        </motion.div>
-      )}
-
-      {/* Loading and Error States */}
-      {isLoading && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          className="flex flex-col items-center justify-center py-12"
-        >
-          <Loader2 className="animate-spin h-6 w-6 text-blue-600" />
-          <p className="mt-2 text-xs font-medium text-gray-600">Loading transactions...</p>
-        </motion.div>
-      )}
-      {error && !isLoading && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-center flex items-center justify-center gap-2"
-        >
-          <AlertTriangle className="w-5 h-5" />
-          <span className="text-xs sm:text-sm">{error}</span>
-        </motion.div>
-      )}
-
-      {/* Charts */}
-      {!isLoading && !error && allTransactions.length > 0 && (
-        <motion.div
-          variants={{ hidden: { opacity: 0, y: 8 }, visible: { opacity: 1, y: 0 } }}
-          initial="hidden"
-          animate="visible"
-          className="space-y-4 sm:space-y-6 mb-4 sm:mb-6"
-        >
-          <div className="bg-white rounded-xl shadow-md p-2 sm:p-4 border border-gray-100">
-            <h3 className="text-base sm:text-lg font-semibold text-gray-800 mb-2 sm:mb-3">Expenses Over Time</h3>
-            <ChartComponent data={areaChartData} title="Expenses" dataKey="amount" isAreaChart={true} />
-          </div>
-          <div className="bg-white rounded-xl shadow-md p-2 sm:p-4 border border-gray-100">
-            <h3 className="text-base sm:text-lg font-semibold text-gray-800 mb-2 sm:mb-3">Expenses by Category</h3>
-            <ChartComponent data={pieChartData} title="Expenses" dataKey="value" />
-          </div>
-        </motion.div>
-      )}
-
-      {/* Transaction List */}
-      {!isLoading && !error && (
-        <motion.div
-          variants={{ hidden: { opacity: 0, y: 8 }, visible: { opacity: 1, y: 0 } }}
-          initial="hidden"
-          animate="visible"
-          className="bg-white rounded-xl shadow-md p-2 sm:p-4 border border-gray-100"
-        >
-          <h3 className="text-base sm:text-lg font-semibold text-gray-800 mb-2 sm:mb-3">Transaction History</h3>
-          {transactions.length > 0 ? (
-            <>
-              <div className="space-y-2">
-                {transactions.map((tx, index) => (
-                  <TransactionCard
-                    key={tx._id}
-                    tx={tx}
-                    toggleTransaction={toggleTransaction}
-                    expandedTransactions={expandedTransactions}
-                    custom={index}
-                  />
-                ))}
-              </div>
-              <Pagination
-                pagination={pagination}
-                handlePageChange={handlePageChange}
-                isLoading={isLoading}
-              />
-            </>
-          ) : (
-            <p className="text-gray-500 text-center py-3 text-xs">No transactions found matching your filters.</p>
+        {/* Filters Panel */}
+        <AnimatePresence>
+          {showFilters && (
+            <FilterPanel
+              filters={globalFilters}
+              handleFilterChange={handleFilterChange}
+              categories={categories}
+              pagination={pagination}
+              handleLimitChange={handleLimitChange}
+            />
           )}
-        </motion.div>
-      )}
+        </AnimatePresence>
 
-      {/* Manual Transaction Modal */}
-      <AnimatePresence>
-        {isManualTxModalOpen && (
+        {isLoading && data === null && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 h-screen w-screen flex items-center justify-center z-50 p-4 bg-black/60 overflow-auto"
+            className="flex flex-col items-center justify-center py-24"
           >
+            <Loader2 className="animate-spin h-10 w-10 text-blue-500 mb-4" />
+            <p className="text-slate-400 font-medium tracking-wide">Syncing data...</p>
+          </motion.div>
+        )}
+        {
+          error && !isLoading && (
             <motion.div
-              initial={{ scale: 0.95, y: 20 }}
-              animate={{ scale: 1, y: 0 }}
-              exit={{ scale: 0.95, y: 20 }}
-              className="bg-white/90 rounded-xl p-4 sm:p-6 w-full max-w-md max-h-[90vh] shadow-xl backdrop-blur-sm border border-gray-100/50 overflow-auto"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-center flex items-center justify-center gap-2"
             >
-              <div className="flex justify-between items-center mb-3 sm:mb-4">
-                <h3 className="text-base sm:text-lg font-semibold text-gray-800">Add Manual Transaction</h3>
+              <AlertTriangle className="w-5 h-5" />
+              <span className="text-xs sm:text-sm">{error}</span>
+            </motion.div>
+          )
+        }
+
+        {/* Charts and Recurring Payments */}
+        {!isLoading && !error && allTransactions.length > 0 && (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+            <div className="lg:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-6">
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm"
+              >
+                <h3 className="text-lg font-bold text-gray-900 mb-4">Spending Trend</h3>
+                <ChartComponent data={areaChartData} title="Expenses" dataKey="amount" isAreaChart={true} />
+              </motion.div>
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm"
+              >
+                <h3 className="text-lg font-bold text-gray-900 mb-4">Category Allocation</h3>
+                <ChartComponent data={pieChartData} title="Expenses" dataKey="value" />
+              </motion.div>
+            </div>
+
+            {/* Recurring Payments Section */}
+            <motion.div
+              initial={{ opacity: 0, x: 10 }}
+              animate={{ opacity: 1, x: 0 }}
+              className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm"
+            >
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-bold text-gray-900">Recurring</h3>
                 <button
-                  onClick={() => setIsManualTxModalOpen(false)}
-                  className="text-gray-500 hover:text-gray-700 p-1"
+                  onClick={() => setIsRecurringModalOpen(true)}
+                  className="text-xs text-indigo-600 font-semibold hover:underline"
                 >
-                  <IconX size={20} />
+                  Manage
                 </button>
               </div>
-              <p className="text-[11px] sm:text-xs text-gray-500 mb-3 sm:mb-4">Record a past transaction (e.g., cash payment).</p>
-              {modalError && <p className="text-red-500 text-[11px] sm:text-xs mb-3 bg-red-50/80 p-2 rounded">{modalError}</p>}
-              <form onSubmit={handleManualSubmit} className="space-y-3 sm:space-y-4">
-                <div className="flex items-center space-x-3 sm:space-x-4">
-                  <span className="text-[11px] sm:text-sm font-medium text-gray-700">Type *:</span>
-                  <label className="flex items-center text-[11px] sm:text-sm">
+              <div className="space-y-4">
+                {data?.upcomingRecurring?.length > 0 ? (
+                  data.upcomingRecurring.map(item => (
+                    <div key={item._id} className="flex items-center justify-between p-3 bg-gray-50 rounded-xl border border-gray-100">
+                      <div>
+                        <p className="text-sm font-bold text-gray-900 capitalize">{item.category}</p>
+                        <p className="text-[10px] text-gray-500 uppercase font-medium">{item.frequency} • {formatDateForDisplay(item.nextOccurrence)}</p>
+                      </div>
+                      <p className="text-sm font-bold text-rose-600">-{formatCurrency(item.amount)}</p>
+                    </div>
+                  ))
+                ) : (
+                  <div className="text-center py-8">
+                    <Clock size={32} className="mx-auto text-gray-300 mb-2" />
+                    <p className="text-xs text-gray-500">No upcoming recurring payments</p>
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          </div>
+        )}
+
+        {/* Transaction List */}
+        {!isLoading && !error && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm mb-12"
+          >
+            <div className="flex items-center justify-between mb-8">
+              <h3 className="text-xl font-bold text-gray-900">Recent Activity</h3>
+              <div className="text-gray-500 text-sm font-medium">
+                Showing {pagination.currentPage} of {Math.ceil(transactions.length / pagination.limit)} pages
+              </div>
+            </div>
+            {transactions.length > 0 ? (
+              <>
+                <div className="space-y-2">
+                  {(allTransactions.slice((pagination.currentPage - 1) * pagination.limit, pagination.currentPage * pagination.limit)).map((tx, index) => (
+                    <TransactionCard
+                      key={tx._id}
+                      tx={tx}
+                      toggleTransaction={toggleTransaction}
+                      expandedTransactions={expandedTransactions}
+                      handleDelete={handleDeleteTransaction}
+                    />
+                  ))}
+                </div>
+                <div className="flex justify-between items-center mt-6">
+                  <button
+                    onClick={handleClearAll}
+                    className="text-xs text-rose-600 hover:text-rose-700 font-medium flex items-center gap-1.5"
+                  >
+                    <Trash2 size={14} /> Clear History
+                  </button>
+                  <Pagination
+                    pagination={{
+                      ...pagination,
+                      totalPages: Math.ceil(transactions.length / pagination.limit),
+                      totalTransactions: transactions.length
+                    }}
+                    handlePageChange={handlePageChange}
+                    isLoading={isLoading}
+                  />
+                </div>
+              </>
+            ) : (
+              <div className="text-center py-12">
+                <p className="text-gray-500 text-sm italic">No records found for this period.</p>
+              </div>
+            )}
+          </motion.div>
+        )}
+
+        {/* Manual Transaction Modal */}
+        <AnimatePresence>
+          {isManualTxModalOpen && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 h-screen w-screen flex items-center justify-center z-50 p-4 bg-black/60 overflow-auto"
+            >
+              <motion.div
+                initial={{ scale: 0.95, y: 20 }}
+                animate={{ scale: 1, y: 0 }}
+                exit={{ scale: 0.95, y: 20 }}
+                className="bg-white/90 rounded-xl p-4 sm:p-6 w-full max-w-md max-h-[90vh] shadow-xl backdrop-blur-sm border border-gray-100/50 overflow-auto"
+              >
+                <div className="flex justify-between items-center mb-3 sm:mb-4">
+                  <h3 className="text-base sm:text-lg font-semibold text-gray-800">Add Manual Transaction</h3>
+                  <button
+                    onClick={() => setIsManualTxModalOpen(false)}
+                    className="text-gray-500 hover:text-gray-700 p-1"
+                  >
+                    <IconX size={20} />
+                  </button>
+                </div>
+                <p className="text-[11px] sm:text-xs text-gray-500 mb-3 sm:mb-4">Record a past transaction (e.g., cash payment).</p>
+                {modalError && <p className="text-red-500 text-[11px] sm:text-xs mb-3 bg-red-50/80 p-2 rounded">{modalError}</p>}
+                <form onSubmit={handleManualSubmit} className="space-y-3 sm:space-y-4">
+                  <div className="flex items-center space-x-3 sm:space-x-4">
+                    <span className="text-[11px] sm:text-sm font-medium text-gray-700">Type *:</span>
+                    <label className="flex items-center text-[11px] sm:text-sm">
+                      <input
+                        type="radio"
+                        name="type"
+                        value="debit"
+                        checked={manualTxData.type === 'debit'}
+                        onChange={handleManualFormChange}
+                        required
+                        className="mr-1"
+                      /> Debit
+                    </label>
+                    <label className="flex items-center text-[11px] sm:text-sm">
+                      <input
+                        type="radio"
+                        name="type"
+                        value="credit"
+                        checked={manualTxData.type === 'credit'}
+                        onChange={handleManualFormChange}
+                        className="mr-1"
+                      /> Credit
+                    </label>
+                  </div>
+                  <div>
+                    <label htmlFor="amountModal" className="block text-[11px] sm:text-sm font-medium text-gray-700 mb-1">Amount *</label>
                     <input
-                      type="radio"
-                      name="type"
-                      value="debit"
-                      checked={manualTxData.type === 'debit'}
+                      id="amountModal"
+                      name="amount"
+                      type="number"
+                      step="0.01"
+                      min="0.01"
+                      value={manualTxData.amount}
                       onChange={handleManualFormChange}
                       required
-                      className="mr-1"
-                    /> Debit
-                  </label>
-                  <label className="flex items-center text-[11px] sm:text-sm">
+                      placeholder="Enter amount"
+                      className="w-full p-1.5 sm:p-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-[11px] sm:text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="categoryModal" className="block text-[11px] sm:text-sm font-medium text-gray-700 mb-1">Category *</label>
                     <input
-                      type="radio"
-                      name="type"
-                      value="credit"
-                      checked={manualTxData.type === 'credit'}
+                      id="categoryModal"
+                      name="category"
+                      type="text"
+                      value={manualTxData.category}
                       onChange={handleManualFormChange}
-                      className="mr-1"
-                    /> Credit
-                  </label>
-                </div>
-                <div>
-                  <label htmlFor="amountModal" className="block text-[11px] sm:text-sm font-medium text-gray-700 mb-1">Amount *</label>
-                  <input
-                    id="amountModal"
-                    name="amount"
-                    type="number"
-                    step="0.01"
-                    min="0.01"
-                    value={manualTxData.amount}
-                    onChange={handleManualFormChange}
-                    required
-                    placeholder="Enter amount"
-                    className="w-full p-1.5 sm:p-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-[11px] sm:text-sm"
-                  />
-                </div>
-                <div>
-                  <label htmlFor="categoryModal" className="block text-[11px] sm:text-sm font-medium text-gray-700 mb-1">Category *</label>
-                  <input
-                    id="categoryModal"
-                    name="category"
-                    type="text"
-                    value={manualTxData.category}
-                    onChange={handleManualFormChange}
-                    required
-                    placeholder="e.g., Groceries, Salary"
-                    className="w-full p-1.5 sm:p-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-[11px] sm:text-sm"
-                  />
-                </div>
-                <div>
-                  <label htmlFor="dateModal" className="block text-[11px] sm:text-sm font-medium text-gray-700 mb-1">Date *</label>
-                  <input
-                    id="dateModal"
-                    name="date"
-                    type="date"
-                    value={manualTxData.date}
-                    onChange={handleManualFormChange}
-                    required
-                    className="w-full p-1.5 sm:p-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-[11px] sm:text-sm"
-                  />
-                </div>
-                <div>
-                  <label htmlFor="descriptionModal" className="block text-[11px] sm:text-sm font-medium text-gray-700 mb-1">Description (Optional)</label>
-                  <textarea
-                    id="descriptionModal"
-                    name="description"
-                    rows="2"
-                    value={manualTxData.description}
-                    onChange={handleManualFormChange}
-                    placeholder="Add a note about the transaction"
-                    className="w-full p-1.5 sm:p-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-[11px] sm:text-sm"
-                  ></textarea>
-                </div>
-                <button
-                  type="submit"
-                  disabled={isSubmittingManual}
-                  className={`w-full ${isSubmittingManual ? 'bg-gray-400' : 'bg-blue-500 hover:bg-blue-600'} text-white py-2 rounded-lg transition-colors flex items-center justify-center text-[11px] sm:text-sm font-medium`}
-                >
-                  {isSubmittingManual ? <Loader2 className="animate-spin h-4 w-4 mr-2" /> : null}
-                  {isSubmittingManual ? 'Recording...' : 'Record Transaction'}
-                </button>
-              </form>
+                      required
+                      placeholder="e.g., Groceries, Salary"
+                      className="w-full p-1.5 sm:p-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-[11px] sm:text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="dateModal" className="block text-[11px] sm:text-sm font-medium text-gray-700 mb-1">Date *</label>
+                    <input
+                      id="dateModal"
+                      name="date"
+                      type="date"
+                      value={manualTxData.date}
+                      onChange={handleManualFormChange}
+                      required
+                      className="w-full p-1.5 sm:p-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-[11px] sm:text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="descriptionModal" className="block text-[11px] sm:text-sm font-medium text-gray-700 mb-1">Description (Optional)</label>
+                    <textarea
+                      id="descriptionModal"
+                      name="description"
+                      rows="2"
+                      value={manualTxData.description}
+                      onChange={handleManualFormChange}
+                      placeholder="Add a note about the transaction"
+                      className="w-full p-1.5 sm:p-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-[11px] sm:text-sm"
+                    ></textarea>
+                  </div>
+                  <button
+                    type="submit"
+                    disabled={isSubmittingManual}
+                    className={`w-full ${isSubmittingManual ? 'bg-gray-400' : 'bg-blue-500 hover:bg-blue-600'} text-white py-2 rounded-lg transition-colors flex items-center justify-center text-[11px] sm:text-sm font-medium`}
+                  >
+                    {isSubmittingManual ? <Loader2 className="animate-spin h-4 w-4 mr-2" /> : null}
+                    {isSubmittingManual ? 'Recording...' : 'Record Transaction'}
+                  </button>
+                </form>
+              </motion.div>
             </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+          )}
+        </AnimatePresence>
 
-      {/* Scan Bill Modal */}
-      <AnimatePresence>
-        {isScanModalOpen && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 h-screen w-screen flex items-center justify-center z-50 p-4 bg-black/60 overflow-auto"
-          >
+        {/* Scan Bill Modal */}
+        <AnimatePresence>
+          {isScanModalOpen && (
             <motion.div
-              initial={{ scale: 0.95, y: 20 }}
-              animate={{ scale: 1, y: 0 }}
-              exit={{ scale: 0.95, y: 20 }}
-              className="bg-white/90 rounded-xl p-4 sm:p-6 w-full max-w-md max-h-[90vh] shadow-xl backdrop-blur-sm border border-gray-100/50 overflow-auto"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 h-screen w-screen flex items-center justify-center z-50 p-4 bg-black/60 overflow-auto"
             >
-              <div className="flex justify-between items-center mb-3 sm:mb-4">
-                <h3 className="text-base sm:text-lg font-semibold text-gray-800">Scan Bill</h3>
-                <button
-                  onClick={() => setIsScanModalOpen(false)}
-                  className="text-gray-500 hover:text-gray-700 p-1"
-                >
-                  <IconX size={20} />
-                </button>
-              </div>
-              <p className="text-[11px] sm:text-xs text-gray-500 mb-3 sm:mb-4">Upload an image or PDF of a bill to extract transaction details.</p>
-              {scanError && <p className="text-red-500 text-[11px] sm:text-xs mb-3 bg-red-50/80 p-2 rounded">{scanError}</p>}
-              <form onSubmit={handleScanSubmit} className="space-y-3 sm:space-y-4">
-                <div>
-                  <label htmlFor="billImage" className="block text-[11px] sm:text-sm font-medium text-gray-700 mb-1">Upload Bill *</label>
-                  <input
-                    id="billImage"
-                    type="file"
-                    accept="image/*,application/pdf"
-                    onChange={handleScanFileChange}
-                    required
-                    className="w-full p-1.5 sm:p-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-[11px] sm:text-sm"
-                  />
+              <motion.div
+                initial={{ scale: 0.95, y: 20 }}
+                animate={{ scale: 1, y: 0 }}
+                exit={{ scale: 0.95, y: 20 }}
+                className="bg-white/90 rounded-xl p-4 sm:p-6 w-full max-w-md max-h-[90vh] shadow-xl backdrop-blur-sm border border-gray-100/50 overflow-auto"
+              >
+                <div className="flex justify-between items-center mb-3 sm:mb-4">
+                  <h3 className="text-base sm:text-lg font-semibold text-gray-800">Scan Bill</h3>
+                  <button
+                    onClick={() => setIsScanModalOpen(false)}
+                    className="text-gray-500 hover:text-gray-700 p-1"
+                  >
+                    <IconX size={20} />
+                  </button>
                 </div>
-                <button
-                  type="submit"
-                  disabled={isScanning}
-                  className={`w-full ${isScanning ? 'bg-gray-400' : 'bg-blue-500 hover:bg-blue-600'} text-white py-2 rounded-lg transition-colors flex items-center justify-center text-[11px] sm:text-sm font-medium`}
-                >
-                  {isScanning ? <Loader2 className="animate-spin h-4 w-4 mr-2" /> : null}
-                  {isScanning ? 'Scanning...' : 'Scan Bill'}
-                </button>
-              </form>
+                <p className="text-[11px] sm:text-xs text-gray-500 mb-3 sm:mb-4">Upload an image or PDF to extract transaction details.</p>
+                {scanError && <p className="text-red-500 text-[11px] sm:text-xs mb-3 bg-red-50/80 p-2 rounded">{scanError}</p>}
+                <form onSubmit={handleScanSubmit} className="space-y-3 sm:space-y-4">
+                  <div className="flex gap-4 mb-2">
+                    <label className="flex items-center text-xs cursor-pointer">
+                      <input
+                        type="radio"
+                        name="scanType"
+                        value="bill"
+                        checked={scanType === 'bill'}
+                        onChange={(e) => setScanType(e.target.value)}
+                        className="mr-2"
+                      />
+                      Single Bill
+                    </label>
+                    <label className="flex items-center text-xs cursor-pointer">
+                      <input
+                        type="radio"
+                        name="scanType"
+                        value="statement"
+                        checked={scanType === 'statement'}
+                        onChange={(e) => setScanType(e.target.value)}
+                        className="mr-2"
+                      />
+                      Bank Statement
+                    </label>
+                  </div>
+                  <div>
+                    <label htmlFor="billImage" className="block text-[11px] sm:text-sm font-medium text-gray-700 mb-1">Upload Bill *</label>
+                    <input
+                      id="billImage"
+                      type="file"
+                      accept="image/*,application/pdf"
+                      onChange={handleScanFileChange}
+                      required
+                      className="w-full p-1.5 sm:p-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-[11px] sm:text-sm"
+                    />
+                  </div>
+                  <button
+                    type="submit"
+                    disabled={isScanning}
+                    className={`w-full ${isScanning ? 'bg-gray-400' : 'bg-blue-500 hover:bg-blue-600'} text-white py-2 rounded-lg transition-colors flex items-center justify-center text-[11px] sm:text-sm font-medium`}
+                  >
+                    {isScanning ? <Loader2 className="animate-spin h-4 w-4 mr-2" /> : null}
+                    {isScanning ? 'Scanning...' : 'Scan Bill'}
+                  </button>
+                </form>
+              </motion.div>
             </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-      {/* Notification Popup */}
-      <AnimatePresence>
-        {showNotificationPopup && (
-          <NotificationPopup
-            message={notificationMessage}
-            onClose={() => setShowNotificationPopup(false)}
-          />
-        )}
-      </AnimatePresence>
+          )}
+        </AnimatePresence>
+        {/* Unknown Categories Modal */}
+        <AnimatePresence>
+          {isUnknownModalOpen && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 h-screen w-screen flex items-center justify-center z-50 p-4 bg-black/60 overflow-auto"
+            >
+              <motion.div
+                initial={{ scale: 0.95, y: 20 }}
+                animate={{ scale: 1, y: 0 }}
+                exit={{ scale: 0.95, y: 20 }}
+                className="bg-white/90 rounded-xl p-4 sm:p-6 w-full max-w-lg max-h-[90vh] shadow-xl backdrop-blur-sm border border-gray-100/50 overflow-auto"
+              >
+                <div className="flex justify-between items-center mb-3 sm:mb-4">
+                  <h3 className="text-base sm:text-lg font-semibold text-gray-800">Uncategorized Transactions</h3>
+                  <button
+                    onClick={() => setIsUnknownModalOpen(false)}
+                    className="text-gray-500 hover:text-gray-700 p-1"
+                  >
+                    <IconX size={20} />
+                  </button>
+                </div>
+                <p className="text-xs text-gray-500 mb-4">
+                  We couldn't categorize the following transactions. Please select a category for them.
+                </p>
+
+                <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-2">
+                  {unknownTransactions.map(tx => (
+                    <div key={tx._id} className="p-3 bg-gray-50 rounded-lg border border-gray-200">
+                      <div className="flex justify-between items-start mb-2">
+                        <div>
+                          <p className="text-sm font-medium text-gray-800">{tx.description}</p>
+                          <p className="text-xs text-gray-500">{formatDateForDisplay(tx.date)}</p>
+                        </div>
+                        <p className={`text-sm font-bold ${tx.type === 'credit' ? 'text-green-600' : 'text-red-600'}`}>
+                          {tx.type === 'credit' ? '+' : '-'}{formatCurrency(tx.amount)}
+                        </p>
+                      </div>
+                      <div className="flex gap-2">
+                        <select
+                          className="flex-1 p-2 text-xs border border-gray-300 rounded-md"
+                          onChange={(e) => {
+                            if (e.target.value) handleUpdateUnknownCategory(tx._id, e.target.value)
+                          }}
+                          defaultValue=""
+                        >
+                          <option value="" disabled>Select Category</option>
+                          {categories.filter(c => c !== 'All' && c !== 'Unknown').map(cat => (
+                            <option key={cat} value={cat}>{cat}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Recurring Management Modal */}
+        <AnimatePresence>
+          {isRecurringModalOpen && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 h-screen w-screen flex items-center justify-center z-50 p-4 bg-black/60 overflow-auto"
+            >
+              <motion.div
+                initial={{ scale: 0.95, y: 20 }}
+                animate={{ scale: 1, y: 0 }}
+                exit={{ scale: 0.95, y: 20 }}
+                className="bg-white rounded-2xl p-6 w-full max-w-2xl max-h-[90vh] shadow-2xl overflow-hidden flex flex-col"
+              >
+                <div className="flex justify-between items-center mb-6">
+                  <div>
+                    <h3 className="text-xl font-bold text-gray-900">Manage Recurring Payments</h3>
+                    <p className="text-sm text-gray-500">View and manage your automated transactions</p>
+                  </div>
+                  <button onClick={() => setIsRecurringModalOpen(false)} className="p-2 hover:bg-gray-100 rounded-full">
+                    <IconX size={20} className="text-gray-500" />
+                  </button>
+                </div>
+
+                <div className="flex-1 overflow-y-auto pr-2 space-y-6">
+                  {/* Add New Section */}
+                  {!isAddingRecurring ? (
+                    <button
+                      onClick={() => setIsAddingRecurring(true)}
+                      className="w-full py-3 border-2 border-dashed border-gray-200 rounded-xl text-gray-500 font-medium hover:border-indigo-300 hover:text-indigo-600 transition-all flex items-center justify-center gap-2"
+                    >
+                      <Plus size={18} />
+                      Add New Recurring Payment
+                    </button>
+                  ) : (
+                    <motion.form
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      onSubmit={handleAddRecurring}
+                      className="bg-indigo-50/50 p-4 rounded-xl border border-indigo-100 space-y-4"
+                    >
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Category</label>
+                          <select
+                            required
+                            className="w-full p-2.5 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 text-sm"
+                            value={newRecurringData.category}
+                            onChange={(e) => setNewRecurringData({ ...newRecurringData, category: e.target.value })}
+                          >
+                            <option value="">Select Category</option>
+                            {categories.filter(c => c !== 'All').map(cat => (
+                              <option key={cat} value={cat}>{cat}</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Amount (₹)</label>
+                          <input
+                            type="number"
+                            required
+                            placeholder="0.00"
+                            className="w-full p-2.5 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 text-sm"
+                            value={newRecurringData.amount}
+                            onChange={(e) => setNewRecurringData({ ...newRecurringData, amount: e.target.value })}
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Frequency</label>
+                          <select
+                            required
+                            className="w-full p-2.5 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 text-sm"
+                            value={newRecurringData.frequency}
+                            onChange={(e) => setNewRecurringData({ ...newRecurringData, frequency: e.target.value })}
+                          >
+                            <option value="daily">Daily</option>
+                            <option value="weekly">Weekly</option>
+                            <option value="monthly">Monthly</option>
+                            <option value="yearly">Yearly</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Type</label>
+                          <div className="flex gap-4 p-2.5">
+                            <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={newRecurringData.isEssential}
+                                onChange={(e) => setNewRecurringData({ ...newRecurringData, isEssential: e.target.checked })}
+                                className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500"
+                              />
+                              Essential Expense
+                            </label>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex gap-3 justify-end mt-2">
+                        <button
+                          type="button"
+                          onClick={() => setIsAddingRecurring(false)}
+                          className="px-4 py-2 text-sm font-semibold text-gray-600 hover:text-gray-800"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="submit"
+                          className="px-6 py-2 bg-indigo-600 text-white rounded-lg text-sm font-bold shadow-sm hover:bg-indigo-700 transition-all"
+                        >
+                          Save Recurring
+                        </button>
+                      </div>
+                    </motion.form>
+                  )}
+
+                  {/* List Section */}
+                  <div className="space-y-3">
+                    <h4 className="text-sm font-bold text-gray-900 flex items-center gap-2">
+                      <Clock size={16} className="text-gray-400" />
+                      Active Subscriptions
+                    </h4>
+                    {recurringList.length > 0 ? (
+                      recurringList.map(item => (
+                        <div key={item._id} className="flex items-center justify-between p-4 bg-white border border-gray-100 rounded-xl shadow-sm hover:border-gray-200 transition-all group">
+                          <div className="flex items-center gap-4">
+                            <div className={`p-2 rounded-lg ${item.status === 'active' ? 'bg-indigo-50 text-indigo-600' : 'bg-gray-100 text-gray-400'}`}>
+                              <Activity size={18} />
+                            </div>
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <p className="font-bold text-gray-900 capitalize">{item.category}</p>
+                                {item.status === 'paused' && (
+                                  <span className="text-[10px] px-2 py-0.5 bg-gray-100 text-gray-500 rounded-full font-bold uppercase">Paused</span>
+                                )}
+                              </div>
+                              <p className="text-xs text-gray-500 uppercase tracking-tight">{item.frequency} • Next: {formatDateForDisplay(item.nextOccurrence)}</p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-4">
+                            <div className="text-right">
+                              <p className="font-bold text-gray-900">{formatCurrency(item.amount)}</p>
+                              <p className={`text-[10px] font-bold ${item.isEssential ? 'text-green-600' : 'text-orange-500'}`}>
+                                {item.isEssential ? 'ESSENTIAL' : 'LIFESTYLE'}
+                              </p>
+                            </div>
+                            <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <button
+                                onClick={() => toggleRecurringStatus(item)}
+                                className={`p-2 rounded-lg hover:bg-gray-50 ${item.status === 'active' ? 'text-gray-400 hover:text-amber-500' : 'text-amber-500 hover:text-amber-600'}`}
+                                title={item.status === 'active' ? 'Pause' : 'Resume'}
+                              >
+                                {item.status === 'active' ? <Pause size={16} /> : <Play size={16} />}
+                              </button>
+                              <button
+                                onClick={() => handleDeleteRecurring(item._id)}
+                                className="p-2 text-gray-400 hover:text-red-600 hover:bg-gray-50 rounded-lg"
+                                title="Delete"
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="text-center py-12 bg-gray-50 rounded-2xl border border-gray-100">
+                        <Clock className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                        <p className="text-gray-500 font-medium">No recurring payments set up yet</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Notification Popup */}
+        <AnimatePresence>
+          {showNotificationPopup && (
+            <NotificationPopup
+              message={notificationMessage}
+              onClose={() => setShowNotificationPopup(false)}
+            />
+          )}
+        </AnimatePresence>
+      </div >
     </div>
   );
 };
