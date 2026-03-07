@@ -12,7 +12,7 @@ const HeroSection = () => {
     const navigate = useNavigate();
 
     return (
-        <section className="relative min-h-[90vh] flex items-center justify-center pt-20 overflow-hidden bg-gradient-to-b from-[#f8fafc] to-[#f1f5f9]">
+        <section className="relative min-h-[90vh] flex items-center justify-center pt-32 overflow-hidden bg-gradient-to-b from-[#f8fafc] to-[#f1f5f9]">
             {/* 3D Canvas Background layer */}
             <div className="absolute inset-0 z-0 opacity-80 pointer-events-none">
                 <Suspense fallback={<div className="w-full h-full bg-fintech-base" />}>
@@ -88,7 +88,7 @@ const HeroSection = () => {
             </div>
 
             {/* Decorative ambient gradients */}
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-glow-primary rounded-full blur-[100px] opacity-70 z-[-1] pointer-events-none" />
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-blue-300 rounded-full blur-[120px] opacity-20 z-[-1] pointer-events-none" />
         </section>
     );
 };

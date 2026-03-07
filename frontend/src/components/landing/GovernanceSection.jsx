@@ -23,7 +23,7 @@ const GovernanceSection = () => {
                         {/* Admin Panel Mock */}
                         <motion.div
                             style={{ y: translateYAdmin, rotateX: 10, rotateY: 15 }}
-                            className="absolute top-10 left-0 lg:left-10 w-full max-w-md bg-white/90 backdrop-blur-xl p-6 border border-slate-200 shadow-[0_30px_60px_-15px_rgba(0,0,0,0.1)] rounded-2xl z-20"
+                            className="absolute top-0 md:top-10 left-0 lg:left-10 w-[90%] md:w-full max-w-md bg-white/90 backdrop-blur-xl p-4 md:p-6 border border-slate-200 shadow-[0_30px_60px_-15px_rgba(0,0,0,0.1)] rounded-2xl z-20"
                         >
                             <div className="flex items-center justify-between mb-6">
                                 <h4 className="text-slate-900 font-bold flex items-center gap-2">
@@ -55,7 +55,7 @@ const GovernanceSection = () => {
                         {/* Member View Mock */}
                         <motion.div
                             style={{ y: translateYMember, rotateX: -5, rotateY: 20 }}
-                            className="absolute bottom-10 right-0 lg:right-10 w-full max-w-sm glass-panel p-4 border border-purple-200 shadow-[0_30px_60px_-15px_rgba(124,58,237,0.1)] z-30 bg-white/90"
+                            className="absolute bottom-0 md:bottom-10 right-0 lg:right-10 w-[90%] md:w-full max-w-sm glass-panel p-3 md:p-4 border border-purple-200 shadow-[0_30px_60px_-15px_rgba(124,58,237,0.1)] z-30 bg-white/90"
                         >
                             <div className="flex items-start gap-4 p-4 rounded-xl bg-gradient-to-r from-purple-50 to-white border border-purple-100">
                                 <div className="p-2 bg-purple-100 rounded-lg shrink-0">

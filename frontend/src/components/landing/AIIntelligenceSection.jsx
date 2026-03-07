@@ -104,7 +104,7 @@ const AIIntelligenceSection = () => {
                                     >
                                         <div className="flex flex-col">
                                             <span className="text-xs text-slate-500 font-bold">Action Suggested</span>
-                                            <span className="text-sm font-bold text-fintech-primary">Shift $120 allocation</span>
+                                            <span className="text-sm font-bold text-fintech-primary">Shift ₹1,200 allocation</span>
                                         </div>
                                         <button className="text-xs font-bold bg-blue-100 hover:bg-blue-200 text-fintech-primary px-3 py-1.5 rounded transition-colors">Apply</button>
                                     </motion.div>

@@ -64,7 +64,7 @@ const EcosystemSection = () => {
                     </motion.div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 auto-rows-[200px]">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 grid-auto-rows-min">
                     {features.map((feature, idx) => (
                         <motion.div
                             key={idx}
@@ -84,7 +84,7 @@ const EcosystemSection = () => {
                                 transformStyle: "preserve-3d",
                                 perspective: 1000
                             }}
-                            className={`glass-panel p-8 group flex flex-col justify-between ${feature.colSpan} cursor-pointer border border-slate-200 hover:border-fintech-primary/30 hover:shadow-[0_20px_40px_rgba(37,99,235,0.1)] relative overflow-hidden bg-white/60`}
+                            className={`glass-panel p-8 group flex flex-col justify-between ${feature.colSpan} cursor-pointer border border-slate-200 hover:border-fintech-primary/30 hover:shadow-[0_20px_40px_rgba(37,99,235,0.1)] relative overflow-hidden bg-white/60 min-h-[220px]`}
                         >
                             <div className="absolute inset-0 bg-gradient-to-br from-blue-50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
 

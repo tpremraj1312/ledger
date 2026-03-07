@@ -30,7 +30,7 @@ const InvestmentSection = () => {
                                 </span>
                             </div>
                             <h4 className="text-slate-800 font-bold mb-1">Tech Index ETF</h4>
-                            <p className="text-2xl font-black text-slate-900">$4,290.50</p>
+                            <p className="text-2xl font-black text-slate-900">₹4,290.50</p>
                         </motion.div>
 
                         {/* Moving Stock Card 2 */}
@@ -49,7 +49,7 @@ const InvestmentSection = () => {
                             <div className="space-y-3">
                                 <div className="flex justify-between items-center">
                                     <span className="text-sm text-slate-500 font-medium">Monthly Target</span>
-                                    <span className="text-sm text-slate-800 font-bold">$500.00</span>
+                                    <span className="text-sm text-slate-800 font-bold">₹5,000.00</span>
                                 </div>
                                 <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
                                     <motion.div
