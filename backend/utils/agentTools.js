@@ -9,6 +9,13 @@
  */
 
 import mongoose from 'mongoose';
+import { invalidateUserContext } from './agentContextBuilder.js';
+import {
+    EXTENDED_TOOL_REGISTRY,
+    EXTENDED_PERMISSION_MAP,
+    EXTENDED_SCHEMAS,
+    EXTENDED_DESTRUCTIVE_TOOLS,
+} from './agentToolsExtended.js';
 import Transaction from '../models/transaction.js';
 import Budget from '../models/budget.js';
 import Investment from '../models/Investment.js';
@@ -174,6 +181,8 @@ export const addExpense = async (userId, params) => {
         status: 'completed',
         mode: 'PERSONAL',
     });
+
+    invalidateUserContext(userId.toString());
 
     return {
         success: true,
@@ -625,9 +634,9 @@ export const updatePreference = async (userId, params) => {
 };
 
 // ═══════════════════════════════════════════════════════════════
-// TOOL REGISTRY — maps tool names to functions
+// TOOL REGISTRY — maps tool names to functions (core + extended)
 // ═══════════════════════════════════════════════════════════════
-export const TOOL_REGISTRY = {
+const CORE_REGISTRY = {
     addExpense,
     getExpenseSummary,
     getSpendingTrend,
@@ -652,3 +661,20 @@ export const TOOL_REGISTRY = {
     getStreak,
     updatePreference,
 };
+
+export const TOOL_REGISTRY = { ...CORE_REGISTRY, ...EXTENDED_TOOL_REGISTRY };
+
+// Merge permission maps
+for (const [key, val] of Object.entries(EXTENDED_PERMISSION_MAP)) {
+    TOOL_PERMISSION_MAP[key] = val;
+}
+
+// Merge schemas
+for (const [key, val] of Object.entries(EXTENDED_SCHEMAS)) {
+    TOOL_SCHEMAS[key] = val;
+}
+
+// Merge destructive tools
+for (const tool of EXTENDED_DESTRUCTIVE_TOOLS) {
+    DESTRUCTIVE_TOOLS.add(tool);
+}

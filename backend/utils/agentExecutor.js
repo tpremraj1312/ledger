@@ -1,16 +1,18 @@
 /**
  * Agent Executor (Layer 2) — Execution & Orchestration
- * NEVER trusts NLP layer blindly. Contains 6 security sub-systems:
- *   1. Tool Permission Matrix (RBAC)
+ * NEVER trusts NLP layer blindly. Contains 7 security sub-systems:
+ *   1. Tool Permission Matrix (RBAC) — DB-side role verification
  *   2. Idempotency Control (SHA-256 dedup)
  *   3. Strict Schema Validation
  *   4. Confirmation Hardening (nonce + expiry)
  *   5. Tool Call Limiter (per-message + per-window)
  *   6. Ownership & Family Boundary Enforcement
+ *   7. Post-execution LLM contextual synthesis
  */
 
 import crypto from 'crypto';
 import mongoose from 'mongoose';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 import AgentLog from '../models/AgentLog.js';
 import User from '../models/user.js';
 import {
@@ -19,6 +21,10 @@ import {
     TOOL_SCHEMAS,
     DESTRUCTIVE_TOOLS,
 } from './agentTools.js';
+import { resolveUserRole, buildUserContext } from './agentContextBuilder.js';
+
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+const synthesisModel = genAI.getGenerativeModel({ model: 'gemini-2.5-flash-lite' });
 
 // ═══════════════════════════════════════════════════════════════
 // 2. IDEMPOTENCY CONTROL — In-memory dedup store
@@ -135,9 +141,9 @@ const createPendingConfirmation = (toolName, params) => ({
 // 5. TOOL CALL LIMITER — per-message and per-window tracking
 // ═══════════════════════════════════════════════════════════════
 const conversationToolCounts = new Map();
-const TOOL_WINDOW_MS = 5 * 60 * 1000; // 5 minutes
-const MAX_TOOLS_PER_MESSAGE = 3;
-const MAX_TOOLS_PER_WINDOW = 15;
+const TOOL_WINDOW_MS = 5 * 60 * 1000;
+const MAX_TOOLS_PER_MESSAGE = 5;
+const MAX_TOOLS_PER_WINDOW = 20;
 
 const checkToolCallLimit = (conversationId, toolCallCount) => {
     // Per-message limit
@@ -258,12 +264,12 @@ export const executeAgentAction = async (nlpResult, user, conversation, options 
             continue;
         }
 
-        // Role check: 'user' is the base role everyone has
-        const userRole = user.familyRole || 'user';
+        // Role check: DB-verified, NEVER trust frontend
+        const userRole = await resolveUserRole(user._id.toString());
         const hasPermission = permission.roles.includes('user') || permission.roles.includes(userRole);
         if (!hasPermission) {
-            await logAction({ userId, conversationId, intent: nlpResult.intent, action: 'permission_denied', toolName, success: false, denied: true, denialReason: `Role "${userRole}" not in allowed: ${permission.roles.join(',')}`, duration: Date.now() - startTime });
-            results.push({ success: false, message: `🔒 You don't have permission to use "${toolName}". Required role: ${permission.roles.join(' or ')}.` });
+            await logAction({ userId, conversationId, intent: nlpResult.intent, action: 'permission_denied', toolName, success: false, denied: true, denialReason: `DB role "${userRole}" not in allowed: ${permission.roles.join(',')}`, duration: Date.now() - startTime });
+            results.push({ success: false, message: `🔒 You don't have permission for "${toolName}". Your role: ${userRole}. Required: ${permission.roles.join(' or ')}.` });
             continue;
         }
 
@@ -329,16 +335,38 @@ export const executeAgentAction = async (nlpResult, user, conversation, options 
             confirmationRequired: true,
             pendingAction: { toolName: confirmationNeeded.toolName, nonce: confirmationNeeded.nonce },
             suggestions: ['✅ Yes, confirm', '❌ No, cancel'],
+            responseType: 'confirmation',
         };
     }
 
-    const textParts = results.map(r => r.message).filter(Boolean);
-    const combinedText = textParts.join('\n\n') || nlpResult.textResponse || 'Done!';
+    // ─── Post-execution LLM synthesis ───
+    const toolMessages = results.map(r => r.message).filter(Boolean);
+    const nlpText = nlpResult.textResponse || '';
+    let finalText = '';
+
+    // If NLP already provided a contextual response, use it with tool data
+    if (nlpText && nlpText.length > 20) {
+        finalText = nlpText + '\n\n' + toolMessages.join('\n\n');
+    } else {
+        // Try to synthesize a contextual response from tool results
+        finalText = await synthesizeResponse(user._id.toString(), toolMessages, nlpResult.intent);
+    }
+
+    // Build response cards from tool results
+    const responseCards = results
+        .filter(r => r.success && r.data)
+        .map(r => ({
+            type: determineCardType(nlpResult.responseType, r),
+            data: r.data,
+            message: r.message,
+        }));
 
     return {
-        text: combinedText,
+        text: finalText,
         chartData: lastChartData,
         actionResult: results.length === 1 ? results[0].data : results.map(r => r.data),
+        responseCards,
+        responseType: nlpResult.responseType || 'text',
         suggestions: getSuggestionsForIntent(nlpResult.intent),
     };
 };
@@ -396,35 +424,87 @@ const handleConfirmation = async (user, conversation, nonce) => {
 };
 
 // ═══════════════════════════════════════════════════════════════
+// POST-EXECUTION SYNTHESIS — LLM contextual response
+// ═══════════════════════════════════════════════════════════════
+const synthesizeResponse = async (userId, toolMessages, intent) => {
+    if (toolMessages.length === 0) return 'Done!';
+
+    const combinedData = toolMessages.join('\n\n');
+
+    try {
+        let financialContext = '';
+        try { financialContext = await buildUserContext(userId); } catch { /* ignore */ }
+
+        const prompt = `You are a premium financial AI assistant. Based on the tool results below and the user's financial context, write a brief, insightful response (2-4 sentences max). Be specific with numbers. Don't repeat the raw data — add VALUE with interpretation, trend analysis, or actionable advice.
+
+${financialContext ? `User Context:\n${financialContext}\n` : ''}
+Tool Results:
+${combinedData}
+
+Intent: ${intent}
+
+Write a concise, personalized response:`;
+
+        const result = await synthesisModel.generateContent(prompt);
+        const synthesis = result.response.text().trim();
+
+        if (synthesis && synthesis.length > 10 && synthesis.length < 1000) {
+            return synthesis + '\n\n' + combinedData;
+        }
+    } catch (err) {
+        console.error('Synthesis error:', err.message);
+    }
+
+    return combinedData;
+};
+
+// ═══════════════════════════════════════════════════════════════
+// CARD TYPE DETECTION
+// ═══════════════════════════════════════════════════════════════
+const determineCardType = (responseType, toolResult) => {
+    if (responseType && responseType !== 'text') return responseType;
+    if (toolResult.chartData) return 'chart';
+    if (toolResult.message?.includes('✅') || toolResult.message?.includes('Recorded') || toolResult.message?.includes('Created')) return 'action_card';
+    if (toolResult.message?.includes('⚠️') || toolResult.message?.includes('OVER') || toolResult.message?.includes('risk')) return 'warning';
+    if (toolResult.message?.includes('Projection') || toolResult.message?.includes('Simulation') || toolResult.message?.includes('What If')) return 'simulation';
+    return 'insight_card';
+};
+
+// ═══════════════════════════════════════════════════════════════
 // HELPERS
 // ═══════════════════════════════════════════════════════════════
 const getConfirmationMessage = (toolName, params) => {
-    switch (toolName) {
-        case 'deleteExpense':
-            return `⚠️ **Delete Expense**\nAre you sure you want to delete this expense (ID: ${params.expenseId})? This action cannot be undone.`;
-        case 'updateExpense':
-            return `⚠️ **Update Expense**\nAre you sure you want to update expense ${params.expenseId}?${params.amount ? ` New amount: ₹${params.amount}` : ''}${params.category ? ` New category: ${params.category}` : ''}`;
-        default:
-            return `⚠️ Are you sure you want to proceed with "${toolName}"?`;
-    }
+    const messages = {
+        deleteExpense: `⚠️ **Delete Expense**\nAre you sure you want to delete this expense (ID: ${params.expenseId})? This cannot be undone.`,
+        updateExpense: `⚠️ **Update Expense**\nUpdate expense ${params.expenseId}?${params.amount ? ` Amount: ₹${params.amount}` : ''}${params.category ? ` Category: ${params.category}` : ''}`,
+        removeFamilyMember: `⚠️ **Remove Family Member**\nRemove ${params.email || params.memberId} from the family group?`,
+        changeMemberRole: `⚠️ **Change Role**\nChange ${params.email || params.memberId}'s role to ${params.newRole}?`,
+        switchTaxRegime: `⚠️ **Switch Tax Regime**\nSwitch to ${params.regime} Regime? This will affect future tax calculations.`,
+        undoLastAction: `⚠️ **Undo Last Action**\nRevert the most recent agent action?`,
+    };
+    return messages[toolName] || `⚠️ Are you sure you want to proceed with "${toolName}"?`;
 };
 
 const getDefaultSuggestions = () => [
     'Show my spending',
+    'Am I diversified?',
     'Budget status',
-    'Add expense',
-    'Spending trend',
+    'How can I save more?',
 ];
 
 const getSuggestionsForIntent = (intent) => {
     const map = {
-        'expense_query': ['Show spending trend', 'Compare months', 'Budget status'],
-        'expense_action': ['Show expense summary', 'Budget status', 'Spending by category'],
-        'budget_query': ['Compare budget vs expense', 'Forecast overspending', 'Show spending'],
-        'investment_query': ['Asset allocation', 'Tax liability', 'Portfolio overview'],
-        'tax_query': ['Deduction usage', 'Tax savings', 'Show spending'],
+        'expense_query': ['Show spending trend', 'Compare months', 'Budget status', 'Detect anomalies'],
+        'expense_action': ['Show expense summary', 'Budget status', 'Recent transactions'],
+        'budget_query': ['Compare budget vs expense', 'Forecast overspending', 'Savings forecast'],
+        'investment_query': ['Portfolio analytics', 'Rebalancing suggestions', 'Capital gains estimate'],
+        'tax_query': ['Compare regimes', 'Unused 80C capacity', 'Tax saving for ELSS'],
         'gamification_query': ['XP progress', 'Show streak', 'Quest status'],
-        'post_action': ['Show expense summary', 'Budget status', 'Show spending trend'],
+        'family_query': ['Family members', 'Contribution breakdown', 'Family summary'],
+        'simulation_query': ['Simulate SIP', 'Retirement projection', 'Loan calculator'],
+        'savings_query': ['Subscription leaks', 'What-if spending cut', 'Cash runway'],
+        'post_action': ['Show expense summary', 'Budget status', 'Recent transactions'],
     };
     return map[intent] || getDefaultSuggestions();
 };
+

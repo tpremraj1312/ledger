@@ -96,8 +96,9 @@ export const sendMessage = async (req, res) => {
 
         const nlpResult = await processNLP(
             message,
-            conversation.messages.slice(0, -1), // exclude the message we just added
-            conversation.contextSummary || ''
+            conversation.messages.slice(0, -1),
+            conversation.contextSummary || '',
+            userId.toString()
         );
 
         sendSSE('status', { phase: 'executing', message: nlpResult.toolCalls?.length > 0 ? 'Executing actions...' : 'Generating response...' });
@@ -112,7 +113,8 @@ export const sendMessage = async (req, res) => {
             confirmationRequired: result.confirmationRequired || false,
             pendingAction: result.pendingAction || null,
             suggestions: result.suggestions || [],
-            responseType: result.chartData ? 'chart' : result.confirmationRequired ? 'confirmation' : 'text',
+            responseCards: result.responseCards || [],
+            responseType: result.responseType || (result.chartData ? 'chart' : result.confirmationRequired ? 'confirmation' : 'text'),
         });
 
         await conversation.save();
@@ -128,6 +130,8 @@ export const sendMessage = async (req, res) => {
             suggestions: result.suggestions || [],
             confirmationRequired: result.confirmationRequired || false,
             pendingAction: result.pendingAction || null,
+            responseCards: result.responseCards || [],
+            responseType: result.responseType || 'text',
         });
 
         res.end();

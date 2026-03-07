@@ -19,7 +19,8 @@ const messageSchema = new mongoose.Schema({
         actionResult: mongoose.Schema.Types.Mixed,
         confirmationRequired: { type: Boolean, default: false },
         suggestions: [String],
-        responseType: { type: String, enum: ['text', 'chart', 'table', 'card', 'comparison', 'warning', 'confirmation'], default: 'text' },
+        responseCards: { type: [mongoose.Schema.Types.Mixed], default: [] },
+        responseType: { type: String, enum: ['text', 'chart', 'table', 'card', 'comparison', 'warning', 'confirmation', 'action_card', 'insight_card', 'simulation'], default: 'text' },
     },
 }, { _id: false });
 
