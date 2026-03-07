@@ -3,64 +3,14 @@ import authMiddleware from '../middleware/authMiddleware.js';
 import { getInvestmentRecommendations } from '../utils/investmentHelper.js';
 import Investment from '../models/Investment.js';
 import PriceCache from '../models/PriceCache.js';
-import { getStockPrice, searchStockSymbol } from '../utils/yahooFinance.js';
+import { fetchLivePrice, searchStockSymbol } from '../utils/marketDataProxy.js';
 import { getMutualFundNAV, searchMutualFunds } from '../utils/amfiNav.js';
 import { getCryptoPrice, searchCrypto } from '../utils/coinGecko.js';
 import { getMarketNews } from '../utils/newsFetcher.js';
 
 const router = express.Router();
 
-// --- Helper to get real-time price ---
-const fetchRealTimePrice = async (symbol, assetType, forceRefresh = false) => {
-  // 1. Check Cache (10 mins TTL per requirement)
-  if (!forceRefresh) {
-    const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
-    const cached = await PriceCache.findOne({ symbol, lastFetched: { $gt: tenMinutesAgo } });
-    if (cached) {
-      return { price: cached.price, change: 0, changePercent: 0 }; // Return cached price
-    }
-  }
-
-  let priceData = null;
-
-  try {
-    if (assetType === 'Stock' || assetType === 'ETF') {
-      const data = await getStockPrice(symbol);
-      if (data) priceData = { price: data.price, change: data.change, changePercent: data.changePercent };
-    } else if (assetType === 'Mutual Fund') {
-      const data = await getMutualFundNAV(symbol); // symbol here is Scheme Code
-      if (data) priceData = { price: data.nav, change: 0, changePercent: 0 };
-    } else if (assetType === 'Crypto') {
-      const data = await getCryptoPrice(symbol); // symbol is coin id (e.g. bitcoin)
-      if (data) priceData = { price: data.price, change: 0, changePercent: data.changePercent };
-    } else if (assetType === 'Gold') {
-      // Placeholder for Gold
-      priceData = { price: 0, change: 0, changePercent: 0 };
-    }
-
-    if (priceData) {
-      await PriceCache.findOneAndUpdate(
-        { symbol },
-        {
-          price: priceData.price,
-          assetType,
-          lastFetched: Date.now()
-        },
-        { upsert: true, new: true }
-      );
-    }
-  } catch (err) {
-    console.error(`Failed to fetch price for ${symbol} (${assetType})`, err);
-  }
-
-  // Fallback to cache even if old
-  if (!priceData) {
-    const oldCache = await PriceCache.findOne({ symbol });
-    if (oldCache) return { price: oldCache.price, change: 0, changePercent: 0 };
-  }
-
-  return priceData || { price: 0, change: 0, changePercent: 0 };
-};
+// (Removed `fetchRealTimePrice` - now using `fetchLivePrice` directly from proxy)
 
 // @route   GET /api/investments/summary
 // @desc    Get portfolio summary, health, and alerts
@@ -77,7 +27,7 @@ router.get('/summary', authMiddleware, async (req, res) => {
 
     // Process investments in parallel for price fetching
     const processedInvestments = await Promise.all(investments.map(async (inv) => {
-      const priceData = await fetchRealTimePrice(inv.symbol, inv.assetType);
+      const priceData = await fetchLivePrice(inv.symbol, inv.assetType);
       const currentPrice = priceData.price > 0 ? priceData.price : inv.buyPrice;
       const currentValue = inv.quantity * currentPrice;
 
@@ -143,7 +93,7 @@ router.get('/live', authMiddleware, async (req, res) => {
   try {
     const investments = await Investment.find({ user: req.user._id });
     const processedInvestments = await Promise.all(investments.map(async (inv) => {
-      const priceData = await fetchRealTimePrice(inv.symbol, inv.assetType);
+      const priceData = await fetchLivePrice(inv.symbol, inv.assetType);
       const currentPrice = priceData.price > 0 ? priceData.price : inv.buyPrice;
       const currentValue = inv.quantity * currentPrice;
       return {
@@ -169,7 +119,7 @@ router.post('/refresh', authMiddleware, async (req, res) => {
     const investments = await Investment.find({ user: req.user._id });
     const processedInvestments = await Promise.all(investments.map(async (inv) => {
       // Force refresh = true
-      const priceData = await fetchRealTimePrice(inv.symbol, inv.assetType, true);
+      const priceData = await fetchLivePrice(inv.symbol, inv.assetType, true);
       return { symbol: inv.symbol, price: priceData.price };
     }));
     res.json({ message: 'Prices refreshed', count: processedInvestments.length });
