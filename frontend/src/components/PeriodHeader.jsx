@@ -20,7 +20,7 @@ const PeriodHeader = () => {
         <div className="relative z-50">
             <motion.button
                 whileHover={{ y: -1 }}
-                whileTap={{ scale: 0.98 }}
+                
                 onClick={() => setIsOpen(!isOpen)}
                 className="flex items-center gap-3 px-4 py-2.5 bg-white rounded-xl border border-gray-200 text-gray-700 hover:bg-gray-50 transition-all shadow-sm"
             >
@@ -51,7 +51,7 @@ const PeriodHeader = () => {
                                             setIsOpen(false);
                                         }}
                                         className={`w-full flex items-center justify-between px-4 py-3 rounded-xl transition-colors ${filters.period === period.value
-                                            ? 'bg-indigo-50 text-indigo-600'
+                                            ? 'bg-ledger-primary-light text-ledger-primary'
                                             : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
                                             }`}
                                     >
