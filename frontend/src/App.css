@@ -60,6 +60,30 @@
   .text-gradient {
     @apply bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-violet-600;
   }
+
+  .perspective-1000 {
+    perspective: 1000px;
+  }
+
+  /* Enterprise SaaS Mouse Glow Effects */
+  .mouse-glow-wrapper {
+    position: relative;
+    overflow: hidden;
+  }
+  .mouse-glow-wrapper::before {
+    content: "";
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    pointer-events: none;
+    z-index: 10;
+    border-radius: inherit;
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.4);
+    opacity: 0;
+    transition: opacity 0.3s ease;
+  }
+  .mouse-glow-wrapper:hover::before {
+    opacity: 1;
+  }
 }
 
 @keyframes float {
