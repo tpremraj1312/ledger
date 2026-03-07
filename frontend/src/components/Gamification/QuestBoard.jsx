@@ -25,7 +25,7 @@ const QuestCard = ({ mission, onAction, onClaim }) => {
         >
             <div className="flex justify-between items-start mb-4">
                 <div className="flex items-center gap-2.5">
-                    <span className="text-xs font-semibold uppercase tracking-wider text-indigo-600 bg-indigo-50 px-3 py-1 rounded-full">
+                    <span className="text-xs font-semibold uppercase tracking-wider text-ledger-primary bg-ledger-primary-light px-3 py-1 rounded-full">
                         {mission.type === 'daily' ? 'Daily' : 'Weekly'}
                     </span>
                     <span className={`text-xs font-semibold uppercase tracking-wider px-3 py-1 rounded-full border ${diff.color}`}>
@@ -48,7 +48,7 @@ const QuestCard = ({ mission, onAction, onClaim }) => {
                     </div>
                     <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
                         <motion.div
-                            className={`h-full rounded-full ${isCompleted ? 'bg-emerald-500' : 'bg-indigo-500'}`}
+                            className={`h-full rounded-full ${isCompleted ? 'bg-emerald-500' : 'bg-ledger-primary-light0'}`}
                             initial={{ width: 0 }}
                             animate={{ width: `${progress}%` }}
                             transition={{ duration: 0.7, ease: 'easeOut' }}
@@ -62,7 +62,7 @@ const QuestCard = ({ mission, onAction, onClaim }) => {
                     <>
                         <button
                             onClick={() => onAction(mission._id, 'accepted')}
-                            className="px-5 py-2 bg-indigo-600 text-white text-sm font-medium rounded-xl hover:bg-indigo-700 transition"
+                            className="px-5 py-2 bg-ledger-primary text-white text-sm font-medium rounded-xl hover:bg-ledger-primary-hover transition"
                         >
                             Accept
                         </button>
@@ -76,7 +76,7 @@ const QuestCard = ({ mission, onAction, onClaim }) => {
                 )}
 
                 {mission.status === 'accepted' && !isCompleted && (
-                    <span className="px-5 py-2 bg-indigo-50 text-indigo-700 text-sm font-medium rounded-xl border border-indigo-100">
+                    <span className="px-5 py-2 bg-ledger-primary-light text-ledger-primary text-sm font-medium rounded-xl border border-blue-100">
                         In Progress
                     </span>
                 )}
@@ -99,8 +99,8 @@ const QuestBoard = ({ missions, onAction, onGenerate, onClaim }) => {
         <div className="bg-white rounded-2xl p-6 md:p-8 border border-gray-100 shadow-sm">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
                 <div className="flex items-center gap-3">
-                    <div className="p-3 bg-indigo-100 rounded-xl">
-                        <Scroll className="text-indigo-600" size={20} />
+                    <div className="p-3 bg-ledger-primary-light rounded-xl">
+                        <Scroll className="text-ledger-primary" size={20} />
                     </div>
                     <div>
                         <h3 className="text-xl font-bold text-gray-900">Quest Board</h3>
@@ -110,7 +110,7 @@ const QuestBoard = ({ missions, onAction, onGenerate, onClaim }) => {
 
                 <button
                     onClick={onGenerate}
-                    className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 text-white text-sm font-medium rounded-xl hover:bg-indigo-700 transition shadow-sm"
+                    className="flex items-center gap-2 px-5 py-2.5 bg-ledger-primary text-white text-sm font-medium rounded-xl hover:bg-ledger-primary-hover transition shadow-sm"
                 >
                     <Swords size={16} /> Generate New Quests
                 </button>
@@ -137,7 +137,7 @@ const QuestBoard = ({ missions, onAction, onGenerate, onClaim }) => {
                             <p className="text-lg font-medium mb-2">No active quests yet</p>
                             <button
                                 onClick={onGenerate}
-                                className="mt-4 text-indigo-600 hover:text-indigo-800 font-medium flex items-center gap-1.5"
+                                className="mt-4 text-ledger-primary hover:text-indigo-800 font-medium flex items-center gap-1.5"
                             >
                                 <Swords size={16} /> Generate Quests Now
                             </button>

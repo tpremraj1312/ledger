@@ -14,9 +14,9 @@ const RARITY_STYLES = {
         label: 'bg-blue-100 text-blue-700'
     },
     epic: {
-        bg: 'bg-purple-50',
+        bg: 'bg-ledger-primary-light',
         border: 'border-purple-200',
-        label: 'bg-purple-100 text-purple-700'
+        label: 'bg-purple-100 text-ledger-primary'
     },
     legendary: {
         bg: 'bg-amber-50',
@@ -86,7 +86,7 @@ const BadgeVault = ({ badges = [], allBadges = [] }) => {
             <AnimatePresence>
                 {selected && (
                     <div
-                        className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+                        className="fixed inset-0 z-50 flex items-center justify-center bg-black/40  p-4"
                         onClick={() => setSelected(null)}
                     >
                         <motion.div

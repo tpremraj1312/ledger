@@ -14,13 +14,13 @@ const HeroLevelCard = ({ profile }) => {
             <div className="flex justify-between items-start mb-6">
                 <div>
                     <h3 className="text-xl md:text-2xl font-bold text-gray-900 mb-1">{title}</h3>
-                    <div className="flex items-center gap-2 text-indigo-600">
+                    <div className="flex items-center gap-2 text-ledger-primary">
                         <Star size={16} fill="currentColor" />
                         <span className="text-sm font-medium">Level {level}</span>
                     </div>
                 </div>
-                <div className="p-3.5 bg-indigo-100 rounded-xl">
-                    <Trophy size={24} className="text-indigo-600" />
+                <div className="p-3.5 bg-ledger-primary-light rounded-xl">
+                    <Trophy size={24} className="text-ledger-primary" />
                 </div>
             </div>
 
