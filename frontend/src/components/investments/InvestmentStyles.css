@@ -1,0 +1,237 @@
+/* Investment Command Center — Premium Light Theme CSS */
+
+/* ═══════════════════════════════════════════════════════════════
+   ANIMATIONS
+   ═══════════════════════════════════════════════════════════════ */
+
+@keyframes icc-spin {
+    to { transform: rotate(360deg); }
+}
+
+@keyframes icc-shimmer {
+    0% { background-position: -200% 0; }
+    100% { background-position: 200% 0; }
+}
+
+@keyframes icc-pulse-live {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+}
+
+@keyframes icc-fade-in {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.icc-spinner {
+    animation: icc-spin 1s linear infinite;
+}
+
+.icc-fade-in {
+    animation: icc-fade-in 0.3s ease-out;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   CHART SKELETON
+   ═══════════════════════════════════════════════════════════════ */
+
+.icc-chart-skeleton {
+    padding: 8px 0;
+}
+
+.icc-skel-header {
+    margin-bottom: 20px;
+}
+
+.icc-skel-line {
+    background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%);
+    background-size: 200% 100%;
+    animation: icc-shimmer 1.5s ease-in-out infinite;
+    border-radius: 6px;
+}
+
+.icc-skel-w60 { width: 60%; }
+.icc-skel-w30 { width: 30%; }
+.icc-skel-h5 { height: 14px; }
+.icc-skel-h8 { height: 28px; }
+.icc-skel-h12 { height: 48px; }
+
+.icc-skel-chart {
+    height: 340px;
+    background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%);
+    background-size: 200% 100%;
+    animation: icc-shimmer 1.5s ease-in-out infinite;
+    border-radius: 12px;
+}
+
+.mt-2 { margin-top: 8px; }
+
+/* ═══════════════════════════════════════════════════════════════
+   TABS & SCROLLBAR
+   ═══════════════════════════════════════════════════════════════ */
+
+.icc-tabs-scroll::-webkit-scrollbar { display: none; }
+.icc-tabs-scroll { scrollbar-width: none; -ms-overflow-style: none; }
+
+/* ═══════════════════════════════════════════════════════════════
+   SEARCH DROPDOWN
+   ═══════════════════════════════════════════════════════════════ */
+
+.icc-search-dropdown {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    z-index: 50;
+    margin-top: 4px;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   RECHARTS TOOLTIP
+   ═══════════════════════════════════════════════════════════════ */
+
+.recharts-default-tooltip {
+    background: #ffffff !important;
+    border: 1px solid #e2e8f0 !important;
+    border-radius: 10px !important;
+    box-shadow: 0 4px 12px -2px rgba(0,0,0,0.08) !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   MOBILE BOTTOM NAVIGATION
+   ═══════════════════════════════════════════════════════════════ */
+
+.icc-bottom-nav {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 40;
+    background: #ffffff;
+    border-top: 1px solid #e2e8f0;
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+    padding: 6px 4px;
+    padding-bottom: max(6px, env(safe-area-inset-bottom));
+    box-shadow: 0 -2px 12px -4px rgba(0,0,0,0.06);
+}
+
+.icc-bottom-nav button {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    padding: 4px 6px;
+    border: none;
+    background: none;
+    cursor: pointer;
+    color: #94a3b8;
+    font-size: 10px;
+    font-weight: 500;
+    transition: all 0.2s;
+    border-radius: 8px;
+    min-width: 48px;
+}
+
+.icc-bottom-nav button.active {
+    color: #6366f1;
+    background: #eef2ff;
+}
+
+.icc-bottom-nav button:hover {
+    color: #6366f1;
+}
+
+/* Add bottom padding to main content when bottom nav is visible */
+@media (max-width: 767px) {
+    .icc-main-content {
+        padding-bottom: 80px !important;
+    }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   P&L BAR INDICATOR
+   ═══════════════════════════════════════════════════════════════ */
+
+.icc-pl-bar {
+    height: 4px;
+    border-radius: 2px;
+    background: #f1f5f9;
+    overflow: hidden;
+    width: 80px;
+}
+
+.icc-pl-bar-fill {
+    height: 100%;
+    border-radius: 2px;
+    transition: width 0.4s ease;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   WEIGHT PROGRESS BAR
+   ═══════════════════════════════════════════════════════════════ */
+
+.icc-weight-bar {
+    height: 3px;
+    border-radius: 2px;
+    background: #f1f5f9;
+    overflow: hidden;
+    width: 48px;
+}
+
+.icc-weight-bar-fill {
+    height: 100%;
+    border-radius: 2px;
+    background: #6366f1;
+    transition: width 0.4s ease;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   SORTABLE TABLE HEADER
+   ═══════════════════════════════════════════════════════════════ */
+
+.icc-sortable {
+    cursor: pointer;
+    user-select: none;
+    transition: color 0.15s;
+}
+
+.icc-sortable:hover {
+    color: #6366f1;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   EXPANDABLE ROW
+   ═══════════════════════════════════════════════════════════════ */
+
+.icc-expand-row {
+    animation: icc-fade-in 0.25s ease-out;
+    background: #f8fafc;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   LIVE PRICE INDICATOR
+   ═══════════════════════════════════════════════════════════════ */
+
+.icc-live-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #10b981;
+    animation: icc-pulse-live 1.5s ease-in-out infinite;
+    display: inline-block;
+    margin-right: 4px;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   VALUATION PREVIEW IN MODAL
+   ═══════════════════════════════════════════════════════════════ */
+
+.icc-valuation-preview {
+    background: linear-gradient(135deg, #f8fafc…, #eef2ff);
+    border: 1px solid #e0e7ff;
+    border-radius: 12px;
+    padding: 12px 16px;
+    text-align: center;
+}
