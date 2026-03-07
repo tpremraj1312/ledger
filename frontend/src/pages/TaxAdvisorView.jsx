@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import api from '../api/axios';
 import {
@@ -9,11 +9,13 @@ import {
 } from '../utils/chartStyles';
 import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-    Cell, Legend, PieChart, Pie,
+    Cell, PieChart, Pie,
 } from 'recharts';
 import {
     Loader2, AlertTriangle, Shield, TrendingUp, ChevronDown, ChevronUp,
     Sparkles, ArrowRight, Info, CheckCircle2, Target, Zap, Clock, AlertCircle,
+    DollarSign, PiggyBank, BarChart3, ArrowUpRight, ArrowDownRight,
+    Lightbulb, Heart, GraduationCap, Home, Calculator,
 } from 'lucide-react';
 
 const formatCurrency = (amount) => {
@@ -30,6 +32,12 @@ const RISK_COLORS = {
     'N/A': { bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-200' },
 };
 
+const PRIORITY_STYLES = {
+    'high': { bg: 'bg-red-50', text: 'text-red-700', border: 'border-red-200', dot: 'bg-red-500', label: 'HIGH PRIORITY' },
+    'medium': { bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-200', dot: 'bg-amber-500', label: 'MEDIUM' },
+    'low': { bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-200', dot: 'bg-blue-500', label: 'LOW' },
+};
+
 const cardVariants = {
     hidden: { opacity: 0, y: 20 },
     visible: { opacity: 1, y: 0, transition: { duration: 0.35 } },
@@ -42,7 +50,7 @@ const ScoreGauge = ({ score }) => {
     const color = score >= 70 ? '#10B981' : score >= 40 ? '#F59E0B' : '#EF4444';
 
     return (
-        <div className="relative w-36 h-36 mx-auto">
+        <div className="relative w-32 h-32 sm:w-36 sm:h-36 mx-auto">
             <svg className="w-full h-full -rotate-90" viewBox="0 0 120 120">
                 <circle cx="60" cy="60" r="54" fill="none" stroke="#F3F4F6" strokeWidth="10" />
                 <motion.circle
@@ -99,13 +107,14 @@ const UtilizationBar = ({ section, claimed, limit, percentage }) => (
 const RecommendationCard = ({ rec, index, onInvestNow }) => {
     const [expanded, setExpanded] = useState(false);
     const risk = RISK_COLORS[rec.riskLevel] || RISK_COLORS['N/A'];
+    const priority = PRIORITY_STYLES[rec.priority] || PRIORITY_STYLES['medium'];
 
     return (
         <motion.div
             variants={cardVariants}
             initial="hidden"
             animate="visible"
-            transition={{ delay: index * 0.08 }}
+            transition={{ delay: index * 0.06 }}
             className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden hover:shadow-md transition-shadow"
         >
             <div
@@ -115,6 +124,11 @@ const RecommendationCard = ({ rec, index, onInvestNow }) => {
                 <div className="flex items-start justify-between gap-3">
                     <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-1 flex-wrap">
+                            {/* Priority Badge */}
+                            <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${priority.bg} ${priority.text} ${priority.border} border flex items-center gap-1`}>
+                                <span className={`w-1.5 h-1.5 rounded-full ${priority.dot}`}></span>
+                                {priority.label}
+                            </span>
                             <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${risk.bg} ${risk.text} ${risk.border} border`}>
                                 {rec.riskLevel}
                             </span>
@@ -124,6 +138,12 @@ const RecommendationCard = ({ rec, index, onInvestNow }) => {
                         </div>
                         <h4 className="text-sm font-bold text-gray-900 mt-2">{rec.instrument}</h4>
                         <p className="text-xs text-gray-500 mt-1 leading-relaxed">{rec.description}</p>
+                        {rec.source === 'pattern_detection' && (
+                            <span className="inline-flex items-center gap-1 mt-1.5 text-[10px] font-bold text-violet-600 bg-violet-50 px-2 py-0.5 rounded-full">
+                                <Lightbulb size={10} />
+                                Pattern Detected
+                            </span>
+                        )}
                     </div>
                     <div className="text-right flex-shrink-0">
                         <p className="text-lg font-black text-emerald-600">{formatCurrency(rec.estimatedTaxSaving)}</p>
@@ -197,81 +217,78 @@ const RecommendationCard = ({ rec, index, onInvestNow }) => {
     );
 };
 
+// ── AI Action Item Card ──
+const ActionItemCard = ({ item, index }) => {
+    const urgencyStyles = {
+        high: 'border-l-red-500 bg-red-50/30',
+        medium: 'border-l-amber-500 bg-amber-50/30',
+        low: 'border-l-blue-500 bg-blue-50/30',
+    };
+
+    return (
+        <motion.div
+            variants={cardVariants}
+            initial="hidden"
+            animate="visible"
+            transition={{ delay: index * 0.08 }}
+            className={`border-l-4 rounded-r-xl p-4 ${urgencyStyles[item.urgency] || urgencyStyles.medium}`}
+        >
+            <div className="flex items-start justify-between gap-3">
+                <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-1">
+                        <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${item.urgency === 'high' ? 'bg-red-100 text-red-700' : item.urgency === 'medium' ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700'}`}>
+                            {item.urgency}
+                        </span>
+                        <span className="text-[10px] font-bold text-gray-500">{item.section}</span>
+                    </div>
+                    <p className="text-sm font-bold text-gray-900">{item.action}</p>
+                    <p className="text-xs text-gray-500 mt-1 leading-relaxed">{item.reasoning}</p>
+                </div>
+                <div className="text-right flex-shrink-0">
+                    <p className="text-sm font-black text-emerald-600">{item.estimatedSaving}</p>
+                    <p className="text-[10px] text-gray-400">saving</p>
+                </div>
+            </div>
+        </motion.div>
+    );
+};
+
+
 // ══════════════════════════════════════════════════════════════
 // ── MAIN COMPONENT ──
 // ══════════════════════════════════════════════════════════════
 const TaxAdvisorView = ({ setActiveTab }) => {
     const [data, setData] = useState(null);
-    const [loading, setLoading] = useState(false);
+    const [loading, setLoading] = useState(true); // Start loading immediately
     const [error, setError] = useState('');
-    const [narrative, setNarrative] = useState('');
-    const [narrativeLoading, setNarrativeLoading] = useState(false);
-    const [hasFetched, setHasFetched] = useState(false);
 
-    const fetchSummary = useCallback(async () => {
+    // Auto-fetch on mount
+    const fetchFullAnalysis = useCallback(async () => {
         setLoading(true);
         setError('');
-        setNarrative('');
         try {
-            const res = await api.get('/api/tax/summary');
+            const res = await api.get('/api/tax/full-analysis');
             setData(res.data);
-            setHasFetched(true);
         } catch (err) {
-            setError(err.response?.data?.message || 'Failed to load tax summary');
+            setError(err.response?.data?.message || 'Failed to load tax analysis');
         } finally {
             setLoading(false);
         }
     }, []);
 
-    const fetchNarrative = useCallback(async () => {
-        if (!data) return;
-        setNarrativeLoading(true);
-        try {
-            const res = await api.post('/api/tax/ai-explain', { summary: data });
-            setNarrative(res.data.narrative);
-        } catch (err) {
-            setNarrative('Failed to generate AI insights. Please try again.');
-        } finally {
-            setNarrativeLoading(false);
-        }
-    }, [data]);
-
-    // ── Welcome / Entry State ──
-    if (!hasFetched && !loading) {
-        return (
-            <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="flex flex-col items-center justify-center py-16 sm:py-24 text-center px-4"
-            >
-                <div className="p-5 bg-gradient-to-br from-teal-100 to-emerald-100 rounded-3xl mb-6">
-                    <Shield className="w-12 h-12 text-teal-600" />
-                </div>
-                <h2 className="text-2xl sm:text-3xl font-black text-gray-900 mb-3">Tax Saving Advisor</h2>
-                <p className="text-gray-500 max-w-md leading-relaxed mb-8">
-                    Analyze your income, expenses and investments to discover tax-saving opportunities.
-                    Get personalized recommendations tailored to your financial profile.
-                </p>
-                <button
-                    onClick={fetchSummary}
-                    className="bg-gradient-to-r from-teal-500 to-emerald-600 text-white px-8 py-3.5 rounded-2xl font-bold text-sm uppercase tracking-wider hover:from-teal-600 hover:to-emerald-700 transition-all shadow-lg hover:shadow-xl active:scale-[0.98] flex items-center gap-2"
-                >
-                    <Zap size={18} />
-                    Analyze My Taxes
-                </button>
-                <p className="text-[10px] text-gray-400 mt-4 max-w-xs">
-                    Uses your existing income records, expenses, and investments. No duplicate data created.
-                </p>
-            </motion.div>
-        );
-    }
+    useEffect(() => {
+        fetchFullAnalysis();
+    }, [fetchFullAnalysis]);
 
     if (loading) {
         return (
             <div className="flex flex-col items-center justify-center py-20 space-y-4">
-                <Loader2 className="animate-spin text-teal-600 w-12 h-12" />
-                <p className="text-gray-600 font-medium">Computing your tax summary...</p>
-                <p className="text-xs text-gray-400">Analyzing income, expenses, and investments</p>
+                <div className="relative">
+                    <div className="w-16 h-16 border-4 border-gray-100 rounded-full"></div>
+                    <div className="absolute inset-0 w-16 h-16 border-4 border-teal-500 rounded-full border-t-transparent animate-spin"></div>
+                </div>
+                <p className="text-gray-700 font-bold">Analyzing Your Tax Profile...</p>
+                <p className="text-xs text-gray-400 text-center max-w-xs">Computing income, investments, deductions, and generating personalized insights</p>
             </div>
         );
     }
@@ -282,7 +299,7 @@ const TaxAdvisorView = ({ setActiveTab }) => {
                 <AlertTriangle className="text-red-500 w-12 h-12" />
                 <p className="text-red-600 font-medium">{error}</p>
                 <button
-                    onClick={fetchSummary}
+                    onClick={fetchFullAnalysis}
                     className="bg-teal-500 text-white px-6 py-2 rounded-xl hover:bg-teal-600 transition-colors text-sm font-medium"
                 >
                     Retry
@@ -293,10 +310,12 @@ const TaxAdvisorView = ({ setActiveTab }) => {
 
     if (!data) return null;
 
+    const ai = data.aiInsights || {};
+
     // ── Prepare Chart Data ──
     const regimeData = [
         { name: 'Old Regime', value: data.taxLiability.oldRegime.total, fill: CHART_COLORS[0] },
-        { name: 'New Regime', value: data.taxLiability.newRegime.total, fill: CHART_COLORS[1] },
+        { name: 'New Regime', value: data.taxLiability.newRegime.total, fill: CHART_COLORS[2] },
     ];
 
     const deductionChartData = data.deductions.sections.map((s, i) => ({
@@ -306,10 +325,19 @@ const TaxAdvisorView = ({ setActiveTab }) => {
         fill: CHART_COLORS[i % CHART_COLORS.length],
     }));
 
+    const incomeChartData = (data.income.breakdown || []).map((item, i) => ({
+        name: item.category,
+        value: item.amount,
+        fill: CHART_COLORS[i % CHART_COLORS.length],
+    }));
+
     const savingsComparison = [
         { name: 'Current Tax', value: Math.min(data.taxLiability.oldRegime.total, data.taxLiability.newRegime.total) },
         { name: 'After Optimization', value: Math.max(0, Math.min(data.taxLiability.oldRegime.total, data.taxLiability.newRegime.total) - data.totalPotentialSaving) },
     ];
+
+    const highPriorityCount = data.recommendations.filter(r => r.priority === 'high').length;
+    const patternCount = (data.patternInsights || []).length;
 
     return (
         <div className="space-y-6">
@@ -325,16 +353,24 @@ const TaxAdvisorView = ({ setActiveTab }) => {
                         </div>
                         <p className="text-sm text-gray-500 ml-11">{data.fyLabel}</p>
                     </div>
-                    <button
-                        onClick={fetchSummary}
-                        className="text-xs font-semibold text-teal-600 hover:text-teal-700 bg-teal-50 px-4 py-2 rounded-xl hover:bg-teal-100 transition-colors"
-                    >
-                        ↻ Refresh Analysis
-                    </button>
+                    <div className="flex items-center gap-3">
+                        {highPriorityCount > 0 && (
+                            <span className="text-[10px] font-bold text-red-600 bg-red-50 px-3 py-1.5 rounded-full border border-red-100 flex items-center gap-1.5">
+                                <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
+                                {highPriorityCount} High Priority
+                            </span>
+                        )}
+                        <button
+                            onClick={fetchFullAnalysis}
+                            className="text-xs font-semibold text-teal-600 hover:text-teal-700 bg-teal-50 px-4 py-2 rounded-xl hover:bg-teal-100 transition-colors"
+                        >
+                            ↻ Refresh
+                        </button>
+                    </div>
                 </div>
             </motion.div>
 
-            {/* ── Summary Cards ── */}
+            {/* ── Financial Summary Cards ── */}
             <motion.div
                 variants={cardVariants}
                 initial="hidden"
@@ -343,11 +379,18 @@ const TaxAdvisorView = ({ setActiveTab }) => {
             >
                 {[
                     {
-                        label: 'Taxable Income',
+                        label: 'Annual Income',
                         value: formatCurrency(data.income.total),
-                        sub: `${Object.keys(data.income.byCategory).length} source(s)`,
+                        sub: `${data.income.sourceCount} source(s) · ₹${formatCurrencyCompact(data.income.monthly).replace('₹', '')}/mo`,
                         gradient: 'from-blue-500 to-indigo-600',
-                        icon: <TrendingUp size={18} />,
+                        icon: <DollarSign size={18} />,
+                    },
+                    {
+                        label: 'Annual Expenses',
+                        value: formatCurrency(data.expenses.total),
+                        sub: `${data.expenses.categoryCount} categories · ₹${formatCurrencyCompact(data.expenses.monthly).replace('₹', '')}/mo`,
+                        gradient: 'from-rose-500 to-pink-600',
+                        icon: <ArrowDownRight size={18} />,
                     },
                     {
                         label: 'Tax-Saving Investments',
@@ -357,18 +400,11 @@ const TaxAdvisorView = ({ setActiveTab }) => {
                         icon: <Target size={18} />,
                     },
                     {
-                        label: 'Estimated Tax',
-                        value: formatCurrency(Math.min(data.taxLiability.oldRegime.total, data.taxLiability.newRegime.total)),
-                        sub: data.taxLiability.recommendedRegime,
-                        gradient: 'from-amber-500 to-orange-600',
-                        icon: <Shield size={18} />,
-                    },
-                    {
-                        label: 'Potential Saving',
-                        value: formatCurrency(data.totalPotentialSaving),
-                        sub: `${data.recommendations.length} recommendation(s)`,
-                        gradient: 'from-violet-500 to-purple-600',
-                        icon: <Sparkles size={18} />,
+                        label: 'Savings Rate',
+                        value: `${data.savingsRate}%`,
+                        sub: data.savingsRate >= 30 ? 'Healthy savings' : data.savingsRate >= 15 ? 'Room to improve' : 'Needs attention',
+                        gradient: data.savingsRate >= 30 ? 'from-emerald-500 to-green-600' : data.savingsRate >= 15 ? 'from-amber-500 to-orange-600' : 'from-red-500 to-rose-600',
+                        icon: <PiggyBank size={18} />,
                     },
                 ].map((card, i) => (
                     <motion.div
@@ -388,6 +424,38 @@ const TaxAdvisorView = ({ setActiveTab }) => {
                         </div>
                     </motion.div>
                 ))}
+            </motion.div>
+
+            {/* ── Estimated Tax + Potential Savings ── */}
+            <motion.div variants={cardVariants} initial="hidden" animate="visible" className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
+                    <div className="flex items-center gap-2 mb-3">
+                        <Calculator size={16} className="text-amber-500" />
+                        <h3 className="text-sm font-bold text-gray-900">Estimated Tax Liability</h3>
+                    </div>
+                    <p className="text-2xl font-black text-gray-900">
+                        {formatCurrency(Math.min(data.taxLiability.oldRegime.total, data.taxLiability.newRegime.total))}
+                    </p>
+                    <p className="text-xs text-gray-500 mt-1">
+                        Under {data.taxLiability.recommendedRegime}
+                        {data.taxLiability.savingByChoosingRecommended > 0 &&
+                            ` (saves ${formatCurrency(data.taxLiability.savingByChoosingRecommended)} vs other)`
+                        }
+                    </p>
+                </div>
+                <div className="bg-gradient-to-br from-emerald-500 to-teal-600 rounded-2xl p-5 text-white shadow-lg relative overflow-hidden">
+                    <div className="absolute top-0 right-0 w-24 h-24 bg-white/10 rounded-bl-full -mr-6 -mt-6" />
+                    <div className="relative z-10">
+                        <div className="flex items-center gap-2 mb-3">
+                            <Sparkles size={16} />
+                            <h3 className="text-sm font-bold">Potential Additional Savings</h3>
+                        </div>
+                        <p className="text-2xl font-black">{formatCurrency(data.totalPotentialSaving)}</p>
+                        <p className="text-[10px] text-white/70 font-semibold mt-1">
+                            {data.recommendations.length} recommendation(s) available
+                        </p>
+                    </div>
+                </div>
             </motion.div>
 
             {/* ── Tax Optimization Score + Deduction Utilization ── */}
@@ -448,33 +516,78 @@ const TaxAdvisorView = ({ setActiveTab }) => {
                 </motion.div>
             </div>
 
-            {/* ── Regime Comparison Chart ── */}
-            <motion.div
-                variants={cardVariants}
-                initial="hidden"
-                animate="visible"
-                className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 sm:p-6"
-            >
-                <h3 className="text-base font-bold text-gray-900 mb-1 flex items-center gap-2">
-                    <BarChart size={16} className="text-blue-500" />
-                    Tax Regime Comparison
-                </h3>
-                <p className="text-xs text-gray-400 mb-4">
-                    Recommended: <span className="font-bold text-teal-600">{data.taxLiability.recommendedRegime}</span>
-                    {data.taxLiability.savingByChoosingRecommended > 0 && (
-                        <span className="ml-1">(saves {formatCurrency(data.taxLiability.savingByChoosingRecommended)})</span>
-                    )}
-                </p>
+            {/* ── Income Breakdown + Regime Comparison ── */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                {/* Income Breakdown */}
+                {incomeChartData.length > 0 && (
+                    <motion.div
+                        variants={cardVariants}
+                        initial="hidden"
+                        animate="visible"
+                        className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 sm:p-6"
+                    >
+                        <h3 className="text-base font-bold text-gray-900 mb-4 flex items-center gap-2">
+                            <BarChart3 size={16} className="text-indigo-500" />
+                            Income Breakdown
+                        </h3>
+                        <div className="h-[200px]">
+                            <ResponsiveContainer width="100%" height="100%">
+                                <PieChart>
+                                    <Pie
+                                        data={incomeChartData}
+                                        dataKey="value"
+                                        nameKey="name"
+                                        cx="50%"
+                                        cy="50%"
+                                        outerRadius={75}
+                                        innerRadius={45}
+                                        paddingAngle={2}
+                                    >
+                                        {incomeChartData.map((entry, i) => (
+                                            <Cell key={i} fill={entry.fill} />
+                                        ))}
+                                    </Pie>
+                                    <Tooltip {...COMMON_TOOLTIP_PROPS} formatter={(value) => formatCurrency(value)} />
+                                </PieChart>
+                            </ResponsiveContainer>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2 mt-2">
+                            {(data.income.breakdown || []).slice(0, 4).map((item, i) => (
+                                <div key={item.category} className="flex items-center gap-2 text-xs">
+                                    <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: CHART_COLORS[i % CHART_COLORS.length] }}></span>
+                                    <span className="text-gray-600 truncate">{item.category}</span>
+                                    <span className="text-gray-400 ml-auto">{item.percentage}%</span>
+                                </div>
+                            ))}
+                        </div>
+                    </motion.div>
+                )}
 
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    {/* Regime Bar Chart */}
-                    <div className="h-[220px]">
+                {/* Regime Comparison */}
+                <motion.div
+                    variants={cardVariants}
+                    initial="hidden"
+                    animate="visible"
+                    className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 sm:p-6"
+                >
+                    <h3 className="text-base font-bold text-gray-900 mb-1 flex items-center gap-2">
+                        <Shield size={16} className="text-blue-500" />
+                        Tax Regime Comparison
+                    </h3>
+                    <p className="text-xs text-gray-400 mb-4">
+                        Recommended: <span className="font-bold text-teal-600">{data.taxLiability.recommendedRegime}</span>
+                        {data.taxLiability.savingByChoosingRecommended > 0 && (
+                            <span className="ml-1">(saves {formatCurrency(data.taxLiability.savingByChoosingRecommended)})</span>
+                        )}
+                    </p>
+
+                    <div className="h-[180px] mb-4">
                         <ResponsiveContainer width="100%" height="100%">
                             <BarChart data={regimeData} layout="horizontal">
                                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F3F4F6" />
                                 <XAxis dataKey="name" {...COMMON_AXIS_PROPS} />
                                 <YAxis {...COMMON_AXIS_PROPS} tickFormatter={formatCurrencyCompact} />
-                                <Tooltip {...COMMON_TOOLTIP_PROPS} />
+                                <Tooltip {...COMMON_TOOLTIP_PROPS} formatter={(value) => formatCurrency(value)} />
                                 <Bar dataKey="value" radius={[8, 8, 0, 0]} name="Tax Liability">
                                     {regimeData.map((entry, i) => (
                                         <Cell key={i} fill={entry.fill} />
@@ -485,17 +598,17 @@ const TaxAdvisorView = ({ setActiveTab }) => {
                     </div>
 
                     {/* Regime Details */}
-                    <div className="space-y-3">
+                    <div className="space-y-2">
                         {[
                             { label: 'Old Regime', data: data.taxLiability.oldRegime, recommended: data.taxLiability.recommendedRegime === 'Old Regime' },
                             { label: 'New Regime', data: data.taxLiability.newRegime, recommended: data.taxLiability.recommendedRegime === 'New Regime' },
                         ].map((r) => (
                             <div
                                 key={r.label}
-                                className={`rounded-xl p-4 border ${r.recommended ? 'bg-teal-50/80 border-teal-200' : 'bg-gray-50 border-gray-100'}`}
+                                className={`rounded-xl p-3 border ${r.recommended ? 'bg-teal-50/80 border-teal-200' : 'bg-gray-50 border-gray-100'}`}
                             >
-                                <div className="flex items-center justify-between mb-2">
-                                    <span className="text-sm font-bold text-gray-800">{r.label}</span>
+                                <div className="flex items-center justify-between mb-1.5">
+                                    <span className="text-xs font-bold text-gray-800">{r.label}</span>
                                     {r.recommended && (
                                         <span className="text-[10px] font-bold bg-teal-100 text-teal-700 px-2 py-0.5 rounded-full flex items-center gap-1">
                                             <CheckCircle2 size={10} /> Recommended
@@ -519,8 +632,151 @@ const TaxAdvisorView = ({ setActiveTab }) => {
                             </div>
                         ))}
                     </div>
-                </div>
-            </motion.div>
+                </motion.div>
+            </div>
+
+            {/* ── Pattern Insights (Missed Opportunities) ── */}
+            {patternCount > 0 && (
+                <motion.div variants={cardVariants} initial="hidden" animate="visible">
+                    <div className="bg-gradient-to-r from-violet-50 to-purple-50 rounded-2xl p-5 sm:p-6 border border-violet-100">
+                        <h3 className="text-base font-bold text-gray-900 mb-1 flex items-center gap-2">
+                            <Lightbulb size={16} className="text-violet-500" />
+                            Detected Opportunities
+                        </h3>
+                        <p className="text-xs text-gray-500 mb-4">Smart analysis detected {patternCount} potential tax optimization(s) from your spending patterns</p>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            {data.patternInsights.map((p, i) => (
+                                <div key={p.id} className="bg-white rounded-xl p-4 border border-violet-100 shadow-sm">
+                                    <div className="flex items-start gap-3">
+                                        <div className="p-2 bg-violet-100 rounded-lg flex-shrink-0">
+                                            {p.section === '80D_self' && <Heart size={16} className="text-violet-600" />}
+                                            {p.section === '80E' && <GraduationCap size={16} className="text-violet-600" />}
+                                            {p.section === '24b' && <Home size={16} className="text-violet-600" />}
+                                            {p.section === '80CCD_1B' && <PiggyBank size={16} className="text-violet-600" />}
+                                            {!['80D_self', '80E', '24b', '80CCD_1B'].includes(p.section) && <Lightbulb size={16} className="text-violet-600" />}
+                                        </div>
+                                        <div className="flex-1">
+                                            <h4 className="text-sm font-bold text-gray-900">{p.title}</h4>
+                                            <p className="text-xs text-gray-500 mt-1 leading-relaxed">{p.description}</p>
+                                            {p.triggerAmount > 0 && (
+                                                <p className="text-xs text-violet-600 font-semibold mt-2">
+                                                    Related spending: {formatCurrency(p.triggerAmount)}
+                                                </p>
+                                            )}
+                                            <div className="flex items-center gap-3 mt-2">
+                                                <span className="text-[10px] font-bold text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">{p.sectionName}</span>
+                                                <span className="text-xs font-bold text-emerald-600">Save {formatCurrency(p.estimatedTaxSaving)}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </motion.div>
+            )}
+
+            {/* ── AI-Powered Insights ── */}
+            {ai.overallAssessment && (
+                <motion.div
+                    variants={cardVariants}
+                    initial="hidden"
+                    animate="visible"
+                    className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 sm:p-6"
+                >
+                    <h3 className="text-base font-bold text-gray-900 mb-4 flex items-center gap-2">
+                        <Sparkles size={16} className="text-violet-500" />
+                        AI-Powered Tax Insights
+                    </h3>
+
+                    {/* Overall Assessment */}
+                    <div className="bg-gradient-to-br from-violet-50/80 to-purple-50/80 rounded-xl p-4 mb-4 border border-violet-100">
+                        <p className="text-sm text-gray-700 leading-relaxed">{ai.overallAssessment}</p>
+                    </div>
+
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
+                        {/* Strengths */}
+                        {ai.strengths?.length > 0 && (
+                            <div className="bg-emerald-50/50 rounded-xl p-4 border border-emerald-100">
+                                <p className="text-[10px] font-bold text-emerald-700 uppercase tracking-widest mb-2 flex items-center gap-1.5">
+                                    <CheckCircle2 size={12} /> What You're Doing Well
+                                </p>
+                                <ul className="space-y-1.5">
+                                    {ai.strengths.map((s, i) => (
+                                        <li key={i} className="text-xs text-emerald-800 leading-relaxed flex items-start gap-2">
+                                            <span className="text-emerald-500 mt-0.5">•</span>
+                                            {s}
+                                        </li>
+                                    ))}
+                                </ul>
+                            </div>
+                        )}
+
+                        {/* Improvements */}
+                        {ai.improvements?.length > 0 && (
+                            <div className="bg-amber-50/50 rounded-xl p-4 border border-amber-100">
+                                <p className="text-[10px] font-bold text-amber-700 uppercase tracking-widest mb-2 flex items-center gap-1.5">
+                                    <ArrowUpRight size={12} /> Areas to Improve
+                                </p>
+                                <ul className="space-y-1.5">
+                                    {ai.improvements.map((s, i) => (
+                                        <li key={i} className="text-xs text-amber-800 leading-relaxed flex items-start gap-2">
+                                            <span className="text-amber-500 mt-0.5">•</span>
+                                            {s}
+                                        </li>
+                                    ))}
+                                </ul>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Income & Expense Insights */}
+                    {(ai.incomeInsights || ai.expenseInsights) && (
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
+                            {ai.incomeInsights && (
+                                <div className="bg-blue-50/50 rounded-xl p-4 border border-blue-100">
+                                    <p className="text-[10px] font-bold text-blue-700 uppercase tracking-widest mb-2 flex items-center gap-1.5">
+                                        <DollarSign size={12} /> Income Analysis
+                                    </p>
+                                    <p className="text-xs text-blue-800 leading-relaxed">{ai.incomeInsights}</p>
+                                </div>
+                            )}
+                            {ai.expenseInsights && (
+                                <div className="bg-rose-50/50 rounded-xl p-4 border border-rose-100">
+                                    <p className="text-[10px] font-bold text-rose-700 uppercase tracking-widest mb-2 flex items-center gap-1.5">
+                                        <ArrowDownRight size={12} /> Expense Analysis
+                                    </p>
+                                    <p className="text-xs text-rose-800 leading-relaxed">{ai.expenseInsights}</p>
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    {/* Regime Advice */}
+                    {ai.regimeAdvice && (
+                        <div className="bg-teal-50/50 rounded-xl p-4 mb-4 border border-teal-100">
+                            <p className="text-[10px] font-bold text-teal-700 uppercase tracking-widest mb-2 flex items-center gap-1.5">
+                                <Shield size={12} /> Regime Recommendation
+                            </p>
+                            <p className="text-xs text-teal-800 leading-relaxed">{ai.regimeAdvice}</p>
+                        </div>
+                    )}
+
+                    {/* AI Action Items */}
+                    {ai.actionItems?.length > 0 && (
+                        <div>
+                            <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-3 flex items-center gap-1.5">
+                                <Zap size={12} /> Recommended Actions
+                            </p>
+                            <div className="space-y-2">
+                                {ai.actionItems.map((item, i) => (
+                                    <ActionItemCard key={i} item={item} index={i} />
+                                ))}
+                            </div>
+                        </div>
+                    )}
+                </motion.div>
+            )}
 
             {/* ── Savings Projection ── */}
             <motion.div
@@ -554,70 +810,30 @@ const TaxAdvisorView = ({ setActiveTab }) => {
                 </div>
             </motion.div>
 
-            {/* ── AI Insights ── */}
-            <motion.div
-                variants={cardVariants}
-                initial="hidden"
-                animate="visible"
-                className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 sm:p-6"
-            >
-                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-4">
-                    <h3 className="text-base font-bold text-gray-900 flex items-center gap-2">
-                        <Sparkles size={16} className="text-violet-500" />
-                        AI-Powered Tax Insights
-                    </h3>
-                    <button
-                        onClick={fetchNarrative}
-                        disabled={narrativeLoading}
-                        className="bg-gradient-to-r from-violet-500 to-purple-600 text-white px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider hover:from-violet-600 hover:to-purple-700 transition-all disabled:opacity-50 flex items-center gap-2 shadow-sm"
-                    >
-                        {narrativeLoading ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
-                        {narrativeLoading ? 'Generating...' : 'Generate AI Insights'}
-                    </button>
-                </div>
-
-                {narrative ? (
-                    <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        className="bg-gradient-to-br from-violet-50/80 to-purple-50/80 rounded-xl p-4 sm:p-5 border border-violet-100"
-                    >
-                        <div className="prose prose-sm max-w-none text-gray-700 leading-relaxed">
-                            {narrative.split('\n').map((line, i) => (
-                                <p key={i} className="mb-2 text-sm" dangerouslySetInnerHTML={{
-                                    __html: line
-                                        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-                                        .replace(/\*(.*?)\*/g, '<em>$1</em>')
-                                }} />
-                            ))}
-                        </div>
-                    </motion.div>
-                ) : (
-                    <div className="text-center py-8 text-gray-400">
-                        <Sparkles size={32} className="mx-auto mb-3 opacity-30" />
-                        <p className="text-sm">Click "Generate AI Insights" for a personalized explanation</p>
-                        <p className="text-[10px] mt-1">AI enhances readability — all numbers come from server-side calculations</p>
-                    </div>
-                )}
-            </motion.div>
-
-            {/* ── Recommendations ── */}
+            {/* ── Actionable Recommendations ── */}
             <motion.div variants={cardVariants} initial="hidden" animate="visible">
                 <div className="flex items-center justify-between mb-4">
                     <h3 className="text-base font-bold text-gray-900 flex items-center gap-2">
                         <CheckCircle2 size={16} className="text-emerald-500" />
                         Actionable Recommendations
                     </h3>
-                    <span className="text-[10px] font-bold text-gray-400 bg-gray-100 px-2 py-1 rounded-full">
-                        {data.recommendations.length} suggestion{data.recommendations.length !== 1 ? 's' : ''}
-                    </span>
+                    <div className="flex items-center gap-2">
+                        {highPriorityCount > 0 && (
+                            <span className="text-[10px] font-bold text-red-600 bg-red-50 px-2 py-1 rounded-full border border-red-100">
+                                {highPriorityCount} high priority
+                            </span>
+                        )}
+                        <span className="text-[10px] font-bold text-gray-400 bg-gray-100 px-2 py-1 rounded-full">
+                            {data.recommendations.length} total
+                        </span>
+                    </div>
                 </div>
 
                 {data.recommendations.length > 0 ? (
                     <div className="space-y-3">
                         {data.recommendations.map((rec, i) => (
                             <RecommendationCard
-                                key={`${rec.sectionKey}-${rec.instrument}`}
+                                key={`${rec.sectionKey}-${rec.instrument}-${i}`}
                                 rec={rec}
                                 index={i}
                                 onInvestNow={() => setActiveTab('investments')}

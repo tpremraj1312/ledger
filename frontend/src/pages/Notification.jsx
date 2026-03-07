@@ -174,7 +174,7 @@ const Notification = () => {
           transition={{ duration: 0.25 }}
         >
           {activeTab === 'list' && (
-            <div className="bg-white/80 backdrop-blur-sm rounded-lg shadow-sm border border-gray-100/50 p-4 sm:p-6">
+            <div className="bg-white/80  rounded-lg shadow-sm border border-gray-100/50 p-4 sm:p-6">
               <div className="flex justify-between items-center mb-4">
                 <h3 className="text-lg font-semibold text-gray-800">Your Notifications</h3>
                 <button
@@ -239,7 +239,7 @@ const Notification = () => {
           )}
 
           {activeTab === 'settings' && (
-            <div className="bg-white/80 backdrop-blur-sm rounded-lg shadow-sm border border-gray-100/50 p-4 sm:p-6">
+            <div className="bg-white/80  rounded-lg shadow-sm border border-gray-100/50 p-4 sm:p-6">
               <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
                 <Settings className="w-5 h-5 text-blue-600" />
                 Notification Settings

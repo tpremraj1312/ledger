@@ -76,25 +76,6 @@ const DashboardLayout = () => {
   const { group, hasGroup, refreshFamilyFinancialData } = useFamily();
   const { refreshData: refreshPersonalData } = useFinancial();
   const [activeTab, setActiveTab] = useState('home');
-  const [isManualTxModalOpen, setIsManualTxModalOpen] = useState(false);
-  const [isScanModalOpen, setIsScanModalOpen] = useState(false);
-  const [isScanDetailsModalOpen, setIsScanDetailsModalOpen] = useState(false);
-  const [manualTxData, setManualTxData] = useState({
-    type: 'debit',
-    amount: '',
-    category: '',
-    date: formatDateForInput(new Date()),
-    description: '',
-    mode: 'PERSONAL',
-  });
-  const [modalError, setModalError] = useState('');
-  const [isSubmittingManual, setIsSubmittingManual] = useState(false);
-  const [scanFile, setScanFile] = useState(null);
-  const [scanError, setScanError] = useState('');
-  const [isScanning, setIsScanning] = useState(false);
-  const [scanDetails, setScanDetails] = useState(null);
-  const [notificationMessage, setNotificationMessage] = useState('');
-  const [showNotificationPopup, setShowNotificationPopup] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const handleLogout = () => {
@@ -102,123 +83,6 @@ const DashboardLayout = () => {
     // Assuming logout clears token; no navigation needed since routing is removed
   };
 
-  // Manual Transaction Handlers
-  const handleManualFormChange = (e) => {
-    const { name, value } = e.target;
-    setManualTxData(prev => ({ ...prev, [name]: value }));
-    setModalError('');
-  };
-
-  const handleManualSubmit = async (e) => {
-    e.preventDefault();
-    setModalError('');
-    setIsSubmittingManual(true);
-
-    const { type, amount, category, date, mode } = manualTxData;
-    if (!type || !amount || !category || !date || parseFloat(amount) <= 0) {
-      setModalError('Please fill all required fields with a valid positive amount.');
-      setIsSubmittingManual(false);
-      return;
-    }
-
-    const token = getAuthToken();
-    if (!token) {
-      setModalError('Authentication error. Please log in again.');
-      setIsSubmittingManual(false);
-      return;
-    }
-
-    try {
-      let response;
-      if (mode === 'FAMILY' && hasGroup) {
-        response = await addFamilyTransaction({
-          type, amount: parseFloat(amount), category, date, description: manualTxData.description
-        });
-        // Wrap in object to match axios response shape for notification check below
-        response = { data: response };
-      } else {
-        response = await axios.post(`${import.meta.env.VITE_BACKEND_URL}/api/transactions`, {
-          type, amount: parseFloat(amount), category, date, description: manualTxData.description, source: 'manual'
-        }, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-      }
-
-      // Sync both contexts to ensure real-time UI updates
-      await Promise.all([
-        refreshPersonalData(true),
-        hasGroup ? refreshFamilyFinancialData() : Promise.resolve()
-      ]);
-
-      setIsManualTxModalOpen(false);
-      setManualTxData({
-        type: 'debit',
-        amount: '',
-        category: '',
-        date: formatDateForInput(new Date()),
-        description: '',
-        mode: 'PERSONAL',
-      });
-      // Show notification pop-up if budget is exceeded
-      if (response.data.notification) {
-        setNotificationMessage(response.data.notification.message);
-        setShowNotificationPopup(true);
-        setTimeout(() => setShowNotificationPopup(false), 5000); // Auto-close after 5 seconds
-      }
-    } catch (err) {
-      const errorMessage = err.response?.data?.message || 'Failed to record transaction.';
-      setModalError(errorMessage);
-    } finally {
-      setIsSubmittingManual(false);
-    }
-  };
-
-  // Scan Transaction Handlers
-  const handleScanFileChange = (e) => {
-    const file = e.target.files[0];
-    setScanFile(file);
-    setScanError('');
-  };
-
-  const handleScanSubmit = async (e) => {
-    e.preventDefault();
-    setScanError('');
-    setIsScanning(true);
-
-    if (!scanFile) {
-      setScanError('Please select an image or PDF to scan.');
-      setIsScanning(false);
-      return;
-    }
-
-    const token = getAuthToken();
-    if (!token) {
-      setScanError('Authentication error. Please log in again.');
-      setIsScanning(false);
-      return;
-    }
-
-    const formData = new FormData();
-    formData.append('bill', scanFile);
-
-    try {
-      const response = await axios.post(`${import.meta.env.VITE_BACKEND_URL}/api/billscan`, formData, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'multipart/form-data',
-        },
-      });
-      setScanDetails(response.data.transaction || { amount: 0, category: 'Unknown', date: new Date(), description: 'Scanned Bill' });
-      setIsScanDetailsModalOpen(true);
-      setIsScanModalOpen(false);
-      setScanFile(null);
-    } catch (err) {
-      const errorMessage = err.response?.data?.message || 'Failed to process bill scan.';
-      setScanError(errorMessage);
-    } finally {
-      setIsScanning(false);
-    }
-  };
 
   const navItems = [
     { id: 'home', icon: <Home size={20} />, label: 'Home' },
@@ -227,9 +91,7 @@ const DashboardLayout = () => {
     { id: 'investments', icon: <TrendingUp size={20} />, label: 'Investments' },
     { id: 'gamification', icon: <Trophy size={20} />, label: 'Gamification' },
     { id: 'settings', icon: <Settings size={20} />, label: 'Settings' },
-    { id: 'scan', icon: <Scan size={20} />, label: 'Scan Bill', action: () => setIsScanModalOpen(true) },
     { id: 'compare', icon: <BarChart2 size={20} />, label: 'Compare' },
-    { id: 'add-transaction', icon: <PlusCircle size={20} />, label: 'Add Transaction', action: () => setIsManualTxModalOpen(true) },
     { id: 'ai-analysis', icon: <Brain size={20} />, label: 'AI Analysis' },
     { id: 'tax-advisor', icon: <Shield size={20} />, label: 'Tax Advisor' },
     { id: 'ai-agent', icon: <Bot size={20} />, label: 'AI Agent' },
@@ -291,7 +153,7 @@ const DashboardLayout = () => {
         </div>
       </header>
 
-      <div className="flex min-h-screen">
+      <div className="flex min-h-screen overflow-x-hidden">
         {/* Fixed Full-Screen Sidebar (Desktop) */}
         <aside className="hidden lg:block fixed top-0 left-0 w-64 h-screen bg-white/95 backdrop-blur-md border-r border-gray-200/50 z-40 overflow-hidden">
           <div className="h-full flex flex-col px-4 py-6">
@@ -386,8 +248,7 @@ const DashboardLayout = () => {
               className="bg-white/80 rounded-xl shadow-sm border border-gray-100/50 backdrop-blur-md h-full flex flex-col w-full"
             >
               <div className="flex-grow p-4 sm:p-4 lg:p-8 overflow-auto">
-                {activeTab === 'home' && <HomeView setIsManualTxModalOpen={setIsManualTxModalOpen} setIsScanModalOpen={setIsScanModalOpen}
-                  setActiveTab={setActiveTab} />}
+                {activeTab === 'home' && <HomeView setActiveTab={setActiveTab} />}
                 {activeTab === 'budget' && <BudgetView />}
                 {activeTab === 'expenses' && <ExpensesView />}
                 {activeTab === 'investments' && <InvestmentsView />}
@@ -402,8 +263,7 @@ const DashboardLayout = () => {
                 {activeTab === 'family-budget' && <FamilyBudgetView />}
                 {activeTab === 'tax-advisor' && <TaxAdvisorView setActiveTab={setActiveTab} />}
                 {activeTab === 'ai-agent' && <AgentChatView />}
-                {activeTab === 'scan' && <div className="text-gray-600">Scan Bill View (Placeholder)</div>}
-                {activeTab === 'add-transaction' && <div className="text-gray-600">Add Transaction View (Placeholder)</div>}
+
               </div>
             </motion.div>
           </AnimatePresence>
@@ -517,256 +377,7 @@ const DashboardLayout = () => {
         )}
       </AnimatePresence>
 
-      {/* Manual Transaction Modal */}
-      <AnimatePresence>
-        {isManualTxModalOpen && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
-          >
-            <motion.div
-              initial={{ scale: 0.95, y: 20 }}
-              animate={{ scale: 1, y: 0 }}
-              exit={{ scale: 0.95, y: 20 }}
-              className="bg-white/95 rounded-xl p-6 w-full max-w-md shadow-xl backdrop-blur-sm border border-gray-100/50 max-h-[90vh] overflow-y-auto"
-            >
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="text-lg font-semibold text-gray-800">Add Manual Transaction</h3>
-                <button
-                  onClick={() => setIsManualTxModalOpen(false)}
-                  className="text-gray-500 hover:text-gray-700"
-                >
-                  <IconX size={20} />
-                </button>
-              </div>
-              <p className="text-xs text-gray-500 mb-4">Record a past transaction (e.g., cash payment).</p>
-              {modalError && <p className="text-red-500 text-xs mb-3 bg-red-50/80 p-2 rounded">{modalError}</p>}
-              <form onSubmit={handleManualSubmit} className="space-y-4">
-                {hasGroup && (
-                  <div className="flex bg-gray-100 p-1 rounded-lg gap-1 border border-gray-200">
-                    <button
-                      type="button"
-                      onClick={() => setManualTxData(prev => ({ ...prev, mode: 'PERSONAL' }))}
-                      className={`flex-1 py-1.5 text-[10px] font-bold uppercase tracking-wider rounded-md transition-all ${manualTxData.mode === 'PERSONAL' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}
-                    >
-                      Personal
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setManualTxData(prev => ({ ...prev, mode: 'FAMILY' }))}
-                      className={`flex-1 py-1.5 text-[10px] font-bold uppercase tracking-wider rounded-md transition-all ${manualTxData.mode === 'FAMILY' ? 'bg-white text-violet-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}
-                    >
-                      Family
-                    </button>
-                  </div>
-                )}
-                <div className="flex items-center space-x-4">
-                  <span className="text-sm font-medium text-gray-700">Type *:</span>
-                  <label className="flex items-center text-sm">
-                    <input
-                      type="radio"
-                      name="type"
-                      value="debit"
-                      checked={manualTxData.type === 'debit'}
-                      onChange={handleManualFormChange}
-                      required
-                      className="mr-1"
-                    /> Debit
-                  </label>
-                  <label className="flex items-center text-sm">
-                    <input
-                      type="radio"
-                      name="type"
-                      value="credit"
-                      checked={manualTxData.type === 'credit'}
-                      onChange={handleManualFormChange}
-                      className="mr-1"
-                    /> Credit
-                  </label>
-                </div>
-                <div>
-                  <label htmlFor="amountModal" className="block text-sm font-medium text-gray-700 mb-1">Amount *</label>
-                  <input
-                    id="amountModal"
-                    name="amount"
-                    type="number"
-                    step="0.01"
-                    min="0.01"
-                    value={manualTxData.amount}
-                    onChange={handleManualFormChange}
-                    required
-                    placeholder="Enter amount"
-                    className="w-full p-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-                  />
-                </div>
-                <div>
-                  <label htmlFor="categoryModal" className="block text-sm font-medium text-gray-700 mb-1">Category *</label>
-                  <input
-                    id="categoryModal"
-                    name="category"
-                    type="text"
-                    value={manualTxData.category}
-                    onChange={handleManualFormChange}
-                    required
-                    placeholder="e.g., Groceries, Salary"
-                    className="w-full p-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-                  />
-                </div>
-                <div>
-                  <label htmlFor="dateModal" className="block text-sm font-medium text-gray-700 mb-1">Date *</label>
-                  <input
-                    id="dateModal"
-                    name="date"
-                    type="date"
-                    value={manualTxData.date}
-                    onChange={handleManualFormChange}
-                    required
-                    className="w-full p-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-                  />
-                </div>
-                <div>
-                  <label htmlFor="descriptionModal" className="block text-sm font-medium text-gray-700 mb-1">Description (Optional)</label>
-                  <textarea
-                    id="descriptionModal"
-                    name="description"
-                    rows="2"
-                    value={manualTxData.description}
-                    onChange={handleManualFormChange}
-                    placeholder="Add a note about the transaction"
-                    className="w-full p-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-                  ></textarea>
-                </div>
-                <button
-                  type="submit"
-                  disabled={isSubmittingManual}
-                  className={`w-full ${isSubmittingManual ? 'bg-gray-400' : 'bg-blue-500 hover:bg-blue-600'} text-white py-2 rounded-lg transition-colors flex items-center justify-center text-sm font-medium`}
-                >
-                  {isSubmittingManual ? <Loader2 className="animate-spin h-4 w-4 mr-2" /> : null}
-                  {isSubmittingManual ? 'Recording...' : 'Record Transaction'}
-                </button>
-              </form>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
 
-      {/* Scan Bill Modal */}
-      <AnimatePresence>
-        {isScanModalOpen && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
-          >
-            <motion.div
-              initial={{ scale: 0.95, y: 20 }}
-              animate={{ scale: 1, y: 0 }}
-              exit={{ scale: 0.95, y: 20 }}
-              className="bg-white/95 rounded-xl p-6 w-full max-w-md shadow-xl backdrop-blur-sm border border-gray-100/50 max-h-[90vh] overflow-y-auto"
-            >
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="text-lg font-semibold text-gray-800">Scan Bill</h3>
-                <button
-                  onClick={() => setIsScanModalOpen(false)}
-                  className="text-gray-500 hover:text-gray-700"
-                >
-                  <IconX size={20} />
-                </button>
-              </div>
-              <p className="text-xs text-gray-500 mb-4">Upload an image or PDF of a bill to extract transaction details.</p>
-              {scanError && <p className="text-red-500 text-xs mb-3 bg-red-50/80 p-2 rounded">{scanError}</p>}
-              <form onSubmit={handleScanSubmit} className="space-y-4">
-                <div>
-                  <label htmlFor="billImage" className="block text-sm font-medium text-gray-700 mb-1">Upload Bill *</label>
-                  <input
-                    id="billImage"
-                    type="file"
-                    accept="image/*,application/pdf"
-                    onChange={handleScanFileChange}
-                    required
-                    className="w-full p-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-                  />
-                </div>
-                <button
-                  type="submit"
-                  disabled={isScanning}
-                  className={`w-full ${isScanning ? 'bg-gray-400' : 'bg-blue-500 hover:bg-blue-600'} text-white py-2 rounded-lg transition-colors flex items-center justify-center text-sm font-medium`}
-                >
-                  {isScanning ? <Loader2 className="animate-spin h-4 w-4 mr-2" /> : null}
-                  {isScanning ? 'Scanning...' : 'Scan Bill'}
-                </button>
-              </form>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Scan Details Modal */}
-      <AnimatePresence>
-        {isScanDetailsModalOpen && scanDetails && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
-          >
-            <motion.div
-              initial={{ scale: 0.95, y: 20 }}
-              animate={{ scale: 1, y: 0 }}
-              exit={{ scale: 0.95, y: 20 }}
-              className="bg-white/95 rounded-xl p-6 w-full max-w-md shadow-xl backdrop-blur-sm border border-gray-100/50 max-h-[90vh] overflow-y-auto"
-            >
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="text-lg font-semibold text-gray-800">Bill Scan Details</h3>
-                <button
-                  onClick={() => setIsScanDetailsModalOpen(false)}
-                  className="text-gray-500 hover:text-gray-700"
-                >
-                  <IconX size={20} />
-                </button>
-              </div>
-              <p className="text-xs text-gray-500 mb-4">Details extracted from the scanned bill.</p>
-              <div className="space-y-3 text-sm">
-                <div>
-                  <span className="font-medium text-gray-700">Amount:</span>
-                  <span className="ml-2 text-gray-800">{formatCurrency(scanDetails.amount)}</span>
-                </div>
-                <div>
-                  <span className="font-medium text-gray-700">Category:</span>
-                  <span className="ml-2 text-gray-800 capitalize">{scanDetails.category}</span>
-                </div>
-                <div>
-                  <span className="font-medium text-gray-700">Date:</span>
-                  <span className="ml-2 text-gray-800">{formatDateForDisplay(scanDetails.date)}</span>
-                </div>
-                <div>
-                  <span className="font-medium text-gray-700">Description:</span>
-                  <span className="ml-2 text-gray-800">{scanDetails.description || '-'}</span>
-                </div>
-              </div>
-              <button
-                onClick={() => setIsScanDetailsModalOpen(false)}
-                className="w-full mt-4 bg-blue-500 hover:bg-blue-600 text-white py-2 rounded-lg transition-colors text-sm font-medium"
-              >
-                Close
-              </button>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Notification Popup */}
-      <AnimatePresence>
-        {showNotificationPopup && (
-          <NotificationPopup
-            message={notificationMessage}
-            onClose={() => setShowNotificationPopup(false)}
-          />
-        )}
-      </AnimatePresence>
     </div>
   );
 };

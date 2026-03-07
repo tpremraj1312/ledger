@@ -9,7 +9,7 @@ import {
   formatCurrencyCompact,
   formatDateChart
 } from '../utils/chartStyles';
-
+import { useState, useCallback, useEffect, motion } from 'react';
 // Helper Functions
 const formatCurrency = (amount) => {
   if (amount === undefined || amount === null) return '₹0.00';
@@ -35,10 +35,10 @@ const CustomTooltip = ({ active, payload }) => {
   if (active && payload && payload.length) {
     const data = payload[0].payload;
     return (
-      <div className="bg-white p-4 border border-gray-100 rounded-lg shadow-lg backdrop-blur-sm bg-opacity-95">
+      <div className="bg-white p-4 border border-gray-100 rounded-lg shadow-lg  bg-opacity-95">
         <p className="font-medium text-gray-900">{data.category || data.weekStart}</p>
         {data.percentage && <p className="text-sm text-gray-600">Percentage: {data.percentage}%</p>}
-        <p className="text-sm font-medium text-indigo-600">Amount: {formatCurrency(data.amount)}</p>
+        <p className="text-sm font-medium text-ledger-primary">Amount: {formatCurrency(data.amount)}</p>
       </div>
     );
   }
@@ -67,7 +67,7 @@ const AnalysisCard = ({ title, icon, children, className = "" }) => (
   >
     <div className="p-6 sm:p-8">
       <div className="flex items-center mb-4">
-        <div className="p-2 rounded-lg bg-indigo-50 text-indigo-600 mr-3">
+        <div className="p-2 rounded-lg bg-ledger-primary-light text-ledger-primary mr-3">
           {icon}
         </div>
         <h3 className="text-lg font-semibold text-gray-800">{title}</h3>
@@ -79,7 +79,7 @@ const AnalysisCard = ({ title, icon, children, className = "" }) => (
 
 // Empty State Component
 const EmptyState = ({ message }) => (
-  <div className="flex flex-col items-center justify-center p-8 bg-indigo-50 rounded-xl">
+  <div className="flex flex-col items-center justify-center p-8 bg-ledger-primary-light rounded-xl">
     <div className="w-20 h-20 mb-4 text-indigo-400 opacity-50">
       <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M20 12V8H6a2 2 0 01-2-2c0-1.1.9-2 2-2h12V2L23 7l-3 5zm-1 7H5a2 2 0 00-2 2c0 1.1.9 2 2 2h14v2l3-5-3-5v2z" />
@@ -186,7 +186,7 @@ const AIAnalysisPage = () => {
         <div className="w-16 h-16 relative">
           <div className="absolute inset-0 rounded-full border-t-4 border-indigo-500 animate-spin"></div>
           <div className="absolute inset-3 rounded-full bg-white"></div>
-          <Loader2 size={32} className="absolute inset-0 m-auto text-indigo-600" />
+          <Loader2 size={32} className="absolute inset-0 m-auto text-ledger-primary" />
         </div>
         <p className="mt-6 text-lg text-gray-700 font-medium">Processing your financial insights...</p>
         <p className="text-sm text-gray-500 mt-2">This may take a moment</p>
@@ -237,7 +237,7 @@ const AIAnalysisPage = () => {
         {[...Array(8)].map((_, i) => (
           <div
             key={i}
-            className="absolute rounded-full bg-indigo-600 opacity-5"
+            className="absolute rounded-full bg-ledger-primary opacity-5"
             style={{
               width: `${Math.random() * 10 + 5}rem`,
               height: `${Math.random() * 10 + 5}rem`,
@@ -260,7 +260,7 @@ const AIAnalysisPage = () => {
           <div className="flex flex-wrap justify-between items-center">
             <div className="mb-4 md:mb-0">
               <h1 className="text-3xl md:text-4xl font-bold text-gray-900 flex items-center">
-                <span className="bg-clip-text text-transparent bg-gradient-to-r from-indigo-600 to-purple-600">
+                <span className="bg-clip-text text-transparent bg-ledger-primary">
                   Financial Intelligence
                 </span>
               </h1>
@@ -271,7 +271,7 @@ const AIAnalysisPage = () => {
               <button
                 onClick={fetchData}
                 disabled={isLoading}
-                className="mt-4 px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl font-bold shadow-lg hover:shadow-indigo-200/50 transition-all active:scale-95 disabled:opacity-50 flex items-center"
+                className="mt-4 px-6 py-3 bg-ledger-primary text-white rounded-xl font-bold shadow-lg hover:shadow-card-200/50 transition-all active:scale-95 disabled:opacity-50 flex items-center"
               >
                 {isLoading ? <Loader2 className="animate-spin mr-2" size={20} /> : <Brain className="mr-2" size={20} />}
                 Generate Analysis
@@ -284,7 +284,7 @@ const AIAnalysisPage = () => {
               </div>
               <button
                 onClick={() => setShowFilters(!showFilters)}
-                className="bg-white text-gray-700 px-4 py-2 rounded-lg shadow-sm hover:shadow-md border border-gray-100 hover:border-indigo-200 transition-all flex items-center"
+                className="bg-white text-gray-700 px-4 py-2 rounded-lg shadow-sm hover:shadow-md border border-gray-100 hover:border-blue-200 transition-all flex items-center"
               >
                 <Filter size={16} className="mr-2 text-indigo-500" />
                 {showFilters ? 'Hide Filters' : 'Filters'}
@@ -303,7 +303,7 @@ const AIAnalysisPage = () => {
               transition={{ duration: 0.3, ease: 'easeInOut' }}
               className="mb-8 overflow-hidden"
             >
-              <div className="bg-white rounded-2xl shadow-lg p-6 backdrop-blur-sm bg-opacity-80 border border-gray-100">
+              <div className="bg-white rounded-2xl shadow-lg p-6  bg-opacity-80 border border-gray-100">
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                   <div>
                     <label htmlFor="startDate" className="block text-sm font-medium text-gray-700 mb-2">
@@ -315,7 +315,7 @@ const AIAnalysisPage = () => {
                       name="startDate"
                       value={filters.startDate}
                       onChange={handleFilterChange}
-                      className="w-full p-3 border border-gray-200 rounded-xl bg-gray-50 text-gray-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-shadow"
+                      className="w-full p-3 border border-gray-200 rounded-xl bg-gray-50 text-gray-800 focus:outline-none focus:ring-2 focus:ring-ledger-primary/20 transition-shadow"
                     />
                   </div>
                   <div>
@@ -328,7 +328,7 @@ const AIAnalysisPage = () => {
                       name="endDate"
                       value={filters.endDate}
                       onChange={handleFilterChange}
-                      className="w-full p-3 border border-gray-200 rounded-xl bg-gray-50 text-gray-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-shadow"
+                      className="w-full p-3 border border-gray-200 rounded-xl bg-gray-50 text-gray-800 focus:outline-none focus:ring-2 focus:ring-ledger-primary/20 transition-shadow"
                     />
                   </div>
                   <div>
@@ -341,7 +341,7 @@ const AIAnalysisPage = () => {
                         name="category"
                         value={filters.category}
                         onChange={handleFilterChange}
-                        className="w-full p-3 border border-gray-200 rounded-xl bg-gray-50 text-gray-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 appearance-none pr-10 transition-shadow"
+                        className="w-full p-3 border border-gray-200 rounded-xl bg-gray-50 text-gray-800 focus:outline-none focus:ring-2 focus:ring-ledger-primary/20 appearance-none pr-10 transition-shadow"
                       >
                         {categories.map(cat => (
                           <option key={cat} value={cat}>{cat}</option>
@@ -358,7 +358,7 @@ const AIAnalysisPage = () => {
                 <div className="mt-4 flex justify-end">
                   <button
                     onClick={fetchData}
-                    className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors flex items-center"
+                    className="px-4 py-2 bg-ledger-primary text-white rounded-lg hover:bg-ledger-primary-hover transition-colors flex items-center"
                   >
                     Apply Filters <ArrowRight size={16} className="ml-2" />
                   </button>
@@ -481,7 +481,7 @@ const AIAnalysisPage = () => {
               icon={<Lightbulb size={20} />}
               className="bg-gradient-to-br from-indigo-50 to-blue-50"
             >
-              <div className="bg-white/80 p-6 rounded-xl backdrop-blur-sm border border-indigo-100">
+              <div className="bg-white/80 p-6 rounded-xl  border border-blue-100">
                 <div className="prose max-w-none prose-p:text-gray-600 prose-headings:text-gray-900">
                   <p className="leading-relaxed">{analysis?.recommendations}</p>
                 </div>
@@ -489,9 +489,9 @@ const AIAnalysisPage = () => {
 
               <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
                 {['Reduce non-essential spending', 'Set up automatic savings', 'Review subscriptions'].map((tip, index) => (
-                  <div key={index} className="p-4 bg-indigo-50 rounded-lg border border-indigo-100">
+                  <div key={index} className="p-4 bg-ledger-primary-light rounded-lg border border-blue-100">
                     <div className="flex items-center">
-                      <div className="p-1.5 bg-indigo-100 rounded-full text-indigo-600 mr-2">
+                      <div className="p-1.5 bg-ledger-primary-light rounded-full text-ledger-primary mr-2">
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
                           <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                         </svg>

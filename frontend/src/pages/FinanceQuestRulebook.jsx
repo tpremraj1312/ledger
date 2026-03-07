@@ -34,7 +34,7 @@ const RuleRow = ({ emoji, label, value, highlight = false }) => (
             <div className="flex items-baseline justify-between gap-3">
                 <p className="text-sm font-medium text-gray-800">{label}</p>
                 {value && (
-                    <span className={`text-sm font-semibold ${highlight ? 'text-indigo-600' : 'text-gray-600'}`}>
+                    <span className={`text-sm font-semibold ${highlight ? 'text-ledger-primary' : 'text-gray-600'}`}>
                         {value}
                     </span>
                 )}
@@ -63,7 +63,7 @@ const FinanceQuestRulebook = () => {
                 transition={{ duration: 0.5 }}
                 className="text-center max-w-3xl mx-auto"
             >
-                <div className="inline-flex items-center gap-2 px-5 py-2 bg-indigo-50 rounded-full text-indigo-700 font-semibold text-xs uppercase tracking-wider mb-5">
+                <div className="inline-flex items-center gap-2 px-5 py-2 bg-ledger-primary-light rounded-full text-ledger-primary font-semibold text-xs uppercase tracking-wider mb-5">
                     <BookOpen size={14} /> Official Guide
                 </div>
                 <h1 className="text-3xl md:text-4xl font-black text-gray-900 tracking-tight mb-4">
@@ -107,7 +107,7 @@ const FinanceQuestRulebook = () => {
                                     <td className="py-4 px-6 font-bold text-gray-900">{l.level}</td>
                                     <td className="py-4 px-6 text-gray-700">{l.xp.toLocaleString()} XP</td>
                                     <td className="py-4 px-6">
-                                        <span className="inline-flex px-3.5 py-1 bg-purple-50 text-purple-700 rounded-full text-xs font-semibold">
+                                        <span className="inline-flex px-3.5 py-1 bg-ledger-primary-light text-ledger-primary rounded-full text-xs font-semibold">
                                             {l.title}
                                         </span>
                                     </td>

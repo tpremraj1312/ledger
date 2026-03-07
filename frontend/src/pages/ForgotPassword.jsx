@@ -63,9 +63,8 @@ const ForgotPassword = () => {
         <button
           type="submit"
           disabled={isSubmitting}
-          className={`w-full bg-purple-600 text-white font-semibold py-2 rounded-lg transition ${
-            isSubmitting ? "opacity-50 cursor-not-allowed" : "hover:bg-purple-700"
-          }`}
+          className={`w-full bg-purple-600 text-white font-semibold py-2 rounded-lg transition ${isSubmitting ? "opacity-50 cursor-not-allowed" : "hover:bg-purple-700"
+            }`}
         >
           {isSubmitting ? "Sending..." : "Send Reset Link"}
         </button>

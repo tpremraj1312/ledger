@@ -21,7 +21,7 @@ import {
 import {
   FileText, Loader2, AlertTriangle, PlusCircle, Filter, BarChart2, PieChart as PieIcon,
   AreaChart as AreaIcon, ScatterChart as ScatterIcon, Activity as RadarIcon,
-  Filter as FunnelIcon, LayoutGrid as TreemapIcon, ChevronLeft, ChevronRight, Brain, Trophy, Users, Shield
+  Filter as FunnelIcon, LayoutGrid as TreemapIcon, ChevronLeft, ChevronRight, Brain, Trophy, Users, Shield, X as IconX
 } from 'lucide-react';
 
 // Variants for animations
@@ -42,11 +42,18 @@ const formatCurrency = (amount) => {
   return `₹${amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 };
 
-const HomeView = React.memo(({ setIsManualTxModalOpen, setIsScanModalOpen, setActiveTab = () => console.warn('setActiveTab not provided.') }) => {
+const HomeView = React.memo(({ setActiveTab = () => console.warn('setActiveTab not provided.') }) => {
   const { data, loading: isLoading, error, totals, refreshData } = useFinancial();
   const { group, hasGroup, familyFinancialData } = useFamily();
   const [chartType, setChartType] = useState('area');
   const [showFilters, setShowFilters] = useState(false);
+  const [isScanModalOpen, setIsScanModalOpen] = useState(false);
+  const [scanFile, setScanFile] = useState(null);
+  const [scanError, setScanError] = useState('');
+  const [isScanning, setIsScanning] = useState(false);
+  const [scanType, setScanType] = useState('bill');
+  const [unknownTransactions, setUnknownTransactions] = useState([]);
+  const [isUnknownModalOpen, setIsUnknownModalOpen] = useState(false);
 
   // Derived data
   const transactions = useMemo(() => data?.transactions || [], [data]);
@@ -140,6 +147,76 @@ const HomeView = React.memo(({ setIsManualTxModalOpen, setIsScanModalOpen, setAc
       },
     };
   }, [data, totals, budgets, transactions.length]);
+
+  // Expanded Handlers for Scanning
+  const handleScanFileChange = (e) => {
+    const file = e.target.files[0];
+    setScanFile(file);
+    setScanError('');
+  };
+
+  const handleScanSubmit = async (e) => {
+    e.preventDefault();
+    setScanError('');
+    setIsScanning(true);
+
+    if (!scanFile) {
+      setScanError('Please select an image or PDF to scan.');
+      setIsScanning(false);
+      return;
+    }
+
+    const token = localStorage.getItem('token');
+    if (!token) {
+      setScanError('Authentication error. Please log in again.');
+      setIsScanning(false);
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append('bill', scanFile);
+    formData.append('scanType', scanType);
+
+    try {
+      const response = await api.post('/api/billscan', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+
+      setIsScanModalOpen(false);
+      setScanFile(null);
+      setScanType('bill');
+
+      if (response.data.type === 'statement' && response.data.transactions) {
+        const unknown = response.data.transactions.filter(tx => tx.category === 'Unknown');
+        if (unknown.length > 0) {
+          setUnknownTransactions(unknown);
+          setIsUnknownModalOpen(true);
+        }
+      }
+
+      await refreshData();
+    } catch (err) {
+      const errorMessage = err.response?.data?.message || 'Failed to process bill scan.';
+      setScanError(errorMessage);
+    } finally {
+      setIsScanning(false);
+    }
+  };
+
+  const handleUpdateUnknownCategory = async (txId, newCategory) => {
+    try {
+      const token = localStorage.getItem('token');
+      await api.put(`/api/transactions/${txId}`, { category: newCategory });
+
+      setUnknownTransactions(prev => prev.filter(tx => tx._id !== txId));
+      if (unknownTransactions.length <= 1) {
+        setIsUnknownModalOpen(false);
+        await refreshData();
+      }
+    } catch (err) {
+      console.error("Failed to update category", err);
+    }
+  };
 
   // Chart Component (unchanged)
   const ChartComponent = React.memo(({ data, title, dataKey, nameKey = 'name', isBlended = false }) => {
@@ -537,6 +614,144 @@ const HomeView = React.memo(({ setIsManualTxModalOpen, setIsScanModalOpen, setAc
           <p className="text-gray-500 text-center py-12">No expenses recorded in this period.</p>
         )}
       </motion.div>
+
+      {/* Scan Bill Modal */}
+      <AnimatePresence>
+        {isScanModalOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 h-screen w-screen flex items-center justify-center z-50 p-4 bg-black/40 overflow-auto"
+          >
+            <motion.div
+              initial={{ scale: 0.95, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.95, y: 20 }}
+              className="bg-white/90 rounded-xl p-4 sm:p-6 w-full max-w-md max-h-[90vh] shadow-xl  border border-gray-100/50 overflow-auto"
+            >
+              <div className="flex justify-between items-center mb-3 sm:mb-4">
+                <h3 className="text-base sm:text-lg font-semibold text-gray-800">Scan Bill</h3>
+                <button
+                  onClick={() => setIsScanModalOpen(false)}
+                  className="text-gray-500 hover:text-gray-700 p-1"
+                >
+                  <IconX size={20} />
+                </button>
+              </div>
+              <p className="text-[11px] sm:text-xs text-gray-500 mb-3 sm:mb-4">Upload an image or PDF to extract transaction details.</p>
+              {scanError && <p className="text-red-500 text-[11px] sm:text-xs mb-3 bg-red-50/80 p-2 rounded">{scanError}</p>}
+              <form onSubmit={handleScanSubmit} className="space-y-3 sm:space-y-4">
+                <div className="flex gap-4 mb-2">
+                  <label className="flex items-center text-xs cursor-pointer">
+                    <input
+                      type="radio"
+                      name="scanType"
+                      value="bill"
+                      checked={scanType === 'bill'}
+                      onChange={(e) => setScanType(e.target.value)}
+                      className="mr-2"
+                    />
+                    Single Bill
+                  </label>
+                  <label className="flex items-center text-xs cursor-pointer">
+                    <input
+                      type="radio"
+                      name="scanType"
+                      value="statement"
+                      checked={scanType === 'statement'}
+                      onChange={(e) => setScanType(e.target.value)}
+                      className="mr-2"
+                    />
+                    Bank Statement
+                  </label>
+                </div>
+                <div>
+                  <label htmlFor="billImage" className="block text-[11px] sm:text-sm font-medium text-gray-700 mb-1">Upload Bill *</label>
+                  <input
+                    id="billImage"
+                    type="file"
+                    accept="image/*,application/pdf"
+                    onChange={handleScanFileChange}
+                    required
+                    className="w-full p-1.5 sm:p-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-[11px] sm:text-sm"
+                  />
+                </div>
+                <button
+                  type="submit"
+                  disabled={isScanning}
+                  className={`w-full ${isScanning ? 'bg-gray-400' : 'bg-blue-500 hover:bg-blue-600'} text-white py-2 rounded-lg transition-colors flex items-center justify-center text-[11px] sm:text-sm font-medium`}
+                >
+                  {isScanning ? <Loader2 className="animate-spin h-4 w-4 mr-2" /> : null}
+                  {isScanning ? 'Scanning...' : 'Scan Bill'}
+                </button>
+              </form>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Unknown Categories Modal */}
+      <AnimatePresence>
+        {isUnknownModalOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 h-screen w-screen flex items-center justify-center z-50 p-4 bg-black/40 overflow-auto"
+          >
+            <motion.div
+              initial={{ scale: 0.95, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.95, y: 20 }}
+              className="bg-white/90 rounded-xl p-4 sm:p-6 w-full max-w-lg max-h-[90vh] shadow-xl  border border-gray-100/50 overflow-auto"
+            >
+              <div className="flex justify-between items-center mb-3 sm:mb-4">
+                <h3 className="text-base sm:text-lg font-semibold text-gray-800">Uncategorized Transactions</h3>
+                <button
+                  onClick={() => setIsUnknownModalOpen(false)}
+                  className="text-gray-500 hover:text-gray-700 p-1"
+                >
+                  <IconX size={20} />
+                </button>
+              </div>
+              <p className="text-xs text-gray-500 mb-4">
+                We couldn't categorize the following transactions. Please select a category for them.
+              </p>
+
+              <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-2">
+                {unknownTransactions.map(tx => (
+                  <div key={tx._id} className="p-3 bg-gray-50 rounded-lg border border-gray-200">
+                    <div className="flex justify-between items-start mb-2">
+                      <div>
+                        <p className="text-sm font-medium text-gray-800">{tx.description}</p>
+                        <p className="text-xs text-gray-500">{formatDateChart(tx.date)}</p>
+                      </div>
+                      <p className={`text-sm font-bold ${tx.type === 'credit' ? 'text-green-600' : 'text-red-600'}`}>
+                        {tx.type === 'credit' ? '+' : '-'}{formatCurrency(tx.amount)}
+                      </p>
+                    </div>
+                    <div className="flex gap-2">
+                      <select
+                        className="flex-1 p-2 text-xs border border-gray-300 rounded-md"
+                        onChange={(e) => {
+                          if (e.target.value) handleUpdateUnknownCategory(tx._id, e.target.value)
+                        }}
+                        defaultValue=""
+                      >
+                        <option value="" disabled>Select Category</option>
+                        {categories.filter(c => c !== 'All' && c !== 'Unknown').map(cat => (
+                          <option key={cat} value={cat}>{cat}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 });

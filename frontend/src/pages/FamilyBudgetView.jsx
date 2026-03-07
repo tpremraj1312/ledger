@@ -96,7 +96,7 @@ const FamilyBudgetView = () => {
             {/* Header */}
             <div className="flex items-center justify-between flex-wrap gap-4">
                 <div className="flex items-center gap-3">
-                    <div className="p-3 bg-indigo-50 rounded-xl text-indigo-600">
+                    <div className="p-3 bg-ledger-primary-light rounded-xl text-ledger-primary">
                         <Gauge size={24} />
                     </div>
                     <div>
@@ -109,7 +109,7 @@ const FamilyBudgetView = () => {
                 <div className="flex items-center bg-white border border-gray-200 rounded-xl p-1 shadow-sm">
                     <button
                         onClick={() => { if (month === 1) { setMonth(12); setYear(y => y - 1); } else { setMonth(m => m - 1); } }}
-                        className="p-2.5 hover:bg-gray-50 rounded-lg transition-all text-gray-400 hover:text-indigo-600"
+                        className="p-2.5 hover:bg-gray-50 rounded-lg transition-all text-gray-400 hover:text-ledger-primary"
                     >
                         <ChevronLeft size={18} />
                     </button>
@@ -119,7 +119,7 @@ const FamilyBudgetView = () => {
                     </div>
                     <button
                         onClick={() => { if (month === 12) { setMonth(1); setYear(y => y + 1); } else { setMonth(m => m + 1); } }}
-                        className="p-2.5 hover:bg-gray-50 rounded-lg transition-all text-gray-400 hover:text-indigo-600"
+                        className="p-2.5 hover:bg-gray-50 rounded-lg transition-all text-gray-400 hover:text-ledger-primary"
                     >
                         <ChevronRight size={18} />
                     </button>
@@ -144,7 +144,7 @@ const FamilyBudgetView = () => {
                         {/* Budget Summary Card */}
                         <div className="bg-gray-900 rounded-2xl p-8 text-white shadow-lg">
                             <p className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-3">Total Budget</p>
-                            <h2 className="text-3xl font-bold mb-1">{formatCurrency(totalAllocated)}</h2>
+                            <h2 className="text-2xl font-semibold mb-1">{formatCurrency(totalAllocated)}</h2>
                             <div className="flex justify-between items-center mt-6 text-sm">
                                 <div>
                                     <p className="text-xs text-gray-400 mb-0.5">Spent</p>
@@ -162,7 +162,7 @@ const FamilyBudgetView = () => {
                                     initial={{ width: 0 }}
                                     animate={{ width: `${Math.min((totalSpent / (totalAllocated || 1)) * 100, 100)}%` }}
                                     transition={{ duration: 1, ease: "easeOut" }}
-                                    className={`h-full rounded-full ${totalSpent > totalAllocated ? 'bg-red-500' : 'bg-indigo-500'}`}
+                                    className={`h-full rounded-full ${totalSpent > totalAllocated ? 'bg-red-500' : 'bg-ledger-primary-light0'}`}
                                 />
                             </div>
                         </div>
@@ -218,7 +218,7 @@ const FamilyBudgetView = () => {
                                         </button>
                                         <button
                                             onClick={() => setAddingCat(true)}
-                                            className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-medium transition-all"
+                                            className="flex items-center gap-2 px-4 py-2 bg-ledger-primary hover:bg-ledger-primary-hover text-white rounded-lg text-xs font-medium transition-all"
                                         >
                                             <Plus size={14} />
                                             Add Category
@@ -234,21 +234,21 @@ const FamilyBudgetView = () => {
                                             initial={{ opacity: 0, y: -10 }}
                                             animate={{ opacity: 1, y: 0 }}
                                             exit={{ opacity: 0, y: -10 }}
-                                            className="p-4 bg-indigo-50 rounded-xl border border-indigo-100 flex flex-wrap gap-3 items-end"
+                                            className="p-4 bg-ledger-primary-light rounded-xl border border-blue-100 flex flex-wrap gap-3 items-end"
                                         >
                                             <div className="flex-1 min-w-[200px]">
-                                                <label className="text-xs font-medium text-indigo-600 mb-1.5 block">Category Name</label>
+                                                <label className="text-xs font-medium text-ledger-primary mb-1.5 block">Category Name</label>
                                                 <input type="text" value={newCat.name} onChange={e => setNewCat({ ...newCat, name: e.target.value })}
-                                                    className="w-full bg-white border border-indigo-200 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-indigo-200 outline-none" placeholder="e.g., Groceries" />
+                                                    className="w-full bg-white border border-blue-200 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-indigo-200 outline-none" placeholder="e.g., Groceries" />
                                             </div>
                                             <div className="w-40">
-                                                <label className="text-xs font-medium text-indigo-600 mb-1.5 block">Amount (₹)</label>
+                                                <label className="text-xs font-medium text-ledger-primary mb-1.5 block">Amount (₹)</label>
                                                 <input type="number" value={newCat.allocatedAmount} onChange={e => setNewCat({ ...newCat, allocatedAmount: e.target.value })}
-                                                    className="w-full bg-white border border-indigo-200 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-indigo-200 outline-none" placeholder="0.00" />
+                                                    className="w-full bg-white border border-blue-200 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-indigo-200 outline-none" placeholder="0.00" />
                                             </div>
                                             <div className="flex gap-2">
-                                                <button onClick={addCategory} className="p-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-all"><CheckCircle2 size={18} /></button>
-                                                <button onClick={() => setAddingCat(false)} className="p-2.5 bg-white text-gray-400 border border-indigo-200 rounded-lg hover:text-red-500 transition-all"><X size={18} /></button>
+                                                <button onClick={addCategory} className="p-2.5 bg-ledger-primary text-white rounded-lg hover:bg-ledger-primary-hover transition-all"><CheckCircle2 size={18} /></button>
+                                                <button onClick={() => setAddingCat(false)} className="p-2.5 bg-white text-gray-400 border border-blue-200 rounded-lg hover:text-red-500 transition-all"><X size={18} /></button>
                                             </div>
                                         </motion.div>
                                     )}
@@ -277,7 +277,7 @@ const FamilyBudgetView = () => {
                                                 >
                                                     <div className="flex items-center justify-between mb-3">
                                                         <div className="flex items-center gap-3">
-                                                            <div className="w-10 h-10 rounded-lg bg-indigo-50 flex items-center justify-center text-sm font-bold text-indigo-500">
+                                                            <div className="w-10 h-10 rounded-lg bg-ledger-primary-light flex items-center justify-center text-sm font-bold text-indigo-500">
                                                                 {cat.name.charAt(0).toUpperCase()}
                                                             </div>
                                                             <div>

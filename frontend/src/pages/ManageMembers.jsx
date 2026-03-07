@@ -150,7 +150,7 @@ const ManageMembers = () => {
                                     <div className="flex-1 min-w-0">
                                         <div className="flex items-center gap-2 mb-0.5">
                                             <h3 className="text-sm font-semibold text-gray-900 truncate">{m.user?.username || 'Unknown'}</h3>
-                                            {isSelf && <span className="text-[10px] bg-indigo-100 text-indigo-600 px-1.5 py-0.5 rounded font-medium">You</span>}
+                                            {isSelf && <span className="text-[10px] bg-ledger-primary-light text-ledger-primary px-1.5 py-0.5 rounded font-medium">You</span>}
                                         </div>
                                         <p className="text-xs text-gray-400 truncate mb-2">{m.user?.email}</p>
 
@@ -170,7 +170,7 @@ const ManageMembers = () => {
                                     <div className="flex gap-2 mt-4 pt-4 border-t border-gray-50">
                                         <button
                                             onClick={() => { setActionMember(m); setConfirmAction('role'); }}
-                                            className="flex-1 py-2 bg-gray-50 hover:bg-indigo-50 text-gray-600 hover:text-indigo-600 rounded-lg text-xs font-medium transition-all flex items-center justify-center gap-1.5"
+                                            className="flex-1 py-2 bg-gray-50 hover:bg-ledger-primary-light text-gray-600 hover:text-ledger-primary rounded-lg text-xs font-medium transition-all flex items-center justify-center gap-1.5"
                                         >
                                             <Shield size={14} /> Change Role
                                         </button>
@@ -222,7 +222,7 @@ const ManageMembers = () => {
                 {confirmAction === 'role' && actionMember && (
                     <motion.div
                         initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                        className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[100] p-4"
+                        className="fixed inset-0 bg-black/50  flex items-center justify-center z-[100] p-4"
                         onClick={() => setConfirmAction(null)}
                     >
                         <motion.div
@@ -253,10 +253,10 @@ const ManageMembers = () => {
                                             disabled={loading}
                                             className={`w-full p-4 rounded-xl border transition-all text-left flex items-center gap-4
                                                 ${actionMember.role === role
-                                                    ? 'bg-indigo-50 border-indigo-200 text-indigo-700'
-                                                    : 'bg-white border-gray-100 hover:border-indigo-100 hover:bg-gray-50 text-gray-800'}`}
+                                                    ? 'bg-ledger-primary-light border-blue-200 text-ledger-primary'
+                                                    : 'bg-white border-gray-100 hover:border-blue-100 hover:bg-gray-50 text-gray-800'}`}
                                         >
-                                            <div className={`p-2 rounded-lg ${actionMember.role === role ? 'bg-indigo-100' : 'bg-gray-50'}`}>
+                                            <div className={`p-2 rounded-lg ${actionMember.role === role ? 'bg-ledger-primary-light' : 'bg-gray-50'}`}>
                                                 <cfg.icon size={18} style={{ color: cfg.color }} />
                                             </div>
                                             <div className="flex-1">
@@ -279,7 +279,7 @@ const ManageMembers = () => {
                 {confirmAction === 'remove' && actionMember && (
                     <motion.div
                         initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                        className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[100] p-4"
+                        className="fixed inset-0 bg-black/50  flex items-center justify-center z-[100] p-4"
                         onClick={() => setConfirmAction(null)}
                     >
                         <motion.div

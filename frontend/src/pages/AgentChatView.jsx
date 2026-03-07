@@ -2,13 +2,16 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     Bot, Send, X, Plus, Trash2, MessageSquare, ChevronLeft,
-    Sparkles, Loader2, AlertTriangle, CheckCircle, BarChart3,
-    Clock, ArrowRight, History, MoreVertical, Brain
+    Sparkles, Loader2, CheckCircle, BarChart3,
+    ArrowRight, History, Brain, TrendingUp, TrendingDown,
+    Shield, AlertTriangle, Calculator, Target, Wallet,
+    PieChart as PieChartIcon, Activity, Zap, RefreshCw,
+    DollarSign, Users, FileText, Search
 } from 'lucide-react';
 import {
     BarChart, Bar, LineChart, Line, PieChart, Pie, Cell,
     AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
-    ResponsiveContainer, Legend
+    ResponsiveContainer
 } from 'recharts';
 import {
     sendAgentMessage, getConversations, getConversation,
@@ -16,60 +19,195 @@ import {
 } from '../services/agentService';
 
 // ═══════════════════════════════════════════════════════════════
-// CHART COLORS
+// DESIGN TOKENS
 // ═══════════════════════════════════════════════════════════════
-const CHART_COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#06B6D4', '#84CC16'];
+const COLORS = {
+    primary: '#2563EB',
+    primaryLight: '#DBEAFE',
+    accent: '#7C3AED',
+    success: '#059669',
+    successLight: '#D1FAE5',
+    warning: '#D97706',
+    warningLight: '#FEF3C7',
+    danger: '#DC2626',
+    dangerLight: '#FEE2E2',
+    info: '#0891B2',
+    infoLight: '#CFFAFE',
+    chart: ['#2563EB', '#059669', '#D97706', '#DC2626', '#7C3AED', '#DB2777', '#0891B2', '#65A30D'],
+};
 
 // ═══════════════════════════════════════════════════════════════
-// INLINE CHART RENDERER
+// RESPONSE CARD COMPONENTS
+// ═══════════════════════════════════════════════════════════════
+
+const ActionCard = ({ data, message }) => {
+    if (!data) return null;
+    const isExpense = message?.includes('Recorded') || message?.includes('Expense') || message?.includes('Income');
+    const isInvite = message?.includes('Invitation') || message?.includes('invite');
+    const isUpdate = message?.includes('Updated') || message?.includes('Changed') || message?.includes('Switched');
+
+    let icon = <CheckCircle size={18} />;
+    let bgColor = 'bg-emerald-50';
+    let borderColor = 'border-emerald-200';
+    let iconColor = 'text-emerald-600';
+    let label = 'Action Completed';
+
+    if (isInvite) { icon = <Users size={18} />; label = 'Invite Sent'; bgColor = 'bg-blue-50'; borderColor = 'border-blue-200'; iconColor = 'text-blue-600'; }
+    if (isUpdate) { icon = <RefreshCw size={18} />; label = 'Updated'; bgColor = 'bg-violet-50'; borderColor = 'border-violet-200'; iconColor = 'text-violet-600'; }
+
+    return (
+        <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className={`${bgColor} border ${borderColor} rounded-xl p-4 my-2`}>
+            <div className="flex items-center gap-2 mb-2">
+                <div className={`${iconColor}`}>{icon}</div>
+                <span className={`text-xs font-bold uppercase tracking-wider ${iconColor}`}>{label}</span>
+            </div>
+            {data.amount && <p className="text-lg font-bold text-gray-900">₹{Number(data.amount).toLocaleString('en-IN')}</p>}
+            {data.category && <p className="text-sm text-gray-600">{data.category}</p>}
+            {data.email && <p className="text-sm text-gray-600">{data.email}</p>}
+            {data.groupName && <p className="text-xs text-gray-500 mt-1">Group: {data.groupName}</p>}
+        </motion.div>
+    );
+};
+
+const InsightCard = ({ data, message }) => {
+    const isWarning = message?.includes('⚠️') || message?.includes('OVER') || message?.includes('risk');
+    const bg = isWarning ? 'bg-amber-50 border-amber-200' : 'bg-sky-50 border-sky-200';
+    const iconColor = isWarning ? 'text-amber-600' : 'text-sky-600';
+    const icon = isWarning ? <AlertTriangle size={16} /> : <Activity size={16} />;
+    const label = isWarning ? 'Warning' : 'Insight';
+
+    return (
+        <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} className={`${bg} border rounded-xl p-4 my-2`}>
+            <div className="flex items-center gap-2 mb-1">
+                <span className={iconColor}>{icon}</span>
+                <span className={`text-[10px] font-bold uppercase tracking-wider ${iconColor}`}>{label}</span>
+            </div>
+            {message && <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-line">{message}</p>}
+        </motion.div>
+    );
+};
+
+const SimulationCard = ({ data, message }) => {
+    if (!data) return null;
+    return (
+        <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} className="bg-gradient-to-br from-violet-50 to-indigo-50 border border-violet-200 rounded-xl p-4 my-2">
+            <div className="flex items-center gap-2 mb-2">
+                <Calculator size={16} className="text-violet-600" />
+                <span className="text-[10px] font-bold uppercase tracking-wider text-violet-600">Simulation</span>
+            </div>
+            {message && <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-line">{message}</p>}
+            {data.futureValue && (
+                <div className="mt-3 grid grid-cols-2 gap-2">
+                    <div className="bg-white/70 rounded-lg p-2 text-center">
+                        <p className="text-[10px] text-gray-500 uppercase">Invested</p>
+                        <p className="text-sm font-bold text-gray-900">₹{Number(data.totalInvested || 0).toLocaleString('en-IN')}</p>
+                    </div>
+                    <div className="bg-white/70 rounded-lg p-2 text-center">
+                        <p className="text-[10px] text-gray-500 uppercase">Future Value</p>
+                        <p className="text-sm font-bold text-emerald-700">₹{Number(data.futureValue || 0).toLocaleString('en-IN')}</p>
+                    </div>
+                </div>
+            )}
+        </motion.div>
+    );
+};
+
+const ComparisonCard = ({ data, message }) => {
+    if (!data) return null;
+    const old = data.oldRegime;
+    const nw = data.newRegime;
+    if (!old || !nw) return <InsightCard data={data} message={message} />;
+
+    return (
+        <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} className="bg-gradient-to-br from-slate-50 to-gray-50 border border-gray-200 rounded-xl p-4 my-2">
+            <div className="flex items-center gap-2 mb-3">
+                <FileText size={16} className="text-gray-600" />
+                <span className="text-[10px] font-bold uppercase tracking-wider text-gray-600">Tax Regime Comparison</span>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+                <div className="bg-white rounded-lg p-3 border border-gray-100">
+                    <p className="text-[10px] font-bold text-gray-500 uppercase mb-1">Old Regime</p>
+                    <p className="text-lg font-bold text-gray-900">₹{Number(old.total).toLocaleString('en-IN')}</p>
+                    <p className="text-[10px] text-gray-500">Tax + Cess</p>
+                </div>
+                <div className="bg-white rounded-lg p-3 border border-gray-100">
+                    <p className="text-[10px] font-bold text-gray-500 uppercase mb-1">New Regime</p>
+                    <p className="text-lg font-bold text-gray-900">₹{Number(nw.total).toLocaleString('en-IN')}</p>
+                    <p className="text-[10px] text-gray-500">Tax + Cess</p>
+                </div>
+            </div>
+            {data.recommendedRegime && (
+                <div className="mt-2 px-3 py-1.5 bg-emerald-50 border border-emerald-200 rounded-lg">
+                    <p className="text-xs text-emerald-700 font-medium">✅ Recommended: {data.recommendedRegime} — saves ₹{Number(data.savingByChoosingRecommended || 0).toLocaleString('en-IN')}</p>
+                </div>
+            )}
+        </motion.div>
+    );
+};
+
+const ResponseCards = ({ cards }) => {
+    if (!cards || cards.length === 0) return null;
+    return cards.map((card, i) => {
+        switch (card.type) {
+            case 'action_card': return <ActionCard key={i} data={card.data} message={card.message} />;
+            case 'warning': return <InsightCard key={i} data={card.data} message={card.message} />;
+            case 'simulation': return <SimulationCard key={i} data={card.data} message={card.message} />;
+            case 'comparison': return <ComparisonCard key={i} data={card.data} message={card.message} />;
+            case 'insight_card': return <InsightCard key={i} data={card.data} message={card.message} />;
+            default: return <InsightCard key={i} data={card.data} message={card.message} />;
+        }
+    });
+};
+
+// ═══════════════════════════════════════════════════════════════
+// CHART RENDERER
 // ═══════════════════════════════════════════════════════════════
 const ChatChart = ({ chartData }) => {
     if (!chartData || !chartData.data || chartData.data.length === 0) return null;
-
-    const { type, data, xKey, yKey, nameKey, valueKey, title, colors = CHART_COLORS } = chartData;
+    const { type, data, xKey, yKey, nameKey, valueKey, title, colors = COLORS.chart } = chartData;
 
     return (
-        <div className="my-3 p-4 bg-gradient-to-br from-gray-50 to-slate-50 rounded-xl border border-gray-100">
-            {title && <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">{title}</p>}
-            <ResponsiveContainer width="100%" height={220}>
+        <div className="my-3 p-4 bg-gradient-to-br from-slate-50/80 to-gray-50/80 rounded-xl border border-gray-100/80 backdrop-blur-sm">
+            {title && <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-3">{title}</p>}
+            <ResponsiveContainer width="100%" height={200}>
                 {type === 'bar' ? (
                     <BarChart data={data} margin={{ top: 5, right: 5, left: -15, bottom: 5 }}>
                         <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                        <XAxis dataKey={xKey} tick={{ fontSize: 11 }} stroke="#9CA3AF" />
-                        <YAxis tick={{ fontSize: 11 }} stroke="#9CA3AF" />
-                        <Tooltip contentStyle={{ borderRadius: '10px', border: 'none', boxShadow: '0 4px 15px rgba(0,0,0,0.08)', fontSize: '12px' }} />
+                        <XAxis dataKey={xKey} tick={{ fontSize: 10 }} stroke="#9CA3AF" />
+                        <YAxis tick={{ fontSize: 10 }} stroke="#9CA3AF" />
+                        <Tooltip contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 8px 32px rgba(0,0,0,0.08)', fontSize: '11px' }} />
                         {Object.keys(data[0] || {}).filter(k => k !== xKey).map((key, i) => (
-                            <Bar key={key} dataKey={key} fill={colors[i % colors.length]} radius={[4, 4, 0, 0]} />
+                            <Bar key={key} dataKey={key} fill={colors[i % colors.length]} radius={[6, 6, 0, 0]} />
                         ))}
                     </BarChart>
                 ) : type === 'line' ? (
                     <LineChart data={data} margin={{ top: 5, right: 5, left: -15, bottom: 5 }}>
                         <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                        <XAxis dataKey={xKey} tick={{ fontSize: 11 }} stroke="#9CA3AF" />
-                        <YAxis tick={{ fontSize: 11 }} stroke="#9CA3AF" />
-                        <Tooltip contentStyle={{ borderRadius: '10px', border: 'none', boxShadow: '0 4px 15px rgba(0,0,0,0.08)', fontSize: '12px' }} />
-                        <Line type="monotone" dataKey={yKey} stroke={colors[0]} strokeWidth={2.5} dot={{ r: 4, fill: colors[0] }} />
+                        <XAxis dataKey={xKey} tick={{ fontSize: 10 }} stroke="#9CA3AF" />
+                        <YAxis tick={{ fontSize: 10 }} stroke="#9CA3AF" />
+                        <Tooltip contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 8px 32px rgba(0,0,0,0.08)', fontSize: '11px' }} />
+                        <Line type="monotone" dataKey={yKey} stroke={colors[0]} strokeWidth={2.5} dot={{ r: 3.5, fill: colors[0] }} />
                     </LineChart>
                 ) : type === 'area' ? (
                     <AreaChart data={data} margin={{ top: 5, right: 5, left: -15, bottom: 5 }}>
                         <defs>
-                            <linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="5%" stopColor={colors[0]} stopOpacity={0.3} />
+                            <linearGradient id="chatAreaGrad" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="5%" stopColor={colors[0]} stopOpacity={0.25} />
                                 <stop offset="95%" stopColor={colors[0]} stopOpacity={0} />
                             </linearGradient>
                         </defs>
                         <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                        <XAxis dataKey={xKey} tick={{ fontSize: 11 }} stroke="#9CA3AF" />
-                        <YAxis tick={{ fontSize: 11 }} stroke="#9CA3AF" />
-                        <Tooltip contentStyle={{ borderRadius: '10px', border: 'none', boxShadow: '0 4px 15px rgba(0,0,0,0.08)', fontSize: '12px' }} />
-                        <Area type="monotone" dataKey={yKey} stroke={colors[0]} strokeWidth={2.5} fill="url(#areaGrad)" />
+                        <XAxis dataKey={xKey} tick={{ fontSize: 10 }} stroke="#9CA3AF" />
+                        <YAxis tick={{ fontSize: 10 }} stroke="#9CA3AF" />
+                        <Tooltip contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 8px 32px rgba(0,0,0,0.08)', fontSize: '11px' }} />
+                        <Area type="monotone" dataKey={yKey} stroke={colors[0]} strokeWidth={2.5} fill="url(#chatAreaGrad)" />
                     </AreaChart>
                 ) : type === 'pie' ? (
                     <PieChart>
-                        <Pie data={data} dataKey={valueKey || 'amount'} nameKey={nameKey || 'category'} cx="50%" cy="50%" outerRadius={80} innerRadius={40} paddingAngle={2} label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`} labelLine={false} style={{ fontSize: '10px' }}>
+                        <Pie data={data} dataKey={valueKey || 'value' || 'amount'} nameKey={nameKey || 'name' || 'category'} cx="50%" cy="50%" outerRadius={72} innerRadius={38} paddingAngle={2} label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`} labelLine={false} style={{ fontSize: '9px' }}>
                             {data.map((_, i) => <Cell key={i} fill={colors[i % colors.length]} />)}
                         </Pie>
-                        <Tooltip contentStyle={{ borderRadius: '10px', border: 'none', boxShadow: '0 4px 15px rgba(0,0,0,0.08)', fontSize: '12px' }} />
+                        <Tooltip contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 8px 32px rgba(0,0,0,0.08)', fontSize: '11px' }} />
                     </PieChart>
                 ) : null}
             </ResponsiveContainer>
@@ -81,22 +219,19 @@ const ChatChart = ({ chartData }) => {
 // TYPING INDICATOR
 // ═══════════════════════════════════════════════════════════════
 const TypingIndicator = ({ statusText }) => (
-    <motion.div
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        exit={{ opacity: 0, y: -10 }}
-        className="flex items-start gap-3 px-4 py-3"
-    >
-        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-violet-600 flex items-center justify-center flex-shrink-0 shadow-md">
-            <Bot size={16} className="text-white" />
+    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="flex items-start gap-3 px-4 py-3">
+        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-600 to-violet-600 flex items-center justify-center flex-shrink-0 shadow-lg shadow-blue-600/20">
+            <Bot size={15} className="text-white" />
         </div>
         <div className="flex flex-col gap-1.5">
-            <div className="flex items-center gap-1.5 px-4 py-2.5 bg-white rounded-2xl rounded-tl-sm border border-gray-100 shadow-sm">
-                <span className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                <span className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                <span className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+            <div className="flex items-center gap-2 px-4 py-2.5 bg-white rounded-2xl rounded-tl-sm border border-gray-100 shadow-sm">
+                <div className="flex gap-1">
+                    <span className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                    <span className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                    <span className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                </div>
+                {statusText && <span className="text-[10px] text-gray-400 ml-1">{statusText}</span>}
             </div>
-            {statusText && <p className="text-[10px] text-gray-400 ml-1">{statusText}</p>}
         </div>
     </motion.div>
 );
@@ -107,13 +242,9 @@ const TypingIndicator = ({ statusText }) => (
 const SuggestionChips = ({ suggestions, onSelect }) => {
     if (!suggestions || suggestions.length === 0) return null;
     return (
-        <div className="flex flex-wrap gap-2 mt-2">
+        <div className="flex flex-wrap gap-1.5 mt-2">
             {suggestions.map((s, i) => (
-                <button
-                    key={i}
-                    onClick={() => onSelect(s)}
-                    className="px-3 py-1.5 text-xs font-medium bg-blue-50 text-blue-600 rounded-full border border-blue-100 hover:bg-blue-100 hover:shadow-sm transition-all duration-200 hover:-translate-y-0.5"
-                >
+                <button key={i} onClick={() => onSelect(s)} className="px-2.5 py-1 text-[11px] font-medium bg-blue-50/80 text-blue-600 rounded-full border border-blue-100/80 hover:bg-blue-100 hover:shadow-sm transition-all duration-200 hover:-translate-y-px">
                     {s}
                 </button>
             ))}
@@ -129,46 +260,38 @@ const MessageBubble = ({ message, onConfirm, onCancel, onSuggestionSelect }) => 
     const meta = message.metadata || {};
 
     return (
-        <motion.div
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.2 }}
-            className={`flex items-start gap-3 px-4 py-2 ${isUser ? 'flex-row-reverse' : ''}`}
-        >
-            {/* Avatar */}
-            <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 shadow-sm ${isUser
-                ? 'bg-gradient-to-br from-gray-700 to-gray-900 text-white text-xs font-bold'
-                : 'bg-gradient-to-br from-blue-500 to-violet-600'
+        <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }} className={`flex items-start gap-2.5 px-4 py-1.5 ${isUser ? 'flex-row-reverse' : ''}`}>
+            <div className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 ${isUser
+                ? 'bg-gray-800 text-white text-[10px] font-bold shadow-sm'
+                : 'bg-gradient-to-br from-blue-600 to-violet-600 shadow-lg shadow-blue-600/15'
                 }`}>
-                {isUser ? 'U' : <Bot size={16} className="text-white" />}
+                {isUser ? 'U' : <Bot size={14} className="text-white" />}
             </div>
 
-            {/* Content */}
-            <div className={`max-w-[80%] flex flex-col ${isUser ? 'items-end' : 'items-start'}`}>
-                <div className={`px-4 py-2.5 text-sm leading-relaxed whitespace-pre-wrap ${isUser
-                    ? 'bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-2xl rounded-tr-sm shadow-md'
-                    : 'bg-white text-gray-800 rounded-2xl rounded-tl-sm border border-gray-100 shadow-sm'
+            <div className={`max-w-[82%] flex flex-col ${isUser ? 'items-end' : 'items-start'}`}>
+                <div className={`px-3.5 py-2.5 text-[13px] leading-relaxed whitespace-pre-wrap ${isUser
+                    ? 'bg-gray-800 text-white rounded-2xl rounded-tr-sm shadow-sm'
+                    : 'bg-white text-gray-800 rounded-2xl rounded-tl-sm border border-gray-100/80 shadow-sm'
                     }`}>
                     {message.content}
                 </div>
 
+                {/* Response Cards */}
+                {!isUser && meta.responseCards && meta.responseCards.length > 0 && (
+                    <ResponseCards cards={meta.responseCards} />
+                )}
+
                 {/* Chart */}
                 {meta.chartData && <ChatChart chartData={meta.chartData} />}
 
-                {/* Confirmation buttons */}
+                {/* Confirmation */}
                 {meta.confirmationRequired && meta.pendingAction && (
                     <div className="flex gap-2 mt-2">
-                        <button
-                            onClick={() => onConfirm(meta.pendingAction.nonce)}
-                            className="flex items-center gap-1.5 px-4 py-2 bg-red-50 text-red-600 rounded-lg text-xs font-semibold border border-red-100 hover:bg-red-100 transition-all"
-                        >
-                            <CheckCircle size={14} /> Confirm
+                        <button onClick={() => onConfirm(meta.pendingAction.nonce)} className="flex items-center gap-1.5 px-3.5 py-2 bg-red-50 text-red-600 rounded-lg text-xs font-semibold border border-red-100 hover:bg-red-100 transition-all">
+                            <CheckCircle size={13} /> Confirm
                         </button>
-                        <button
-                            onClick={onCancel}
-                            className="flex items-center gap-1.5 px-4 py-2 bg-gray-50 text-gray-600 rounded-lg text-xs font-semibold border border-gray-200 hover:bg-gray-100 transition-all"
-                        >
-                            <X size={14} /> Cancel
+                        <button onClick={onCancel} className="flex items-center gap-1.5 px-3.5 py-2 bg-gray-50 text-gray-600 rounded-lg text-xs font-semibold border border-gray-200 hover:bg-gray-100 transition-all">
+                            <X size={13} /> Cancel
                         </button>
                     </div>
                 )}
@@ -178,8 +301,7 @@ const MessageBubble = ({ message, onConfirm, onCancel, onSuggestionSelect }) => 
                     <SuggestionChips suggestions={meta.suggestions} onSelect={onSuggestionSelect} />
                 )}
 
-                {/* Timestamp */}
-                <p className="text-[10px] text-gray-300 mt-1 px-1">
+                <p className="text-[9px] text-gray-300 mt-1 px-1">
                     {new Date(message.timestamp || Date.now()).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
                 </p>
             </div>
@@ -188,10 +310,19 @@ const MessageBubble = ({ message, onConfirm, onCancel, onSuggestionSelect }) => 
 };
 
 // ═══════════════════════════════════════════════════════════════
-// MAIN AGENT CHAT VIEW
+// WELCOME SUGGESTIONS — Organized by capability
+// ═══════════════════════════════════════════════════════════════
+const WELCOME_GROUPS = [
+    { label: '💰 Spending', items: ['Show my spending this month', 'Add ₹500 for groceries', 'Recent transactions'] },
+    { label: '📊 Analytics', items: ['Budget status', 'Detect spending anomalies', 'Cash runway analysis'] },
+    { label: '📈 Investments', items: ['Am I diversified?', 'Portfolio analytics', 'Simulate ₹5000 monthly SIP'] },
+    { label: '🧾 Tax & Savings', items: ['Compare tax regimes', 'How can I save ₹10K?', 'Unused 80C capacity'] },
+];
+
+// ═══════════════════════════════════════════════════════════════
+// MAIN COMPONENT
 // ═══════════════════════════════════════════════════════════════
 const AgentChatView = () => {
-    // ── State ──
     const [conversations, setConversations] = useState([]);
     const [activeConversationId, setActiveConversationId] = useState(null);
     const [messages, setMessages] = useState([]);
@@ -201,43 +332,24 @@ const AgentChatView = () => {
     const [statusText, setStatusText] = useState('');
     const [showSidebar, setShowSidebar] = useState(true);
     const [showMobileHistory, setShowMobileHistory] = useState(false);
-    const [menuOpen, setMenuOpen] = useState(null);
 
     const messagesEndRef = useRef(null);
     const inputRef = useRef(null);
     const streamAbortRef = useRef(null);
 
-    // ── Load conversations on mount ──
-    useEffect(() => {
-        loadConversations();
-    }, []);
-
-    // ── Auto-scroll ──
-    useEffect(() => {
-        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }, [messages, streamingText]);
+    useEffect(() => { loadConversations(); }, []);
+    useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages, streamingText]);
 
     const loadConversations = async () => {
-        try {
-            const data = await getConversations();
-            setConversations(data.conversations || []);
-        } catch { /* silently fail */ }
+        try { const data = await getConversations(); setConversations(data.conversations || []); } catch { }
     };
 
     const loadConversation = async (id) => {
-        try {
-            const data = await getConversation(id);
-            setMessages(data.messages || []);
-            setActiveConversationId(id);
-            setShowMobileHistory(false);
-        } catch { /* silently fail */ }
+        try { const data = await getConversation(id); setMessages(data.messages || []); setActiveConversationId(id); setShowMobileHistory(false); } catch { }
     };
 
     const handleNewConversation = () => {
-        setActiveConversationId(null);
-        setMessages([]);
-        setStreamingText('');
-        setShowMobileHistory(false);
+        setActiveConversationId(null); setMessages([]); setStreamingText(''); setShowMobileHistory(false);
         inputRef.current?.focus();
     };
 
@@ -245,307 +357,170 @@ const AgentChatView = () => {
         try {
             await deleteConversation(id);
             setConversations(prev => prev.filter(c => c._id !== id));
-            if (activeConversationId === id) {
-                setActiveConversationId(null);
-                setMessages([]);
-            }
-        } catch { /* silently fail */ }
-        setMenuOpen(null);
+            if (activeConversationId === id) { setActiveConversationId(null); setMessages([]); }
+        } catch { }
     };
 
     const handleClearAll = async () => {
         if (!confirm('Delete all conversation history?')) return;
-        try {
-            await clearAllHistory();
-            setConversations([]);
-            setActiveConversationId(null);
-            setMessages([]);
-        } catch { /* silently fail */ }
+        try { await clearAllHistory(); setConversations([]); setActiveConversationId(null); setMessages([]); } catch { }
     };
 
-    // ── Send message ──
     const handleSend = useCallback(async (msgText) => {
         const text = (msgText || inputValue).trim();
         if (!text || isLoading) return;
 
-        setInputValue('');
-        setIsLoading(true);
-        setStreamingText('');
-        setStatusText('');
-
-        // Add user message optimistically
+        setInputValue(''); setIsLoading(true); setStreamingText(''); setStatusText('');
         const userMsg = { role: 'user', content: text, timestamp: new Date().toISOString() };
         setMessages(prev => [...prev, userMsg]);
 
         let fullText = '';
-        let completionData = {};
 
-        streamAbortRef.current = sendAgentMessage(
-            text,
-            activeConversationId,
-            null,
-            {
-                onToken: (tokenText) => {
-                    fullText += tokenText;
-                    setStreamingText(fullText);
-                },
-                onStatus: (data) => {
-                    setStatusText(data.message || '');
-                },
-                onComplete: (data) => {
-                    completionData = data;
-                    setStreamingText('');
-                    setStatusText('');
-                    setIsLoading(false);
-
-                    // Add assistant message
-                    const assistantMsg = {
-                        role: 'assistant',
-                        content: fullText,
-                        timestamp: new Date().toISOString(),
-                        metadata: {
-                            chartData: data.chartData || null,
-                            confirmationRequired: data.confirmationRequired || false,
-                            pendingAction: data.pendingAction || null,
-                            suggestions: data.suggestions || [],
-                        },
-                    };
-                    setMessages(prev => [...prev, assistantMsg]);
-
-                    // Update conversation ID
-                    if (data.conversationId) {
-                        setActiveConversationId(data.conversationId);
-                        loadConversations();
-                    }
-                },
-                onError: (errMsg) => {
-                    setStreamingText('');
-                    setStatusText('');
-                    setIsLoading(false);
-                    setMessages(prev => [...prev, {
-                        role: 'assistant',
-                        content: `❌ ${errMsg || 'An error occurred. Please try again.'}`,
-                        timestamp: new Date().toISOString(),
-                        metadata: { suggestions: ['Show my spending', 'Budget status'] },
-                    }]);
-                },
-            }
-        );
+        streamAbortRef.current = sendAgentMessage(text, activeConversationId, null, {
+            onToken: (t) => { fullText += t; setStreamingText(fullText); },
+            onStatus: (d) => setStatusText(d.message || ''),
+            onComplete: (data) => {
+                setStreamingText(''); setStatusText(''); setIsLoading(false);
+                setMessages(prev => [...prev, {
+                    role: 'assistant', content: fullText, timestamp: new Date().toISOString(),
+                    metadata: {
+                        chartData: data.chartData || null,
+                        confirmationRequired: data.confirmationRequired || false,
+                        pendingAction: data.pendingAction || null,
+                        suggestions: data.suggestions || [],
+                        responseCards: data.responseCards || [],
+                        responseType: data.responseType || 'text',
+                    },
+                }]);
+                if (data.conversationId) { setActiveConversationId(data.conversationId); loadConversations(); }
+            },
+            onError: (e) => {
+                setStreamingText(''); setStatusText(''); setIsLoading(false);
+                setMessages(prev => [...prev, {
+                    role: 'assistant', content: `❌ ${e || 'An error occurred.'}`, timestamp: new Date().toISOString(),
+                    metadata: { suggestions: ['Show my spending', 'Budget status'] },
+                }]);
+            },
+        });
     }, [inputValue, isLoading, activeConversationId]);
 
-    // ── Confirm destructive action ──
     const handleConfirm = useCallback((nonce) => {
         if (isLoading) return;
-        setIsLoading(true);
-        setStreamingText('');
-        setStatusText('');
-
+        setIsLoading(true); setStreamingText(''); setStatusText('');
         let fullText = '';
-
-        streamAbortRef.current = sendAgentMessage(
-            null,
-            activeConversationId,
-            { nonce },
-            {
-                onToken: (t) => { fullText += t; setStreamingText(fullText); },
-                onStatus: (d) => setStatusText(d.message || ''),
-                onComplete: (data) => {
-                    setStreamingText('');
-                    setStatusText('');
-                    setIsLoading(false);
-                    setMessages(prev => [...prev, {
-                        role: 'assistant',
-                        content: fullText,
-                        timestamp: new Date().toISOString(),
-                        metadata: { chartData: data.chartData, suggestions: data.suggestions || [] },
-                    }]);
-                    loadConversations();
-                },
-                onError: (e) => {
-                    setStreamingText('');
-                    setIsLoading(false);
-                    setMessages(prev => [...prev, {
-                        role: 'assistant',
-                        content: `❌ ${e}`,
-                        timestamp: new Date().toISOString(),
-                    }]);
-                },
-            }
-        );
+        streamAbortRef.current = sendAgentMessage(null, activeConversationId, { nonce }, {
+            onToken: (t) => { fullText += t; setStreamingText(fullText); },
+            onStatus: (d) => setStatusText(d.message || ''),
+            onComplete: (data) => {
+                setStreamingText(''); setStatusText(''); setIsLoading(false);
+                setMessages(prev => [...prev, {
+                    role: 'assistant', content: fullText, timestamp: new Date().toISOString(),
+                    metadata: { chartData: data.chartData, suggestions: data.suggestions || [], responseCards: data.responseCards || [] },
+                }]);
+                loadConversations();
+            },
+            onError: (e) => { setStreamingText(''); setIsLoading(false); setMessages(prev => [...prev, { role: 'assistant', content: `❌ ${e}`, timestamp: new Date().toISOString() }]); },
+        });
     }, [isLoading, activeConversationId]);
 
     const handleCancel = () => {
-        setMessages(prev => [...prev, {
-            role: 'assistant',
-            content: '✅ Action cancelled.',
-            timestamp: new Date().toISOString(),
-            metadata: { suggestions: ['Show my spending', 'Budget status', 'Add expense'] },
-        }]);
+        setMessages(prev => [...prev, { role: 'assistant', content: '✅ Action cancelled.', timestamp: new Date().toISOString(), metadata: { suggestions: ['Show my spending', 'Budget status'] } }]);
     };
 
-    const handleKeyDown = (e) => {
-        if (e.key === 'Enter' && !e.shiftKey) {
-            e.preventDefault();
-            handleSend();
-        }
-    };
-
-    // ── Welcome suggestions ──
-    const welcomeSuggestions = [
-        'Show my spending this month',
-        'Budget status',
-        'Show spending trend',
-        'Add 500 for groceries',
-        'Compare last 3 months',
-        'My investment portfolio',
-        'Show my XP progress',
-        'Tax liability',
-    ];
+    const handleKeyDown = (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } };
 
     return (
-        <div className="flex h-[calc(100vh-8rem)] lg:h-[calc(100vh-6rem)] -m-4 sm:-m-4 lg:-m-8 overflow-hidden">
+        <div className="flex h-[calc(100vh-8rem)] lg:h-[calc(100vh-6rem)] -m-4 sm:-m-4 lg:-m-8 overflow-hidden bg-[#FAFBFC]">
 
-            {/* ════════ Conversation Sidebar (Desktop) ════════ */}
+            {/* ═══════ Sidebar ═══════ */}
             <AnimatePresence>
                 {showSidebar && (
-                    <motion.aside
-                        initial={{ width: 0, opacity: 0 }}
-                        animate={{ width: 280, opacity: 1 }}
-                        exit={{ width: 0, opacity: 0 }}
-                        transition={{ duration: 0.2 }}
-                        className="hidden lg:flex flex-col bg-gradient-to-b from-slate-50 to-white border-r border-gray-100 overflow-hidden flex-shrink-0"
-                    >
-                        {/* Sidebar Header */}
+                    <motion.aside initial={{ width: 0, opacity: 0 }} animate={{ width: 280, opacity: 1 }} exit={{ width: 0, opacity: 0 }} transition={{ duration: 0.2 }} className="hidden lg:flex flex-col bg-white border-r border-gray-100 overflow-hidden flex-shrink-0">
                         <div className="p-4 border-b border-gray-100 flex-shrink-0">
-                            <div className="flex items-center justify-between mb-3">
+                            <div className="flex items-center justify-between mb-1">
                                 <div className="flex items-center gap-2">
-                                    <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-violet-600 rounded-lg flex items-center justify-center shadow-md">
-                                        <Brain size={16} className="text-white" />
+                                    <div className="w-7 h-7 bg-gradient-to-br from-blue-600 to-violet-600 rounded-lg flex items-center justify-center shadow-md shadow-blue-600/20">
+                                        <Brain size={14} className="text-white" />
                                     </div>
                                     <h2 className="text-sm font-bold text-gray-900">Conversations</h2>
                                 </div>
-                                <div className="flex items-center gap-1">
-                                    <button onClick={handleNewConversation} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all" title="New Chat">
-                                        <Plus size={16} />
-                                    </button>
-                                    {conversations.length > 0 && (
-                                        <button onClick={handleClearAll} className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all" title="Clear All">
-                                            <Trash2 size={14} />
-                                        </button>
-                                    )}
+                                <div className="flex items-center gap-0.5">
+                                    <button onClick={handleNewConversation} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all" title="New Chat"><Plus size={15} /></button>
+                                    {conversations.length > 0 && <button onClick={handleClearAll} className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all" title="Clear All"><Trash2 size={13} /></button>}
                                 </div>
                             </div>
                         </div>
-
-                        {/* Conversation List */}
                         <div className="flex-1 overflow-y-auto px-2 py-2 space-y-0.5">
                             {conversations.length === 0 ? (
-                                <div className="flex flex-col items-center justify-center py-12 px-4 text-center">
-                                    <MessageSquare size={28} className="text-gray-300 mb-2" />
+                                <div className="flex flex-col items-center justify-center py-12 text-center">
+                                    <MessageSquare size={24} className="text-gray-300 mb-2" />
                                     <p className="text-xs text-gray-400">No conversations yet</p>
                                 </div>
-                            ) : (
-                                conversations.map((conv) => (
-                                    <div
-                                        key={conv._id}
-                                        className={`group relative flex items-center gap-2 px-3 py-2.5 rounded-lg cursor-pointer transition-all duration-200 ${activeConversationId === conv._id
-                                            ? 'bg-blue-50 text-blue-700 shadow-sm'
-                                            : 'text-gray-600 hover:bg-gray-50 hover:text-gray-800'
-                                            }`}
-                                        onClick={() => loadConversation(conv._id)}
-                                    >
-                                        <MessageSquare size={14} className="flex-shrink-0 opacity-50" />
-                                        <div className="flex-1 min-w-0">
-                                            <p className="text-xs font-medium truncate">{conv.title}</p>
-                                            <p className="text-[10px] text-gray-400 mt-0.5">
-                                                {new Date(conv.updatedAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
-                                            </p>
-                                        </div>
-                                        <button
-                                            onClick={(e) => { e.stopPropagation(); handleDeleteConversation(conv._id); }}
-                                            className="opacity-0 group-hover:opacity-100 p-1 text-gray-400 hover:text-red-500 transition-all"
-                                        >
-                                            <Trash2 size={12} />
-                                        </button>
+                            ) : conversations.map((conv) => (
+                                <div key={conv._id} className={`group relative flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer transition-all ${activeConversationId === conv._id ? 'bg-blue-50 text-blue-700' : 'text-gray-600 hover:bg-gray-50'}`} onClick={() => loadConversation(conv._id)}>
+                                    <MessageSquare size={13} className="flex-shrink-0 opacity-40" />
+                                    <div className="flex-1 min-w-0">
+                                        <p className="text-[11px] font-medium truncate">{conv.title}</p>
+                                        <p className="text-[9px] text-gray-400">{new Date(conv.updatedAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</p>
                                     </div>
-                                ))
-                            )}
+                                    <button onClick={(e) => { e.stopPropagation(); handleDeleteConversation(conv._id); }} className="opacity-0 group-hover:opacity-100 p-1 text-gray-400 hover:text-red-500 transition-all">
+                                        <Trash2 size={11} />
+                                    </button>
+                                </div>
+                            ))}
                         </div>
                     </motion.aside>
                 )}
             </AnimatePresence>
 
-            {/* ════════ Main Chat Area ════════ */}
-            <div className="flex-1 flex flex-col bg-gradient-to-b from-gray-50/50 to-white min-w-0">
-
-                {/* Chat Header */}
-                <div className="flex items-center justify-between px-4 py-3 bg-white/95 backdrop-blur-md border-b border-gray-100 flex-shrink-0">
-                    <div className="flex items-center gap-3">
-                        <button
-                            onClick={() => setShowSidebar(prev => !prev)}
-                            className="hidden lg:block p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-all"
-                        >
-                            <ChevronLeft size={18} className={`transition-transform ${showSidebar ? '' : 'rotate-180'}`} />
+            {/* ═══════ Main Chat ═══════ */}
+            <div className="flex-1 flex flex-col min-w-0">
+                {/* Header */}
+                <div className="flex items-center justify-between px-4 py-2.5 bg-white/95 backdrop-blur-lg border-b border-gray-100/80 flex-shrink-0">
+                    <div className="flex items-center gap-2.5">
+                        <button onClick={() => setShowSidebar(p => !p)} className="hidden lg:block p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-all">
+                            <ChevronLeft size={16} className={`transition-transform ${showSidebar ? '' : 'rotate-180'}`} />
                         </button>
-                        <button
-                            onClick={() => setShowMobileHistory(true)}
-                            className="lg:hidden p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-all"
-                        >
-                            <History size={18} />
-                        </button>
+                        <button onClick={() => setShowMobileHistory(true)} className="lg:hidden p-1.5 text-gray-400 hover:text-gray-600 rounded-lg"><History size={16} /></button>
                         <div className="flex items-center gap-2">
-                            <div className="w-9 h-9 bg-gradient-to-br from-blue-500 to-violet-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/20">
-                                <Sparkles size={18} className="text-white" />
+                            <div className="w-8 h-8 bg-gradient-to-br from-blue-600 to-violet-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-600/20">
+                                <Sparkles size={16} className="text-white" />
                             </div>
                             <div>
-                                <h1 className="text-sm font-bold text-gray-900">Ledger AI</h1>
-                                <p className="text-[10px] text-emerald-500 font-medium">● Online</p>
+                                <h1 className="text-[13px] font-bold text-gray-900">Ledger AI</h1>
+                                <p className="text-[9px] text-emerald-500 font-semibold flex items-center gap-1">
+                                    <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full inline-block" /> Online — 47 tools available
+                                </p>
                             </div>
                         </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                        <button
-                            onClick={handleNewConversation}
-                            className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
-                            title="New Chat"
-                        >
-                            <Plus size={18} />
-                        </button>
-                    </div>
+                    <button onClick={handleNewConversation} className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all" title="New Chat"><Plus size={16} /></button>
                 </div>
 
-                {/* Messages Area */}
-                <div className="flex-1 overflow-y-auto px-2 sm:px-4 py-4 space-y-1">
+                {/* Messages */}
+                <div className="flex-1 overflow-y-auto px-2 sm:px-4 py-4 space-y-0.5">
                     {messages.length === 0 && !isLoading ? (
-                        /* ═══ Empty State / Welcome ═══ */
                         <div className="flex flex-col items-center justify-center h-full px-4">
-                            <motion.div
-                                initial={{ scale: 0.9, opacity: 0 }}
-                                animate={{ scale: 1, opacity: 1 }}
-                                transition={{ duration: 0.4 }}
-                                className="text-center max-w-lg"
-                            >
-                                <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-violet-600 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-xl shadow-blue-500/25">
-                                    <Bot size={36} className="text-white" />
+                            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ duration: 0.4 }} className="text-center max-w-xl">
+                                <div className="w-16 h-16 bg-gradient-to-br from-blue-600 to-violet-600 rounded-2xl flex items-center justify-center mx-auto mb-5 shadow-xl shadow-blue-600/25">
+                                    <Bot size={30} className="text-white" />
                                 </div>
-                                <h2 className="text-2xl font-bold text-gray-900 mb-2">Ledger AI Agent</h2>
-                                <p className="text-sm text-gray-500 mb-8 leading-relaxed">
-                                    Your Financial Copilot — I can track expenses, manage budgets,
-                                    analyze investments, optimize taxes, and visualize your finances.
+                                <h2 className="text-xl font-bold text-gray-900 mb-1">Ledger AI Agent</h2>
+                                <p className="text-xs text-gray-500 mb-6 leading-relaxed max-w-sm mx-auto">
+                                    Your Financial Intelligence Platform — Track, analyze, optimize, and simulate your entire financial life.
                                 </p>
-
-                                <div className="grid grid-cols-2 gap-2 max-w-sm mx-auto">
-                                    {welcomeSuggestions.map((s, i) => (
-                                        <button
-                                            key={i}
-                                            onClick={() => handleSend(s)}
-                                            className="text-left px-3 py-2.5 bg-white text-xs text-gray-600 rounded-xl border border-gray-100 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-600 transition-all duration-200 hover:shadow-sm hover:-translate-y-0.5"
-                                        >
-                                            <span className="flex items-center gap-2">
-                                                <ArrowRight size={12} className="text-blue-400 flex-shrink-0" />
-                                                {s}
-                                            </span>
-                                        </button>
+                                <div className="space-y-3 max-w-lg mx-auto">
+                                    {WELCOME_GROUPS.map((group, gi) => (
+                                        <div key={gi}>
+                                            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5 text-left pl-1">{group.label}</p>
+                                            <div className="flex flex-wrap gap-1.5">
+                                                {group.items.map((s, si) => (
+                                                    <button key={si} onClick={() => handleSend(s)} className="text-left px-2.5 py-1.5 bg-white text-[11px] text-gray-600 rounded-lg border border-gray-100 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-600 transition-all duration-200 hover:shadow-sm">
+                                                        <span className="flex items-center gap-1.5"><ArrowRight size={10} className="text-blue-400 flex-shrink-0" />{s}</span>
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
                                     ))}
                                 </div>
                             </motion.div>
@@ -553,29 +528,21 @@ const AgentChatView = () => {
                     ) : (
                         <>
                             {messages.map((msg, i) => (
-                                <MessageBubble
-                                    key={i}
-                                    message={msg}
-                                    onConfirm={handleConfirm}
-                                    onCancel={handleCancel}
-                                    onSuggestionSelect={(s) => handleSend(s)}
-                                />
+                                <MessageBubble key={i} message={msg} onConfirm={handleConfirm} onCancel={handleCancel} onSuggestionSelect={(s) => handleSend(s)} />
                             ))}
 
-                            {/* Streaming text (in-progress assistant message) */}
                             {isLoading && streamingText && (
-                                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex items-start gap-3 px-4 py-2">
-                                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-violet-600 flex items-center justify-center flex-shrink-0 shadow-md">
-                                        <Bot size={16} className="text-white" />
+                                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex items-start gap-2.5 px-4 py-1.5">
+                                    <div className="w-7 h-7 rounded-full bg-gradient-to-br from-blue-600 to-violet-600 flex items-center justify-center flex-shrink-0 shadow-lg shadow-blue-600/15">
+                                        <Bot size={14} className="text-white" />
                                     </div>
-                                    <div className="px-4 py-2.5 bg-white text-gray-800 rounded-2xl rounded-tl-sm border border-gray-100 shadow-sm text-sm leading-relaxed max-w-[80%] whitespace-pre-wrap">
+                                    <div className="px-3.5 py-2.5 bg-white text-gray-800 rounded-2xl rounded-tl-sm border border-gray-100/80 shadow-sm text-[13px] leading-relaxed max-w-[82%] whitespace-pre-wrap">
                                         {streamingText}
-                                        <span className="inline-block w-1.5 h-4 bg-blue-400 ml-0.5 animate-pulse rounded-sm" />
+                                        <span className="inline-block w-1 h-3.5 bg-blue-500 ml-0.5 animate-pulse rounded-sm" />
                                     </div>
                                 </motion.div>
                             )}
 
-                            {/* Typing indicator (before streaming starts) */}
                             <AnimatePresence>
                                 {isLoading && !streamingText && <TypingIndicator statusText={statusText} />}
                             </AnimatePresence>
@@ -585,82 +552,49 @@ const AgentChatView = () => {
                     )}
                 </div>
 
-                {/* Input Bar */}
-                <div className="px-3 sm:px-4 py-3 bg-white/95 backdrop-blur-md border-t border-gray-100 flex-shrink-0">
+                {/* Input */}
+                <div className="px-3 sm:px-4 py-3 bg-white/95 backdrop-blur-lg border-t border-gray-100/80 flex-shrink-0">
                     <div className="flex items-end gap-2 max-w-3xl mx-auto">
                         <div className="flex-1 relative">
                             <textarea
-                                ref={inputRef}
-                                value={inputValue}
-                                onChange={(e) => setInputValue(e.target.value)}
-                                onKeyDown={handleKeyDown}
+                                ref={inputRef} value={inputValue} onChange={(e) => setInputValue(e.target.value)} onKeyDown={handleKeyDown}
                                 placeholder="Ask anything about your finances..."
-                                rows={1}
-                                className="w-full px-4 py-3 pr-12 bg-gray-50 text-sm text-gray-800 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent resize-none placeholder:text-gray-400 transition-all"
+                                rows={1} disabled={isLoading}
+                                className="w-full px-4 py-2.5 bg-gray-50/80 text-[13px] text-gray-800 rounded-xl border border-gray-200/80 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-300 resize-none placeholder:text-gray-400 transition-all"
                                 style={{ maxHeight: '120px' }}
                                 onInput={(e) => { e.target.style.height = 'auto'; e.target.style.height = Math.min(e.target.scrollHeight, 120) + 'px'; }}
-                                disabled={isLoading}
                             />
                         </div>
-                        <button
-                            onClick={() => handleSend()}
-                            disabled={isLoading || !inputValue.trim()}
-                            className={`p-3 rounded-xl transition-all duration-200 flex items-center justify-center ${isLoading || !inputValue.trim()
-                                ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                                : 'bg-gradient-to-r from-blue-600 to-violet-600 text-white shadow-lg shadow-blue-500/25 hover:shadow-xl hover:-translate-y-0.5'
-                                }`}
-                        >
-                            {isLoading ? <Loader2 size={20} className="animate-spin" /> : <Send size={20} />}
+                        <button onClick={() => handleSend()} disabled={isLoading || !inputValue.trim()} className={`p-2.5 rounded-xl transition-all duration-200 flex items-center justify-center ${isLoading || !inputValue.trim() ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-gradient-to-r from-blue-600 to-violet-600 text-white shadow-lg shadow-blue-600/25 hover:shadow-xl hover:-translate-y-px'}`}>
+                            {isLoading ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
                         </button>
                     </div>
                 </div>
             </div>
 
-            {/* ════════ Mobile History Drawer ════════ */}
+            {/* ═══════ Mobile Drawer ═══════ */}
             <AnimatePresence>
                 {showMobileHistory && (
-                    <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        className="lg:hidden fixed inset-0 bg-black/50 z-50"
-                        onClick={() => setShowMobileHistory(false)}
-                    >
-                        <motion.div
-                            initial={{ x: '-100%' }}
-                            animate={{ x: 0 }}
-                            exit={{ x: '-100%' }}
-                            transition={{ type: 'spring', bounce: 0 }}
-                            className="fixed left-0 top-0 h-full w-80 bg-white z-50 flex flex-col shadow-2xl"
-                            onClick={(e) => e.stopPropagation()}
-                        >
-                            <div className="p-4 border-b border-gray-200 flex justify-between items-center">
+                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="lg:hidden fixed inset-0 bg-black/40 z-50 backdrop-blur-sm" onClick={() => setShowMobileHistory(false)}>
+                        <motion.div initial={{ x: '-100%' }} animate={{ x: 0 }} exit={{ x: '-100%' }} transition={{ type: 'spring', bounce: 0 }} className="fixed left-0 top-0 h-full w-72 bg-white z-50 flex flex-col shadow-2xl" onClick={(e) => e.stopPropagation()}>
+                            <div className="p-4 border-b border-gray-100 flex justify-between items-center">
                                 <h2 className="text-sm font-bold text-gray-900">Chat History</h2>
-                                <div className="flex items-center gap-2">
-                                    <button onClick={handleNewConversation} className="p-1.5 text-gray-400 hover:text-blue-600 rounded-lg"><Plus size={16} /></button>
-                                    <button onClick={() => setShowMobileHistory(false)} className="p-1.5 text-gray-400 hover:text-gray-600 rounded-lg"><X size={18} /></button>
+                                <div className="flex items-center gap-1.5">
+                                    <button onClick={handleNewConversation} className="p-1.5 text-gray-400 hover:text-blue-600 rounded-lg"><Plus size={15} /></button>
+                                    <button onClick={() => setShowMobileHistory(false)} className="p-1.5 text-gray-400 hover:text-gray-600 rounded-lg"><X size={16} /></button>
                                 </div>
                             </div>
-                            <div className="flex-1 overflow-y-auto px-2 py-2 space-y-1">
+                            <div className="flex-1 overflow-y-auto px-2 py-2 space-y-0.5">
                                 {conversations.length === 0 ? (
                                     <p className="text-center text-xs text-gray-400 py-12">No conversations yet</p>
                                 ) : conversations.map((conv) => (
-                                    <div
-                                        key={conv._id}
-                                        className={`flex items-center gap-2 px-3 py-2.5 rounded-lg cursor-pointer transition-all ${activeConversationId === conv._id ? 'bg-blue-50 text-blue-700' : 'text-gray-600 hover:bg-gray-50'}`}
-                                        onClick={() => loadConversation(conv._id)}
-                                    >
-                                        <MessageSquare size={14} className="flex-shrink-0 opacity-50" />
+                                    <div key={conv._id} className={`flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer transition-all ${activeConversationId === conv._id ? 'bg-blue-50 text-blue-700' : 'text-gray-600 hover:bg-gray-50'}`} onClick={() => loadConversation(conv._id)}>
+                                        <MessageSquare size={13} className="flex-shrink-0 opacity-40" />
                                         <div className="flex-1 min-w-0">
-                                            <p className="text-xs font-medium truncate">{conv.title}</p>
-                                            <p className="text-[10px] text-gray-400 mt-0.5">{new Date(conv.updatedAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</p>
+                                            <p className="text-[11px] font-medium truncate">{conv.title}</p>
+                                            <p className="text-[9px] text-gray-400">{new Date(conv.updatedAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</p>
                                         </div>
-                                        <button
-                                            onClick={(e) => { e.stopPropagation(); handleDeleteConversation(conv._id); }}
-                                            className="p-1 text-gray-400 hover:text-red-500"
-                                        >
-                                            <Trash2 size={12} />
-                                        </button>
+                                        <button onClick={(e) => { e.stopPropagation(); handleDeleteConversation(conv._id); }} className="p-1 text-gray-400 hover:text-red-500"><Trash2 size={11} /></button>
                                     </div>
                                 ))}
                             </div>

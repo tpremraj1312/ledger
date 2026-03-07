@@ -208,7 +208,7 @@ const TransactionCard = ({ tx, toggleTransaction, expandedTransactions, handleDe
           <p className="text-[10px] sm:text-xs text-gray-600 truncate">{tx.description || '-'}</p>
           <p className="text-[10px] sm:text-xs text-gray-500">{formatDateForMobile(tx.date)}</p>
           {tx.source === 'manual' && <span className="text-[9px] sm:text-[10px] text-blue-500">(Manual)</span>}
-          {tx.source === 'billscan' && <span className="text-[9px] sm:text-[10px] text-purple-500">(Scanned)</span>}
+          {tx.source === 'billscan' && <span className="text-[9px] sm:text-[10px] text-ledger-primary">(Scanned)</span>}
           {amountMismatch && (
             <p className="text-[9px] sm:text-[10px] text-red-500">
               (Category totals {formatCurrency(categoriesSum)} ≠ {formatCurrency(tx.amount)})
@@ -463,7 +463,7 @@ const ExpensesView = () => {
       if (active && payload && payload.length) {
         const data = payload[0].payload;
         return (
-          <div className="bg-white/95 p-2 border border-gray-100 rounded-md shadow-md backdrop-blur-sm">
+          <div className="bg-white/95 p-2 border border-gray-100 rounded-md shadow-md ">
             <p className="font-semibold text-gray-800 text-xs">{data.name || data.date}</p>
             {isAreaChart ? (
               payload.map(p => (
@@ -918,7 +918,7 @@ const ExpensesView = () => {
       <div className="max-w-7xl mx-auto">
         <header className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8">
           <div>
-            <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight mb-1">Financial Analysis</h1>
+            <h1 className="text-2xl font-semibold text-gray-900 tracking-tight mb-1">Financial Analysis</h1>
             <p className="text-gray-500 font-medium">Detailed tracking and recurring management</p>
           </div>
           <div className="flex flex-wrap items-center gap-4">
@@ -927,7 +927,7 @@ const ExpensesView = () => {
               <button
                 onClick={() => setShowFilters(!showFilters)}
                 className={`p-2.5 rounded-xl border transition-all ${showFilters
-                  ? 'bg-indigo-600 border-indigo-500 text-white shadow-sm'
+                  ? 'bg-ledger-primary border-indigo-500 text-white shadow-sm'
                   : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
                   }`}
               >
@@ -942,7 +942,7 @@ const ExpensesView = () => {
               </button>
               <button
                 onClick={() => setIsManualTxModalOpen(true)}
-                className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl transition-all font-bold shadow-sm"
+                className="flex items-center gap-2 px-5 py-2.5 bg-ledger-primary hover:bg-ledger-primary-hover text-white rounded-xl transition-all font-bold shadow-sm"
               >
                 <Plus size={18} />
                 <span>Add Record</span>
@@ -1047,7 +1047,7 @@ const ExpensesView = () => {
                 <h3 className="text-lg font-bold text-gray-900">Recurring</h3>
                 <button
                   onClick={() => setIsRecurringModalOpen(true)}
-                  className="text-xs text-indigo-600 font-semibold hover:underline"
+                  className="text-xs text-ledger-primary font-semibold hover:underline"
                 >
                   Manage
                 </button>
@@ -1133,13 +1133,13 @@ const ExpensesView = () => {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 h-screen w-screen flex items-center justify-center z-50 p-4 bg-black/60 overflow-auto"
+              className="fixed inset-0 h-screen w-screen flex items-center justify-center z-50 p-4 bg-black/40 overflow-auto"
             >
               <motion.div
                 initial={{ scale: 0.95, y: 20 }}
                 animate={{ scale: 1, y: 0 }}
                 exit={{ scale: 0.95, y: 20 }}
-                className="bg-white/90 rounded-xl p-4 sm:p-6 w-full max-w-md max-h-[90vh] shadow-xl backdrop-blur-sm border border-gray-100/50 overflow-auto"
+                className="bg-white/90 rounded-xl p-4 sm:p-6 w-full max-w-md max-h-[90vh] shadow-xl  border border-gray-100/50 overflow-auto"
               >
                 <div className="flex justify-between items-center mb-3 sm:mb-4">
                   <h3 className="text-base sm:text-lg font-semibold text-gray-800">Add Manual Transaction</h3>
@@ -1250,13 +1250,13 @@ const ExpensesView = () => {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 h-screen w-screen flex items-center justify-center z-50 p-4 bg-black/60 overflow-auto"
+              className="fixed inset-0 h-screen w-screen flex items-center justify-center z-50 p-4 bg-black/40 overflow-auto"
             >
               <motion.div
                 initial={{ scale: 0.95, y: 20 }}
                 animate={{ scale: 1, y: 0 }}
                 exit={{ scale: 0.95, y: 20 }}
-                className="bg-white/90 rounded-xl p-4 sm:p-6 w-full max-w-md max-h-[90vh] shadow-xl backdrop-blur-sm border border-gray-100/50 overflow-auto"
+                className="bg-white/90 rounded-xl p-4 sm:p-6 w-full max-w-md max-h-[90vh] shadow-xl  border border-gray-100/50 overflow-auto"
               >
                 <div className="flex justify-between items-center mb-3 sm:mb-4">
                   <h3 className="text-base sm:text-lg font-semibold text-gray-800">Scan Bill</h3>
@@ -1325,13 +1325,13 @@ const ExpensesView = () => {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 h-screen w-screen flex items-center justify-center z-50 p-4 bg-black/60 overflow-auto"
+              className="fixed inset-0 h-screen w-screen flex items-center justify-center z-50 p-4 bg-black/40 overflow-auto"
             >
               <motion.div
                 initial={{ scale: 0.95, y: 20 }}
                 animate={{ scale: 1, y: 0 }}
                 exit={{ scale: 0.95, y: 20 }}
-                className="bg-white/90 rounded-xl p-4 sm:p-6 w-full max-w-lg max-h-[90vh] shadow-xl backdrop-blur-sm border border-gray-100/50 overflow-auto"
+                className="bg-white/90 rounded-xl p-4 sm:p-6 w-full max-w-lg max-h-[90vh] shadow-xl  border border-gray-100/50 overflow-auto"
               >
                 <div className="flex justify-between items-center mb-3 sm:mb-4">
                   <h3 className="text-base sm:text-lg font-semibold text-gray-800">Uncategorized Transactions</h3>
@@ -1387,7 +1387,7 @@ const ExpensesView = () => {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 h-screen w-screen flex items-center justify-center z-50 p-4 bg-black/60 overflow-auto"
+              className="fixed inset-0 h-screen w-screen flex items-center justify-center z-50 p-4 bg-black/40 overflow-auto"
             >
               <motion.div
                 initial={{ scale: 0.95, y: 20 }}
@@ -1410,7 +1410,7 @@ const ExpensesView = () => {
                   {!isAddingRecurring ? (
                     <button
                       onClick={() => setIsAddingRecurring(true)}
-                      className="w-full py-3 border-2 border-dashed border-gray-200 rounded-xl text-gray-500 font-medium hover:border-indigo-300 hover:text-indigo-600 transition-all flex items-center justify-center gap-2"
+                      className="w-full py-3 border-2 border-dashed border-gray-200 rounded-xl text-gray-500 font-medium hover:border-indigo-300 hover:text-ledger-primary transition-all flex items-center justify-center gap-2"
                     >
                       <Plus size={18} />
                       Add New Recurring Payment
@@ -1420,14 +1420,14 @@ const ExpensesView = () => {
                       initial={{ opacity: 0, height: 0 }}
                       animate={{ opacity: 1, height: 'auto' }}
                       onSubmit={handleAddRecurring}
-                      className="bg-indigo-50/50 p-4 rounded-xl border border-indigo-100 space-y-4"
+                      className="bg-ledger-primary-light/50 p-4 rounded-xl border border-blue-100 space-y-4"
                     >
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
                           <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Category</label>
                           <select
                             required
-                            className="w-full p-2.5 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 text-sm"
+                            className="w-full p-2.5 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-ledger-primary/20 text-sm"
                             value={newRecurringData.category}
                             onChange={(e) => setNewRecurringData({ ...newRecurringData, category: e.target.value })}
                           >
@@ -1443,7 +1443,7 @@ const ExpensesView = () => {
                             type="number"
                             required
                             placeholder="0.00"
-                            className="w-full p-2.5 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 text-sm"
+                            className="w-full p-2.5 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-ledger-primary/20 text-sm"
                             value={newRecurringData.amount}
                             onChange={(e) => setNewRecurringData({ ...newRecurringData, amount: e.target.value })}
                           />
@@ -1452,7 +1452,7 @@ const ExpensesView = () => {
                           <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Frequency</label>
                           <select
                             required
-                            className="w-full p-2.5 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 text-sm"
+                            className="w-full p-2.5 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-ledger-primary/20 text-sm"
                             value={newRecurringData.frequency}
                             onChange={(e) => setNewRecurringData({ ...newRecurringData, frequency: e.target.value })}
                           >
@@ -1470,7 +1470,7 @@ const ExpensesView = () => {
                                 type="checkbox"
                                 checked={newRecurringData.isEssential}
                                 onChange={(e) => setNewRecurringData({ ...newRecurringData, isEssential: e.target.checked })}
-                                className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500"
+                                className="w-4 h-4 rounded text-ledger-primary focus:ring-ledger-primary/20"
                               />
                               Essential Expense
                             </label>
@@ -1487,7 +1487,7 @@ const ExpensesView = () => {
                         </button>
                         <button
                           type="submit"
-                          className="px-6 py-2 bg-indigo-600 text-white rounded-lg text-sm font-bold shadow-sm hover:bg-indigo-700 transition-all"
+                          className="px-6 py-2 bg-ledger-primary text-white rounded-lg text-sm font-bold shadow-sm hover:bg-ledger-primary-hover transition-all"
                         >
                           Save Recurring
                         </button>
@@ -1505,7 +1505,7 @@ const ExpensesView = () => {
                       recurringList.map(item => (
                         <div key={item._id} className="flex items-center justify-between p-4 bg-white border border-gray-100 rounded-xl shadow-sm hover:border-gray-200 transition-all group">
                           <div className="flex items-center gap-4">
-                            <div className={`p-2 rounded-lg ${item.status === 'active' ? 'bg-indigo-50 text-indigo-600' : 'bg-gray-100 text-gray-400'}`}>
+                            <div className={`p-2 rounded-lg ${item.status === 'active' ? 'bg-ledger-primary-light text-ledger-primary' : 'bg-gray-100 text-gray-400'}`}>
                               <Activity size={18} />
                             </div>
                             <div>
