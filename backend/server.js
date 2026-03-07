@@ -29,6 +29,8 @@ import budgetRoutes from "./routes/budgetRoutes.js";
 import dashboardRoutes from "./routes/dashboardRoutes.js";
 import billScanRoutes from "./routes/billscanRoutes.js";
 import InvestmentsRoutes from "./routes/investmentRoutes.js";
+import investmentTransactionRoutes from "./routes/investmentTransactionRoutes.js";
+import aiPlannerRoutes from "./routes/aiPlannerRoutes.js";
 import aiAnalysisRoutes from "./routes/aiAnalysisRoutes.js";
 import budgetComparisonRoutes from "./routes/budgetComparisionRoutes.js";
 import notificationRoutes from "./routes/notificationRoutes.js"
@@ -84,7 +86,8 @@ app.use("/api/transactions", authMiddleware, transactionRoutes);
 app.use("/api/budgets", authMiddleware, budgetRoutes);
 app.use("/api/dashboard", authMiddleware, dashboardRoutes);
 app.use("/api/billscan", authMiddleware, billScanRoutes);
-app.use("/api/investments", authMiddleware, InvestmentsRoutes);
+app.use("/api/investments/ai", authMiddleware, aiPlannerRoutes);
+app.use("/api/investments", authMiddleware, investmentTransactionRoutes);
 app.use("/api/ai-analysis", authMiddleware, aiAnalysisRoutes);
 app.use("/api/budget-comparison", authMiddleware, budgetComparisonRoutes);
 app.use("/api/notifications", authMiddleware, notificationRoutes);
