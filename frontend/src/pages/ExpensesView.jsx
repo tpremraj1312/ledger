@@ -942,10 +942,10 @@ const ExpensesView = () => {
               </button>
               <button
                 onClick={() => setIsManualTxModalOpen(true)}
-                className="flex items-center gap-2 px-5 py-2.5 bg-ledger-primary hover:bg-ledger-primary-hover text-white rounded-xl transition-all font-bold shadow-sm"
+                className="flex items-center gap-2 px-4 py-2.5 bg-white border border-gray-200 text-gray-700 rounded-xl hover:bg-gray-50 transition-all font-semibold shadow-sm"
               >
                 <Plus size={18} />
-                <span>Add Record</span>
+                <span>Add Expense</span>
               </button>
             </div>
           </div>
@@ -1142,7 +1142,7 @@ const ExpensesView = () => {
                 className="bg-white/90 rounded-xl p-4 sm:p-6 w-full max-w-md max-h-[90vh] shadow-xl  border border-gray-100/50 overflow-auto"
               >
                 <div className="flex justify-between items-center mb-3 sm:mb-4">
-                  <h3 className="text-base sm:text-lg font-semibold text-gray-800">Add Manual Transaction</h3>
+                  <h3 className="text-base sm:text-lg font-semibold text-gray-800">Add Expense</h3>
                   <button
                     onClick={() => setIsManualTxModalOpen(false)}
                     className="text-gray-500 hover:text-gray-700 p-1"
@@ -1235,7 +1235,7 @@ const ExpensesView = () => {
                     className={`w-full ${isSubmittingManual ? 'bg-gray-400' : 'bg-blue-500 hover:bg-blue-600'} text-white py-2 rounded-lg transition-colors flex items-center justify-center text-[11px] sm:text-sm font-medium`}
                   >
                     {isSubmittingManual ? <Loader2 className="animate-spin h-4 w-4 mr-2" /> : null}
-                    {isSubmittingManual ? 'Recording...' : 'Record Transaction'}
+                    {isSubmittingManual ? 'Saving...' : 'Add Expense'}
                   </button>
                 </form>
               </motion.div>
