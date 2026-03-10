@@ -919,7 +919,7 @@ const ExpensesView = () => {
         <header className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8">
           <div>
             <h1 className="text-2xl font-semibold text-gray-900 tracking-tight mb-1">Financial Analysis</h1>
-            <p className="text-gray-500 font-medium">Detailed tracking and recurring management</p>
+            <p className="text-gray-500 font-medium">Detailed expense tracking and recurring management</p>
           </div>
           <div className="flex flex-wrap items-center gap-4">
             <PeriodHeader />
