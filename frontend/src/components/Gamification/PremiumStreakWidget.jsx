@@ -2,7 +2,10 @@ import React from 'react';
 import { Flame, Check } from 'lucide-react';
 import { motion } from 'framer-motion';
 
-const PremiumStreakWidget = ({ streak = 0, lastActivity, history = [] }) => {
+const PremiumStreakWidget = ({ profile }) => {
+    const streak = profile?.currentStreak || 0;
+    const history = profile?.streakHistory || [];
+
     const days = Array.from({ length: 7 }, (_, i) => {
         const d = new Date();
         d.setDate(d.getDate() - (6 - i));

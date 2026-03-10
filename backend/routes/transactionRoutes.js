@@ -153,11 +153,15 @@ router.post('/', authMiddleware, budgetCheckMiddleware, async (req, res) => {
       const { checkChallengeProgress } = await import('../services/challengeService.js');
       const { checkMissionProgress } = await import('../services/missionService.js');
 
-      await addXP(userId, activeGroup ? 10 : 2, activeGroup ? 'family_transaction_added' : 'transaction_added', session);
+      await addXP(userId, activeGroup ? 10 : 2, activeGroup ? `family_tx_${newTransaction._id}` : `tx_${newTransaction._id}`, session);
       await checkStreak(userId, session);
       await checkBadges(userId, session);
       await checkChallengeProgress(userId, newTransaction, session);
       await checkMissionProgress(userId, newTransaction, session);
+
+      // --- GOAL TRACKING HOOK ---
+      const { recalculateGoalProgress } = await import('../services/goalService.js');
+      await recalculateGoalProgress(userId, session);
 
       return { newTransaction, notification };
     });

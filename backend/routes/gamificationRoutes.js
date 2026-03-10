@@ -16,6 +16,9 @@ import {
     checkBadgeUnlocks,
     getWellnessScore,
     getWellnessHistory,
+    createGoal,
+    getGoals,
+    deleteGoal,
 } from '../controllers/gamificationController.js';
 
 const router = express.Router();
@@ -54,5 +57,10 @@ router.post('/badges/check-unlocks', checkBadgeUnlocks);
 // Wellness
 router.get('/wellness/score', getWellnessScore);
 router.get('/wellness/history', getWellnessHistory);
+
+// Financial Goals
+router.get('/goals', getGoals);
+router.post('/goals', createGoal);
+router.delete('/goals/:id', deleteGoal);
 
 export default router;

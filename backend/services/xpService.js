@@ -42,14 +42,24 @@ const xpEarnedToday = (profile) => {
 export const addXP = async (userId, xpAmount, reason, session = null) => {
     try {
         // --- 1. IDEMPOTENCY CHECK ---
-        // Check if this reason has already been awarded to prevent duplication
-        const existingProfile = await Gamification.findOne({
-            user: userId,
-            "xpHistory.reason": reason
-        }).session(session);
+        // Only deduplicate for unique-ID reasons (challenge/quest/badge completions).
+        // Generic transaction XP uses unique reasons per transaction ID, so no issue.
+        const isUniqueReason = reason.startsWith('challenge_completed_') ||
+            reason.startsWith('quest_completed_') ||
+            reason.startsWith('quest_claimed_') ||
+            reason.startsWith('badge_') ||
+            reason.startsWith('goal_completed_') ||
+            reason.startsWith('streak_bonus_');
 
-        if (existingProfile) {
-            return { profile: existingProfile, awarded: 0, capped: false };
+        if (isUniqueReason) {
+            const alreadyAwarded = await Gamification.findOne({
+                user: userId,
+                "xpHistory.reason": reason
+            }).session(session);
+
+            if (alreadyAwarded) {
+                return { profile: alreadyAwarded, awarded: 0, capped: false };
+            }
         }
 
         // --- 2. FETCH CURRENT STATUS ---

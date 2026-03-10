@@ -3,28 +3,49 @@ import { addXP } from './xpService.js';
 
 export const checkChallengeProgress = async (userId, transaction, session = null) => {
     try {
-        // Find active challenges for this user that partially match the transaction
+        const now = new Date();
+
+        // Find active challenges for this user
         const challenges = await Challenge.find({
             user: userId,
             status: 'active',
-            endDate: { $gte: new Date() }
         }).session(session);
 
         for (const challenge of challenges) {
             let updated = false;
 
+            // --- Check if challenge has expired ---
+            if (new Date(challenge.endDate) < now) {
+                if (challenge.type === 'spendingLimit' || challenge.type === 'noSpend') {
+                    // User stayed under limit — SUCCESS
+                    if (challenge.progressAmount <= challenge.targetAmount) {
+                        challenge.status = 'completed';
+                        await addXP(userId, challenge.xpReward, `challenge_completed_${challenge._id}`, session);
+                    } else {
+                        challenge.status = 'failed';
+                    }
+                } else {
+                    // For saving/income targets: if target not met by deadline, fail
+                    if (challenge.progressAmount < challenge.targetAmount) {
+                        challenge.status = 'failed';
+                    }
+                }
+                await challenge.save({ session });
+                continue;
+            }
+
             // 1. Spending Limit / No Spend Check
             if (challenge.type === 'spendingLimit' || challenge.type === 'noSpend') {
                 if (transaction.type === 'debit' &&
-                    (challenge.category === 'All' || challenge.category === transaction.category)) {
+                    (challenge.category === 'All' || challenge.category === 'Total' ||
+                        challenge.category.toLowerCase() === transaction.category.toLowerCase())) {
 
                     challenge.progressAmount += transaction.amount;
                     updated = true;
 
-                    // Check Failure
+                    // Check Failure — exceeded limit
                     if (challenge.progressAmount > challenge.targetAmount) {
                         challenge.status = 'failed';
-                        // No XP for failure
                     }
                 }
             }
@@ -39,7 +60,19 @@ export const checkChallengeProgress = async (userId, transaction, session = null
                     // Check Completion
                     if (challenge.progressAmount >= challenge.targetAmount) {
                         challenge.status = 'completed';
-                        await addXP(userId, challenge.xpReward, 'challenge_completed', session);
+                        await addXP(userId, challenge.xpReward, `challenge_completed_${challenge._id}`, session);
+                    }
+                }
+            }
+            // 3. Income Target Check
+            else if (challenge.type === 'incomeTarget') {
+                if (transaction.type === 'credit') {
+                    challenge.progressAmount += transaction.amount;
+                    updated = true;
+
+                    if (challenge.progressAmount >= challenge.targetAmount) {
+                        challenge.status = 'completed';
+                        await addXP(userId, challenge.xpReward, `challenge_completed_${challenge._id}`, session);
                     }
                 }
             }

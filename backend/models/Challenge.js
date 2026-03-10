@@ -6,7 +6,7 @@ const challengeSchema = new mongoose.Schema({
     category: { type: String, required: true }, // 'Food', 'Shopping', 'Total', etc.
     type: {
         type: String,
-        enum: ['spendingLimit', 'savingTarget', 'noSpend'],
+        enum: ['spendingLimit', 'savingTarget', 'noSpend', 'incomeTarget'],
         required: true
     },
     targetAmount: { type: Number, required: true },

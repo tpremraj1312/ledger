@@ -2,15 +2,18 @@ import * as xpService from '../services/xpService.js';
 import * as badgeService from '../services/badgeService.js';
 import * as missionService from '../services/missionService.js';
 import * as wellnessService from '../services/wellnessService.js';
+import * as goalService from '../services/goalService.js';
 import Challenge from '../models/Challenge.js';
 import Mission from '../models/Mission.js';
+import FinancialGoal from '../models/FinancialGoal.js';
 
 // ─────────── Dashboard (aggregate) ───────────
 export const getDashboardData = async (req, res) => {
     try {
         const userId = req.user._id;
         const profile = await xpService.getGamificationProfile(userId);
-        const activeChallenges = await Challenge.find({ user: userId, status: 'active' });
+        const activeChallenges = await Challenge.find({ user: userId, status: 'active' }).sort({ createdAt: -1 });
+        const completedChallenges = await Challenge.find({ user: userId, status: 'completed' }).sort({ createdAt: -1 }).limit(10);
         const wellness = await wellnessService.calculateWellnessScore(userId);
         const missions = await Mission.find({
             user: userId,
@@ -19,14 +22,23 @@ export const getDashboardData = async (req, res) => {
 
         const todayXP = await xpService.getTodayXPBreakdown(userId);
         const allBadges = badgeService.getAllBadgeDefinitions();
+        const goals = await goalService.getUserGoals(userId);
+
+        // Recent activity: last 15 XP history entries
+        const recentActivity = (profile?.xpHistory || [])
+            .slice(-15)
+            .reverse();
 
         res.json({
             profile,
             activeChallenges,
+            completedChallenges,
             wellness,
             missions,
             todayXP,
             allBadges,
+            goals,
+            recentActivity,
         });
     } catch (error) {
         res.status(500).json({ message: 'Error fetching gamification data', error: error.message });
@@ -200,5 +212,52 @@ export const getWellnessHistory = async (req, res) => {
         res.json(history);
     } catch (error) {
         res.status(500).json({ message: 'Error fetching wellness history' });
+    }
+};
+
+// ─────────── Financial Goals ───────────
+export const createGoal = async (req, res) => {
+    try {
+        const { title, type, targetAmount, period, startDate, endDate } = req.body;
+        if (!title || !type || !targetAmount || !startDate || !endDate) {
+            return res.status(400).json({ message: 'All fields are required' });
+        }
+        const goal = await FinancialGoal.create({
+            user: req.user._id,
+            title,
+            type,
+            targetAmount: Number(targetAmount),
+            period: period || 'monthly',
+            startDate: new Date(startDate),
+            endDate: new Date(endDate),
+        });
+        // Immediately recalculate to populate currentAmount
+        await goalService.recalculateGoalProgress(req.user._id);
+        const updated = await FinancialGoal.findById(goal._id);
+        res.status(201).json(updated);
+    } catch (error) {
+        res.status(500).json({ message: 'Error creating goal', error: error.message });
+    }
+};
+
+export const getGoals = async (req, res) => {
+    try {
+        const goals = await goalService.getUserGoals(req.user._id);
+        res.json(goals);
+    } catch (error) {
+        res.status(500).json({ message: 'Error fetching goals' });
+    }
+};
+
+export const deleteGoal = async (req, res) => {
+    try {
+        const goal = await FinancialGoal.findOneAndDelete({
+            _id: req.params.id,
+            user: req.user._id
+        });
+        if (!goal) return res.status(404).json({ message: 'Goal not found' });
+        res.json({ message: 'Goal deleted' });
+    } catch (error) {
+        res.status(500).json({ message: 'Error deleting goal' });
     }
 };
