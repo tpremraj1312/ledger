@@ -272,8 +272,32 @@ const FamilyExpenses = () => {
             {/* Transactions Table */}
             <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
                 {loading ? (
-                    <div className="flex items-center justify-center py-20">
-                        <Loader2 className="w-8 h-8 text-emerald-500 animate-spin" />
+                    <div className="animate-pulse">
+                        {/* Skeleton Table Header */}
+                        <div className="flex gap-4 px-6 py-4 bg-gray-50/50 border-b border-gray-100">
+                            <div className="h-3 w-16 bg-gray-200 rounded" />
+                            <div className="h-3 w-20 bg-gray-200 rounded" />
+                            <div className="h-3 w-24 bg-gray-200 rounded" />
+                            <div className="h-3 w-16 bg-gray-200 rounded ml-auto" />
+                        </div>
+                        {/* Skeleton Rows */}
+                        {Array.from({ length: 6 }).map((_, i) => (
+                            <div key={i} className="relative overflow-hidden flex items-center gap-4 px-6 py-4 border-b border-gray-50">
+                                <div className="flex items-center gap-3 w-28">
+                                    <div className="w-2.5 h-2.5 bg-gray-200 rounded-full" />
+                                    <div className="h-3 w-20 bg-gray-200 rounded" />
+                                </div>
+                                <div className="flex items-center gap-2.5 w-28">
+                                    <div className="w-8 h-8 bg-gray-200 rounded-lg" />
+                                    <div className="h-3 w-16 bg-gray-200 rounded" />
+                                </div>
+                                <div className="flex-1">
+                                    <div className="h-3 w-24 bg-gray-200 rounded" />
+                                </div>
+                                <div className="h-3.5 w-20 bg-gray-200 rounded ml-auto" />
+                                <div className="absolute inset-0 bg-shimmer animate-shimmer" />
+                            </div>
+                        ))}
                     </div>
                 ) : transactions.length === 0 ? (
                     <div className="flex flex-col items-center justify-center py-20 text-center">

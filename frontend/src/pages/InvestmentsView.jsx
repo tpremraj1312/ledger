@@ -43,9 +43,60 @@ const InvestmentsView = () => {
   };
 
   if (loading) return (
-    <div className="flex flex-col items-center justify-center h-[calc(100vh-100px)]">
-      <Loader2 size={36} className="icc-spinner text-indigo-500 mb-4" />
-      <p className="text-slate-500 font-medium">Loading Command Center...</p>
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 min-h-screen bg-slate-50 animate-pulse">
+      {/* Header Skeleton */}
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-6 py-2 border-b border-slate-100/50">
+        <div className="space-y-2">
+          <div className="h-7 w-64 bg-gray-200 rounded" />
+          <div className="h-4 w-80 bg-gray-200 rounded" />
+        </div>
+        <div className="relative overflow-hidden flex items-center gap-4 bg-white px-4 py-3 rounded-xl border border-slate-200 shadow-sm w-64">
+          <div className="space-y-1.5 flex-1">
+            <div className="h-2 w-16 bg-gray-200 rounded" />
+            <div className="h-5 w-24 bg-gray-200 rounded" />
+          </div>
+          <div className="space-y-1.5 flex-1">
+            <div className="h-2 w-12 bg-gray-200 rounded" />
+            <div className="h-4 w-20 bg-gray-200 rounded" />
+          </div>
+          <div className="absolute inset-0 bg-shimmer animate-shimmer" />
+        </div>
+      </div>
+      {/* Tab Navigation Skeleton */}
+      <div className="hidden md:flex gap-1 mb-6 p-1 bg-white rounded-xl border border-slate-200 shadow-sm">
+        {Array.from({ length: 7 }).map((_, i) => (
+          <div key={i} className="relative overflow-hidden px-4 py-2.5 rounded-lg w-28">
+            <div className="h-4 w-full bg-gray-200 rounded" />
+            <div className="absolute inset-0 bg-shimmer animate-shimmer" />
+          </div>
+        ))}
+      </div>
+      {/* Content Skeleton — Overview Cards + Chart */}
+      <div className="space-y-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="relative overflow-hidden bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+              <div className="space-y-3">
+                <div className="h-2.5 w-20 bg-gray-200 rounded" />
+                <div className="h-6 w-28 bg-gray-200 rounded" />
+                <div className="h-3 w-16 bg-gray-200 rounded" />
+              </div>
+              <div className="absolute inset-0 bg-shimmer animate-shimmer" />
+            </div>
+          ))}
+        </div>
+        <div className="relative overflow-hidden bg-white rounded-xl border border-slate-200 shadow-sm p-6" style={{ height: 350 }}>
+          <div className="h-5 w-40 bg-gray-200 rounded mb-4" />
+          <div className="absolute left-10 top-14 bottom-10 w-px bg-gray-200" />
+          <div className="absolute left-10 right-6 bottom-10 h-px bg-gray-200" />
+          <div className="absolute bottom-10 left-14 right-10 flex items-end gap-4 h-3/5 px-2">
+            {[50, 75, 35, 85, 60, 45].map((h, j) => (
+              <div key={j} className="flex-1 bg-gray-200 rounded-t" style={{ height: `${h}%` }} />
+            ))}
+          </div>
+          <div className="absolute inset-0 bg-shimmer animate-shimmer" />
+        </div>
+      </div>
     </div>
   );
 

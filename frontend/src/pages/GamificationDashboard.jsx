@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
 import {
     Gamepad2, BookOpen, Plus, X, Zap, TrendingUp, Loader2,
-    Flame, Shield, Heart, Trophy, Star, ChevronRight
+    Flame, Shield, Heart, Trophy, Star, ChevronRight, CheckCircle2,
+    TrendingDown, PiggyBank, Target
 } from 'lucide-react';
 
 import HeroLevelCard from '../components/Gamification/HeroLevelCard';
@@ -11,6 +12,8 @@ import PremiumStreakWidget from '../components/Gamification/PremiumStreakWidget'
 import WellnessMeter from '../components/Gamification/WellnessMeter';
 import QuestBoard from '../components/Gamification/QuestBoard';
 import BadgeVault from '../components/Gamification/BadgeVault';
+import FinancialGoals from '../components/Gamification/FinancialGoals';
+import ActivityFeed from '../components/Gamification/ActivityFeed';
 import FinanceQuestRulebook from './FinanceQuestRulebook';
 
 const API = import.meta.env.VITE_BACKEND_URL;
@@ -26,6 +29,38 @@ const scaleIn = {
     animate: { scale: 1, opacity: 1, transition: { duration: 0.35 } },
     exit: { scale: 0.96, opacity: 0 }
 };
+
+// Achievement Toast
+const AchievementToast = ({ message, type, onClose }) => (
+    <motion.div
+        initial={{ opacity: 0, y: 40, scale: 0.9 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        exit={{ opacity: 0, y: 20, scale: 0.9 }}
+        className="fixed bottom-6 right-6 z-50 max-w-sm"
+    >
+        <div className={`px-5 py-4 rounded-2xl shadow-2xl border flex items-center gap-3 ${type === 'xp'
+            ? 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white border-indigo-400'
+            : type === 'badge'
+                ? 'bg-gradient-to-r from-amber-400 to-orange-500 text-white border-amber-400'
+                : type === 'challenge'
+                    ? 'bg-gradient-to-r from-emerald-500 to-teal-600 text-white border-emerald-400'
+                    : 'bg-white text-gray-900 border-gray-200'
+            }`}>
+            <div className="p-2 bg-white/20 rounded-xl">
+                {type === 'xp' && <Zap size={20} fill="currentColor" />}
+                {type === 'badge' && <Trophy size={20} />}
+                {type === 'challenge' && <CheckCircle2 size={20} />}
+                {type === 'goal' && <Target size={20} />}
+            </div>
+            <div className="flex-1">
+                <p className="text-sm font-bold">{message}</p>
+            </div>
+            <button onClick={onClose} className="p-1 hover:bg-white/20 rounded-lg transition">
+                <X size={16} />
+            </button>
+        </div>
+    </motion.div>
+);
 
 // XP Breakdown Popover
 const XPBreakdownPopover = ({ data, onClose }) => (
@@ -123,7 +158,7 @@ const ChallengeModal = ({ isOpen, onClose, onSubmit }) => {
                                 onChange={e => setForm(p => ({ ...p, category: e.target.value }))}
                                 className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-white focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none"
                             >
-                                {['Food', 'Transport', 'Shopping', 'Entertainment', 'Savings', 'Total'].map(c => (
+                                {['Food', 'Transport', 'Shopping', 'Entertainment', 'Savings', 'Investment', 'Total', 'All'].map(c => (
                                     <option key={c} value={c}>{c}</option>
                                 ))}
                             </select>
@@ -137,6 +172,7 @@ const ChallengeModal = ({ isOpen, onClose, onSubmit }) => {
                             >
                                 <option value="spendingLimit">Spending Limit</option>
                                 <option value="savingTarget">Saving Target</option>
+                                <option value="incomeTarget">Income Target</option>
                                 <option value="noSpend">No Spend Days</option>
                             </select>
                         </div>
@@ -191,21 +227,83 @@ const ChallengeModal = ({ isOpen, onClose, onSubmit }) => {
     );
 };
 
+// Completed Challenges Section
+const CompletedChallenges = ({ challenges = [] }) => {
+    if (challenges.length === 0) return null;
+
+    return (
+        <div className="bg-white rounded-2xl p-6 md:p-8 border border-gray-100 shadow-sm">
+            <div className="flex items-center gap-3 mb-6">
+                <div className="p-3 bg-emerald-50 rounded-xl">
+                    <Trophy className="text-emerald-600" size={20} />
+                </div>
+                <div>
+                    <h3 className="text-xl font-bold text-gray-900">Completed Challenges</h3>
+                    <p className="text-sm text-gray-500">{challenges.length} challenge{challenges.length !== 1 ? 's' : ''} conquered</p>
+                </div>
+            </div>
+            <div className="space-y-3">
+                {challenges.map(c => (
+                    <div key={c._id} className="flex items-center justify-between p-4 bg-emerald-50/40 rounded-xl border border-emerald-100">
+                        <div className="flex items-center gap-3">
+                            <CheckCircle2 size={18} className="text-emerald-600 shrink-0" />
+                            <div>
+                                <p className="text-sm font-semibold text-gray-900">{c.title}</p>
+                                <p className="text-xs text-gray-500 capitalize">{c.category} · {c.type?.replace(/([A-Z])/g, ' $1').trim()}</p>
+                            </div>
+                        </div>
+                        <span className="text-xs font-bold text-amber-600 bg-amber-50 px-2.5 py-1 rounded-full border border-amber-100">
+                            +{c.xpReward || 50} XP
+                        </span>
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
+};
+
 const GamificationDashboard = () => {
     const [tab, setTab] = useState('quest');
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [showChallengeModal, setShowChallengeModal] = useState(false);
     const [showXPPopover, setShowXPPopover] = useState(false);
+    const [toast, setToast] = useState(null);
+    const prevDataRef = useRef(null);
 
     const token = localStorage.getItem('token');
     const headers = { headers: { Authorization: `Bearer ${token}` } };
 
-    const fetchDashboard = useCallback(async () => {
+    const fetchDashboard = useCallback(async (silent = false) => {
         try {
-            setLoading(true);
+            if (!silent) setLoading(true);
             const res = await axios.get(`${API}/api/gamification/dashboard`, headers);
-            setData(res.data);
+            const newData = res.data;
+
+            // Check for achievements to toast
+            if (prevDataRef.current && newData.profile) {
+                const prevXP = prevDataRef.current.profile?.xp || 0;
+                const newXP = newData.profile?.xp || 0;
+                const prevLevel = prevDataRef.current.profile?.level || 1;
+                const newLevel = newData.profile?.level || 1;
+                const prevBadgeCount = prevDataRef.current.profile?.badges?.length || 0;
+                const newBadgeCount = newData.profile?.badges?.length || 0;
+
+                if (newLevel > prevLevel) {
+                    setToast({ message: `🎉 Level Up! You're now Level ${newLevel}!`, type: 'xp' });
+                    setTimeout(() => setToast(null), 4000);
+                } else if (newBadgeCount > prevBadgeCount) {
+                    const newestBadge = newData.profile.badges[newData.profile.badges.length - 1];
+                    setToast({ message: `${newestBadge?.icon || '🏅'} Badge Unlocked: ${newestBadge?.name || 'New Badge'}!`, type: 'badge' });
+                    setTimeout(() => setToast(null), 4000);
+                } else if (newXP > prevXP) {
+                    setToast({ message: `⚡ +${newXP - prevXP} XP earned!`, type: 'xp' });
+                    setTimeout(() => setToast(null), 3000);
+                }
+            }
+
+            prevDataRef.current = newData;
+            setData(newData);
         } catch (err) {
             console.error('Dashboard fetch error:', err);
         } finally {
@@ -213,14 +311,23 @@ const GamificationDashboard = () => {
         }
     }, []);
 
+    // Initial fetch
     useEffect(() => {
         fetchDashboard();
+    }, [fetchDashboard]);
+
+    // Auto-refresh polling every 30 seconds
+    useEffect(() => {
+        const interval = setInterval(() => {
+            fetchDashboard(true); // silent refresh
+        }, 30000);
+        return () => clearInterval(interval);
     }, [fetchDashboard]);
 
     const handleMissionAction = async (id, status) => {
         try {
             await axios.patch(`${API}/api/gamification/missions/${id}`, { status }, headers);
-            fetchDashboard();
+            fetchDashboard(true);
         } catch (err) {
             console.error(err);
         }
@@ -229,7 +336,7 @@ const GamificationDashboard = () => {
     const handleGenerateMissions = async () => {
         try {
             await axios.post(`${API}/api/gamification/missions/generate`, {}, headers);
-            fetchDashboard();
+            fetchDashboard(true);
         } catch (err) {
             console.error(err);
         }
@@ -238,7 +345,7 @@ const GamificationDashboard = () => {
     const handleClaimQuest = async (id) => {
         try {
             await axios.post(`${API}/api/gamification/quests/${id}/complete`, {}, headers);
-            fetchDashboard();
+            fetchDashboard(true);
         } catch (err) {
             console.error(err);
         }
@@ -247,7 +354,25 @@ const GamificationDashboard = () => {
     const handleCreateChallenge = async (payload) => {
         try {
             await axios.post(`${API}/api/gamification/challenges`, payload, headers);
-            fetchDashboard();
+            fetchDashboard(true);
+        } catch (err) {
+            console.error(err);
+        }
+    };
+
+    const handleCreateGoal = async (payload) => {
+        try {
+            await axios.post(`${API}/api/gamification/goals`, payload, headers);
+            fetchDashboard(true);
+        } catch (err) {
+            console.error(err);
+        }
+    };
+
+    const handleDeleteGoal = async (id) => {
+        try {
+            await axios.delete(`${API}/api/gamification/goals/${id}`, headers);
+            fetchDashboard(true);
         } catch (err) {
             console.error(err);
         }
@@ -255,16 +380,100 @@ const GamificationDashboard = () => {
 
     if (loading) {
         return (
-            <div className="min-h-[70vh] flex items-center justify-center">
-                <div className="flex flex-col items-center gap-4">
-                    <Loader2 size={40} className="text-indigo-500 animate-spin" />
-                    <p className="text-gray-500 font-medium">Loading your quest progress...</p>
+            <div className="min-h-screen bg-gray-50/40 pb-20 md:pb-12">
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-10 animate-pulse">
+                    {/* Header Skeleton */}
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+                        <div className="flex items-center gap-4">
+                            <div className="w-14 h-14 rounded-2xl bg-gray-200" />
+                            <div className="space-y-2">
+                                <div className="h-7 w-48 bg-gray-200 rounded" />
+                                <div className="h-4 w-56 bg-gray-200 rounded" />
+                            </div>
+                        </div>
+                        <div className="flex items-center gap-4">
+                            <div className="relative overflow-hidden h-10 w-36 bg-white rounded-xl border border-gray-200">
+                                <div className="absolute inset-0 bg-shimmer animate-shimmer" />
+                            </div>
+                            <div className="relative overflow-hidden h-10 w-40 bg-white rounded-xl border border-gray-200">
+                                <div className="absolute inset-0 bg-shimmer animate-shimmer" />
+                            </div>
+                        </div>
+                    </div>
+                    {/* Narrative Skeleton */}
+                    <div className="relative overflow-hidden bg-gray-100 rounded-2xl p-6 h-16">
+                        <div className="h-4 w-3/4 bg-gray-200 rounded mx-auto" />
+                        <div className="absolute inset-0 bg-shimmer animate-shimmer" />
+                    </div>
+                    {/* Hero Cards Skeleton */}
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
+                        {Array.from({ length: 3 }).map((_, i) => (
+                            <div key={i} className="relative overflow-hidden bg-white rounded-2xl border border-gray-100 shadow-sm p-6" style={{ minHeight: 200 }}>
+                                <div className="space-y-4">
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-12 h-12 bg-gray-200 rounded-xl" />
+                                        <div className="space-y-2 flex-1">
+                                            <div className="h-4 w-24 bg-gray-200 rounded" />
+                                            <div className="h-3 w-16 bg-gray-200 rounded" />
+                                        </div>
+                                    </div>
+                                    <div className="h-2 w-full bg-gray-200 rounded-full" />
+                                    <div className="h-3 w-2/3 bg-gray-200 rounded" />
+                                    <div className="h-3 w-1/2 bg-gray-200 rounded" />
+                                </div>
+                                <div className="absolute inset-0 bg-shimmer animate-shimmer" />
+                            </div>
+                        ))}
+                    </div>
+                    {/* Quest Board Skeleton */}
+                    <div className="bg-white rounded-2xl p-6 md:p-8 border border-gray-100 shadow-sm">
+                        <div className="h-6 w-40 bg-gray-200 rounded mb-6" />
+                        <div className="space-y-4">
+                            {Array.from({ length: 4 }).map((_, i) => (
+                                <div key={i} className="relative overflow-hidden flex items-center justify-between p-4 bg-gray-50 rounded-xl border border-gray-100">
+                                    <div className="flex items-center gap-3 flex-1">
+                                        <div className="w-10 h-10 bg-gray-200 rounded-xl" />
+                                        <div className="space-y-2 flex-1">
+                                            <div className="h-3.5 w-2/5 bg-gray-200 rounded" />
+                                            <div className="h-2.5 w-1/3 bg-gray-200 rounded" />
+                                        </div>
+                                    </div>
+                                    <div className="h-8 w-20 bg-gray-200 rounded-lg" />
+                                    <div className="absolute inset-0 bg-shimmer animate-shimmer" />
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                    {/* Badges Skeleton */}
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8">
+                        {Array.from({ length: 2 }).map((_, i) => (
+                            <div key={i} className="relative overflow-hidden bg-white rounded-2xl border border-gray-100 shadow-sm p-6" style={{ minHeight: 180 }}>
+                                <div className="h-5 w-32 bg-gray-200 rounded mb-4" />
+                                <div className="grid grid-cols-4 gap-3">
+                                    {Array.from({ length: 8 }).map((_, j) => (
+                                        <div key={j} className="h-12 w-12 bg-gray-200 rounded-xl mx-auto" />
+                                    ))}
+                                </div>
+                                <div className="absolute inset-0 bg-shimmer animate-shimmer" />
+                            </div>
+                        ))}
+                    </div>
                 </div>
             </div>
         );
     }
 
-    const { profile, missions = [], activeChallenges = [], wellness, todayXP, allBadges = [] } = data || {};
+    const {
+        profile,
+        missions = [],
+        activeChallenges = [],
+        completedChallenges = [],
+        wellness,
+        todayXP,
+        allBadges = [],
+        goals = [],
+        recentActivity = [],
+    } = data || {};
 
     return (
         <div className="min-h-screen bg-gray-50/40 pb-20 md:pb-12">
@@ -331,7 +540,7 @@ const GamificationDashboard = () => {
                             className="bg-gradient-to-r from-indigo-50/80 to-purple-50/60 rounded-2xl p-6 border border-indigo-100/60 text-center"
                         >
                             <p className="text-indigo-700 font-medium">
-                                “Consistency compounds. One logged expense today → financial freedom tomorrow.”
+                                "Consistency compounds. One logged expense today → financial freedom tomorrow."
                             </p>
                         </motion.div>
 
@@ -356,34 +565,61 @@ const GamificationDashboard = () => {
                                             Active Challenges
                                         </h3>
                                         <div className="space-y-4">
-                                            {activeChallenges.map(c => (
-                                                <div key={c._id} className="p-4 bg-gray-50/60 rounded-xl">
-                                                    <div className="flex justify-between items-start mb-2">
-                                                        <h4 className="font-medium text-gray-900">{c.title}</h4>
-                                                        <span className="text-xs font-bold text-amber-600 bg-amber-50 px-2.5 py-0.5 rounded-full">
-                                                            +{c.xpReward || 50} XP
-                                                        </span>
+                                            {activeChallenges.map(c => {
+                                                const progress = c.targetAmount > 0 ? Math.min(100, (c.progressAmount / c.targetAmount) * 100) : 0;
+                                                const daysLeft = Math.max(0, Math.ceil((new Date(c.endDate) - new Date()) / 86400000));
+                                                return (
+                                                    <div key={c._id} className="p-4 bg-gray-50/60 rounded-xl">
+                                                        <div className="flex justify-between items-start mb-2">
+                                                            <div>
+                                                                <h4 className="font-medium text-gray-900 text-sm">{c.title}</h4>
+                                                                <p className="text-xs text-gray-500 capitalize">{c.category} · {daysLeft}d left</p>
+                                                            </div>
+                                                            <span className="text-xs font-bold text-amber-600 bg-amber-50 px-2.5 py-0.5 rounded-full">
+                                                                +{c.xpReward || 50} XP
+                                                            </span>
+                                                        </div>
+                                                        <div className="flex justify-between text-xs text-gray-500 mb-1">
+                                                            <span>₹{(c.progressAmount || 0).toLocaleString('en-IN')}</span>
+                                                            <span>₹{(c.targetAmount || 0).toLocaleString('en-IN')}</span>
+                                                        </div>
+                                                        <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                                                            <motion.div
+                                                                className={`h-full rounded-full transition-all duration-700 ${progress > 85 && (c.type === 'spendingLimit' || c.type === 'noSpend') ? 'bg-red-500' : 'bg-indigo-500'}`}
+                                                                initial={{ width: 0 }}
+                                                                animate={{ width: `${progress}%` }}
+                                                                transition={{ duration: 0.8 }}
+                                                            />
+                                                        </div>
                                                     </div>
-                                                    <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                                                        <div
-                                                            className="h-full bg-indigo-500 rounded-full transition-all duration-700"
-                                                            style={{ width: `${Math.min(100, (c.progressAmount / c.targetAmount) * 100)}%` }}
-                                                        />
-                                                    </div>
-                                                </div>
-                                            ))}
+                                                );
+                                            })}
                                         </div>
                                     </div>
                                 )}
                             </div>
                         </div>
 
+                        {/* Financial Goals */}
+                        <FinancialGoals
+                            goals={goals}
+                            onCreate={handleCreateGoal}
+                            onDelete={handleDeleteGoal}
+                        />
+
+                        {/* Quest Board */}
                         <QuestBoard
                             missions={missions}
                             onAction={handleMissionAction}
                             onGenerate={handleGenerateMissions}
                             onClaim={handleClaimQuest}
                         />
+
+                        {/* Completed Challenges + Activity Feed + Badges + Wellness */}
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8">
+                            <ActivityFeed activity={recentActivity} />
+                            <CompletedChallenges challenges={completedChallenges} />
+                        </div>
 
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8">
                             <BadgeVault badges={profile?.badges || []} allBadges={allBadges} />
@@ -398,6 +634,17 @@ const GamificationDashboard = () => {
                             isOpen={showChallengeModal}
                             onClose={() => setShowChallengeModal(false)}
                             onSubmit={handleCreateChallenge}
+                        />
+                    )}
+                </AnimatePresence>
+
+                {/* Achievement Toast */}
+                <AnimatePresence>
+                    {toast && (
+                        <AchievementToast
+                            message={toast.message}
+                            type={toast.type}
+                            onClose={() => setToast(null)}
                         />
                     )}
                 </AnimatePresence>

@@ -40,9 +40,43 @@ const FamilySettingsSection = ({ user, refreshUser }) => {
     };
 
     if (loading) return (
-        <div className="flex flex-col items-center justify-center p-20 space-y-4">
-            <Loader2 size={40} className="animate-spin text-blue-600" />
-            <p className="text-sm font-bold text-gray-500 uppercase tracking-widest">Fetching Family Data</p>
+        <div className="max-w-4xl animate-pulse">
+            <div className="mb-8 space-y-2">
+                <div className="h-7 w-48 bg-gray-200 rounded" />
+                <div className="h-4 w-64 bg-gray-200 rounded" />
+            </div>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <div className="lg:col-span-2 space-y-3">
+                    <div className="h-4 w-32 bg-gray-200 rounded mb-2" />
+                    {Array.from({ length: 3 }).map((_, i) => (
+                        <div key={i} className="relative overflow-hidden flex items-center justify-between p-4 bg-white rounded-2xl border border-gray-100">
+                            <div className="flex items-center gap-4">
+                                <div className="w-10 h-10 bg-gray-200 rounded-xl" />
+                                <div className="space-y-1.5">
+                                    <div className="h-3.5 w-28 bg-gray-200 rounded" />
+                                    <div className="h-2.5 w-36 bg-gray-200 rounded" />
+                                </div>
+                            </div>
+                            <div className="h-5 w-16 bg-gray-200 rounded-lg" />
+                            <div className="absolute inset-0 bg-shimmer animate-shimmer" />
+                        </div>
+                    ))}
+                </div>
+                <div className="space-y-6">
+                    <div className="relative overflow-hidden p-6 bg-gray-50 rounded-3xl border border-gray-100">
+                        <div className="h-3 w-20 bg-gray-200 rounded mb-6" />
+                        <div className="space-y-4">
+                            {Array.from({ length: 3 }).map((_, i) => (
+                                <div key={i} className="flex justify-between">
+                                    <div className="h-3 w-20 bg-gray-200 rounded" />
+                                    <div className="h-3 w-12 bg-gray-200 rounded" />
+                                </div>
+                            ))}
+                        </div>
+                        <div className="absolute inset-0 bg-shimmer animate-shimmer" />
+                    </div>
+                </div>
+            </div>
         </div>
     );
 

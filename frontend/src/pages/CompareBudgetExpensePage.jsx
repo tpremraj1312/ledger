@@ -480,16 +480,68 @@ const CompareBudgetExpensePage = () => {
         </div>
       </div>
 
-      {/* Loading State */}
+      {/* Loading State — Skeleton */}
       {isLoading && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          className="flex justify-center items-center py-10"
-        >
-          <Loader2 className="animate-spin h-8 w-8 text-blue-500" />
-          <p className="ml-3 text-gray-600">Loading comparison...</p>
-        </motion.div>
+        <div className="space-y-8 animate-pulse">
+          {/* Debit Summary Skeleton */}
+          <div className="bg-white rounded-xl shadow-lg p-6">
+            <div className="h-5 w-56 bg-gray-200 rounded mb-4" />
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <div key={i} className="relative overflow-hidden bg-gray-50 p-4 rounded-lg">
+                  <div className="space-y-2">
+                    <div className="h-3 w-32 bg-gray-200 rounded" />
+                    <div className="h-6 w-24 bg-gray-200 rounded" />
+                  </div>
+                  <div className="absolute inset-0 bg-shimmer animate-shimmer" />
+                </div>
+              ))}
+            </div>
+          </div>
+          {/* Chart Skeleton */}
+          <div className="bg-white rounded-xl shadow-lg p-6">
+            <div className="h-5 w-72 bg-gray-200 rounded mb-4" />
+            <div className="relative overflow-hidden bg-gray-50 rounded-lg" style={{ height: 400 }}>
+              <div className="absolute left-10 top-6 bottom-20 w-px bg-gray-200" />
+              <div className="absolute left-10 right-6 bottom-20 h-px bg-gray-200" />
+              <div className="absolute bottom-20 left-14 right-10 flex items-end gap-4 h-3/5 px-2">
+                {[40, 65, 30, 80, 50, 70, 35, 55].map((h, j) => (
+                  <div key={j} className="flex-1 bg-gray-200 rounded-t" style={{ height: `${h}%` }} />
+                ))}
+              </div>
+              <div className="absolute inset-0 bg-shimmer animate-shimmer" />
+            </div>
+          </div>
+          {/* Credit Summary Skeleton */}
+          <div className="bg-white rounded-xl shadow-lg p-6">
+            <div className="h-5 w-48 bg-gray-200 rounded mb-4" />
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <div key={i} className="relative overflow-hidden bg-gray-50 p-4 rounded-lg">
+                  <div className="space-y-2">
+                    <div className="h-3 w-28 bg-gray-200 rounded" />
+                    <div className="h-6 w-24 bg-gray-200 rounded" />
+                  </div>
+                  <div className="absolute inset-0 bg-shimmer animate-shimmer" />
+                </div>
+              ))}
+            </div>
+          </div>
+          {/* Second Chart Skeleton */}
+          <div className="bg-white rounded-xl shadow-lg p-6">
+            <div className="h-5 w-64 bg-gray-200 rounded mb-4" />
+            <div className="relative overflow-hidden bg-gray-50 rounded-lg" style={{ height: 400 }}>
+              <div className="absolute left-10 top-6 bottom-20 w-px bg-gray-200" />
+              <div className="absolute left-10 right-6 bottom-20 h-px bg-gray-200" />
+              <div className="absolute bottom-20 left-14 right-10 flex items-end gap-4 h-3/5 px-2">
+                {[55, 45, 70, 35, 60, 80, 40, 50].map((h, j) => (
+                  <div key={j} className="flex-1 bg-gray-200 rounded-t" style={{ height: `${h}%` }} />
+                ))}
+              </div>
+              <div className="absolute inset-0 bg-shimmer animate-shimmer" />
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Error State */}

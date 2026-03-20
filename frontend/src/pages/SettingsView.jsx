@@ -48,10 +48,6 @@ const SettingsView = () => {
   return (
     <div className="p-4 lg:p-8 bg-gray-50/50 min-h-screen">
       <div className="max-w-7xl mx-auto">
-        <header className="mb-10">
-          <h1 className="text-4xl font-black text-gray-900 mb-2 tracking-tight">System Configuration</h1>
-          <p className="text-gray-500 font-medium">Personalize your experience, manage security, and set financial goals.</p>
-        </header>
 
         <SettingsLayout
           activeSection={activeSection}

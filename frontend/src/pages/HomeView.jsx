@@ -318,9 +318,62 @@ const HomeView = React.memo(({ setActiveTab = () => console.warn('setActiveTab n
 
   if (isLoading) {
     return (
-      <div className="flex flex-col items-center justify-center h-full space-y-4">
-        <Loader2 className="animate-spin text-blue-600 w-12 h-12" />
-        <p className="text-gray-600 font-medium">Loading dashboard data...</p>
+      <div className="space-y-6 md:space-y-8 animate-pulse">
+        {/* Action Buttons Skeleton */}
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 md:gap-4">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <div key={i} className="relative overflow-hidden p-4 md:p-6 rounded-2xl bg-gray-100">
+              <div className="flex flex-col items-center justify-center space-y-2">
+                <div className="w-7 h-7 bg-gray-200 rounded-lg" />
+                <div className="h-3 w-16 bg-gray-200 rounded" />
+              </div>
+              <div className="absolute inset-0 bg-shimmer animate-shimmer" />
+            </div>
+          ))}
+        </div>
+        {/* Overview Cards Skeleton */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="relative overflow-hidden p-4 md:p-5 rounded-2xl bg-gray-100 border border-gray-100/80">
+              <div className="space-y-3">
+                <div className="h-3 w-24 bg-gray-200 rounded" />
+                <div className="h-6 w-32 bg-gray-200 rounded" />
+              </div>
+              <div className="absolute inset-0 bg-shimmer animate-shimmer" />
+            </div>
+          ))}
+        </div>
+        {/* Charts Skeleton */}
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100/80 p-5 md:p-6 space-y-6">
+          <div className="h-5 w-40 bg-gray-200 rounded" />
+          <div className="relative overflow-hidden h-[300px] bg-gray-100 rounded-xl">
+            <div className="absolute left-8 top-4 bottom-8 w-px bg-gray-200" />
+            <div className="absolute left-8 right-4 bottom-8 h-px bg-gray-200" />
+            <div className="absolute bottom-8 left-12 right-8 flex items-end gap-3 h-3/4 px-2">
+              {[60, 80, 45, 90, 55, 70, 40].map((h, i) => (
+                <div key={i} className="flex-1 bg-gray-200 rounded-t" style={{ height: `${h}%` }} />
+              ))}
+            </div>
+            <div className="absolute inset-0 bg-shimmer animate-shimmer" />
+          </div>
+        </div>
+        {/* Recent Transactions Skeleton */}
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100/80 p-5 md:p-6 space-y-4">
+          <div className="h-5 w-36 bg-gray-200 rounded" />
+          {Array.from({ length: 5 }).map((_, i) => (
+            <div key={i} className="relative overflow-hidden p-4 bg-gray-50/60 rounded-xl border border-gray-100">
+              <div className="flex items-center justify-between">
+                <div className="space-y-2 flex-1">
+                  <div className="h-3.5 w-2/5 bg-gray-200 rounded" />
+                  <div className="h-2.5 w-3/5 bg-gray-200 rounded" />
+                  <div className="h-2 w-1/4 bg-gray-200 rounded" />
+                </div>
+                <div className="h-5 w-24 bg-gray-200 rounded" />
+              </div>
+              <div className="absolute inset-0 bg-shimmer animate-shimmer" />
+            </div>
+          ))}
+        </div>
       </div>
     );
   }

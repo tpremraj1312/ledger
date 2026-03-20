@@ -110,7 +110,7 @@ const QuestBoard = ({ missions, onAction, onGenerate, onClaim }) => {
 
                 <button
                     onClick={onGenerate}
-                    className="flex items-center gap-2 px-5 py-2.5 bg-ledger-primary text-white text-sm font-medium rounded-xl hover:bg-ledger-primary-hover transition shadow-sm"
+                    className="flex items-center gap-2 px-5 py-2.5 bg-ledger-primary text-gray text-sm font-medium rounded-xl hover:bg-ledger-primary-hover transition shadow-sm"
                 >
                     <Swords size={16} /> Generate New Quests
                 </button>

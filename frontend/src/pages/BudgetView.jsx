@@ -392,109 +392,460 @@ const BudgetList = ({ title, budgets, color, handleDeleteBudget, isMobile }) => 
 );
 
 // Add Budget Modal Component
-const AddBudgetModal = ({ isModalOpen, setIsModalOpen, newBudget, setNewBudget, handleAddBudget, searchQuery, setSearchQuery, filteredSuggestions, isMobile }) => (
+const AddBudgetModal = ({
+  isModalOpen,
+  setIsModalOpen,
+  newBudget,
+  setNewBudget,
+  handleAddBudget,
+  searchQuery,
+  setSearchQuery,
+  filteredSuggestions,
+  isMobile
+}) => (
   <AnimatePresence>
     {isModalOpen && (
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-1 sm:p-2"
+        transition={{ duration: 0.25 }}
+        className="fixed inset-0 z-50 flex items-center justify-center p-4"
+        style={{
+          background: "rgba(0,0,0,0.25)",
+          backdropFilter: "blur(6px)"
+        }}
+        onClick={(e) => {
+          if (e.target === e.currentTarget) {
+            setIsModalOpen(false);
+            setSearchQuery("");
+            setNewBudget({
+              category: "",
+              amount: "",
+              period: "Monthly",
+              type: "expense"
+            });
+          }
+        }}
       >
         <motion.div
-          initial={{ scale: 0.9, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          exit={{ scale: 0.9, opacity: 0 }}
-          transition={{ duration: 0.2 }}
-          className="bg-white/95 p-2 sm:p-3 rounded-lg w-full max-w-[280px] sm:max-w-xs shadow-sm"
+          initial={{ scale: 0.92, opacity: 0, y: 20 }}
+          animate={{ scale: 1, opacity: 1, y: 0 }}
+          exit={{ scale: 0.92, opacity: 0, y: 20 }}
+          transition={{ type: "spring", stiffness: 320, damping: 28 }}
+          className="w-full"
+          style={{ maxWidth: 480 }}
         >
-          <div className="flex justify-between items-center mb-2 sm:mb-3">
-            <h3 className={`text-sm sm:text-base font-bold text-gray-900`}>Add New Budget</h3>
-            <motion.button
-              whileHover={{ rotate: 90 }}
-              onClick={() => {
-                setIsModalOpen(false);
-                setSearchQuery('');
-                setNewBudget({ category: '', amount: '', period: 'Monthly', type: 'expense' });
-              }}
-              className="text-gray-500 hover:text-gray-700 p-0.5 sm:p-1 rounded-full hover:bg-gray-100 transition-colors"
-              aria-label="Close modal"
-            >
-              <X size={12} />
-            </motion.button>
-          </div>
-          <div className="space-y-1 sm:space-y-2">
-            <div className="relative">
-              <input
-                type="text"
-                placeholder="Search or enter category"
-                value={newBudget.category}
-                onChange={(e) => {
-                  setNewBudget({ ...newBudget, category: e.target.value });
-                  setSearchQuery(e.target.value);
-                }}
-                className={`w-full bg-white/50 border border-gray-200 rounded-lg p-0.5 sm:p-1 text-[10px] sm:text-xs focus:ring-1 focus:ring-indigo-500 focus:outline-none transition-all shadow-sm`}
-              />
-              {filteredSuggestions.length > 0 && searchQuery && (
-                <div className="absolute bg-white/95 border border-gray-200 rounded-lg mt-0.5 max-h-28 overflow-y-auto w-full z-10 shadow-sm">
-                  {filteredSuggestions.map(cat => (
-                    <motion.div
-                      key={cat}
-                      onClick={() => {
-                        setNewBudget({ ...newBudget, category: cat });
-                        setSearchQuery(cat);
-                      }}
-                      whileHover={{ backgroundColor: '#EBF5FF' }}
-                      className={`p-1 sm:p-2 hover:bg-indigo-50 hover:text-indigo-600 cursor-pointer text-[10px] sm:text-xs text-gray-700 transition-colors`}
-                    >
-                      {cat}
-                    </motion.div>
-                  ))}
+          <div
+            style={{
+              background: "#ffffff",
+              borderRadius: 20,
+              border: "1px solid #e5e7eb",
+              boxShadow:
+                "0 20px 48px rgba(0,0,0,0.08), 0 4px 12px rgba(0,0,0,0.06)",
+              overflow: "hidden"
+            }}
+          >
+            <div style={{ height: 4, background: "#3b82f6" }} />
+
+            <div style={{ padding: "28px 32px 32px" }}>
+              {/* Header */}
+              <div className="flex items-start justify-between mb-7">
+                <div>
+                  <h3
+                    style={{
+                      fontSize: 20,
+                      fontWeight: 700,
+                      color: "#0f172a",
+                      letterSpacing: "-0.3px",
+                      lineHeight: 1.2
+                    }}
+                  >
+                    Add New Budget
+                  </h3>
+                  <p
+                    style={{
+                      fontSize: 12,
+                      color: "#64748b",
+                      marginTop: 2
+                    }}
+                  >
+                    Set spending limits for any category
+                  </p>
                 </div>
-              )}
+
+                <motion.button
+                  whileHover={{ rotate: 90 }}
+                  whileTap={{ scale: 0.9 }}
+                  onClick={() => {
+                    setIsModalOpen(false);
+                    setSearchQuery("");
+                    setNewBudget({
+                      category: "",
+                      amount: "",
+                      period: "Monthly",
+                      type: "expense"
+                    });
+                  }}
+                  style={{
+                    width: 36,
+                    height: 36,
+                    background: "#f1f5f9",
+                    border: "1px solid #e2e8f0",
+                    borderRadius: 10,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    cursor: "pointer",
+                    flexShrink: 0,
+                    color: "#475569"
+                  }}
+                  aria-label="Close modal"
+                >
+                  <X size={15} />
+                </motion.button>
+              </div>
+
+              {/* Form */}
+              <div className="flex flex-col gap-4">
+                {/* Category */}
+                <div>
+                  <label
+                    style={{
+                      display: "block",
+                      fontSize: 11,
+                      fontWeight: 600,
+                      color: "#64748b",
+                      letterSpacing: "0.7px",
+                      textTransform: "uppercase",
+                      marginBottom: 7
+                    }}
+                  >
+                    Category
+                  </label>
+
+                  <div className="relative">
+                    <input
+                      type="text"
+                      placeholder="Search or enter category"
+                      value={newBudget.category}
+                      onChange={(e) => {
+                        setNewBudget({ ...newBudget, category: e.target.value });
+                        setSearchQuery(e.target.value);
+                      }}
+                      style={{
+                        width: "100%",
+                        background: "#f8fafc",
+                        border: "1.5px solid #e2e8f0",
+                        borderRadius: 12,
+                        padding: "13px 14px",
+                        fontSize: 14,
+                        color: "#1e293b",
+                        outline: "none",
+                        fontFamily: "inherit"
+                      }}
+                      autoComplete="off"
+                    />
+
+                    {filteredSuggestions.length > 0 && searchQuery && (
+                      <motion.div
+                        initial={{ opacity: 0, y: -6 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -6 }}
+                        style={{
+                          position: "absolute",
+                          top: "calc(100% + 6px)",
+                          left: 0,
+                          right: 0,
+                          background: "#ffffff",
+                          border: "1px solid #e2e8f0",
+                          borderRadius: 12,
+                          overflow: "hidden",
+                          zIndex: 20,
+                          boxShadow: "0 12px 32px rgba(0,0,0,0.08)",
+                          maxHeight: 200,
+                          overflowY: "auto"
+                        }}
+                      >
+                        {filteredSuggestions.map((cat) => (
+                          <motion.div
+                            key={cat}
+                            whileHover={{
+                              backgroundColor: "#eff6ff",
+                              color: "#2563eb",
+                              paddingLeft: 20
+                            }}
+                            onClick={() => {
+                              setNewBudget({ ...newBudget, category: cat });
+
+                              // FIX: Close dropdown
+                              setSearchQuery("");
+                            }}
+                            style={{
+                              padding: "11px 16px",
+                              cursor: "pointer",
+                              fontSize: 13,
+                              color: "#374151",
+                              borderBottom: "1px solid #f1f5f9",
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 10,
+                              transition: "all 0.15s"
+                            }}
+                          >
+                            {cat}
+                          </motion.div>
+                        ))}
+                      </motion.div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Amount */}
+                <div>
+                  <label
+                    style={{
+                      display: "block",
+                      fontSize: 11,
+                      fontWeight: 600,
+                      color: "#64748b",
+                      letterSpacing: "0.7px",
+                      textTransform: "uppercase",
+                      marginBottom: 7
+                    }}
+                  >
+                    Budget Amount
+                  </label>
+
+                  <div className="relative">
+                    <span
+                      style={{
+                        position: "absolute",
+                        left: 13,
+                        top: "50%",
+                        transform: "translateY(-50%)",
+                        fontSize: 14,
+                        fontFamily: "monospace",
+                        fontWeight: 600,
+                        color: "#94a3b8",
+                        pointerEvents: "none"
+                      }}
+                    >
+                      ₹
+                    </span>
+
+                    <input
+                      type="number"
+                      placeholder="0.00"
+                      value={newBudget.amount}
+                      onChange={(e) =>
+                        setNewBudget({ ...newBudget, amount: e.target.value })
+                      }
+                      style={{
+                        width: "100%",
+                        background: "#f8fafc",
+                        border: "1.5px solid #e2e8f0",
+                        borderRadius: 12,
+                        padding: "13px 14px 13px 38px",
+                        fontSize: 14,
+                        color: "#1e293b",
+                        outline: "none",
+                        fontFamily: "monospace"
+                      }}
+                      min="0"
+                      step="0.01"
+                    />
+                  </div>
+                </div>
+
+                <div
+                  style={{
+                    height: 1,
+                    background: "linear-gradient(90deg, transparent, #e2e8f0, transparent)"
+                  }}
+                />
+
+                {/* Type */}
+                <div>
+                  <label
+                    style={{
+                      display: "block",
+                      fontSize: 11,
+                      fontWeight: 600,
+                      color: "#64748b",
+                      letterSpacing: "0.7px",
+                      textTransform: "uppercase",
+                      marginBottom: 7
+                    }}
+                  >
+                    Budget Type
+                  </label>
+
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "1fr 1fr",
+                      gap: 10
+                    }}
+                  >
+                    {[
+                      {
+                        value: "expense",
+                        label: "Expense",
+                        activeBg: "#eff6ff",
+                        activeBorder: "#3b82f6",
+                        activeColor: "#1d4ed8"
+                      },
+                      {
+                        value: "income",
+                        label: "Income",
+                        activeBg: "#eff6ff",
+                        activeBorder: "#3b82f6",
+                        activeColor: "#1d4ed8"
+                      }
+                    ].map(({ value, label, activeBg, activeBorder, activeColor }) => {
+                      const isActive = newBudget.type === value;
+                      return (
+                        <motion.button
+                          key={value}
+                          whileHover={{ scale: 1.02 }}
+                          whileTap={{ scale: 0.97 }}
+                          onClick={() =>
+                            setNewBudget({ ...newBudget, type: value })
+                          }
+                          style={{
+                            padding: "12px 16px",
+                            borderRadius: 12,
+                            border: `1.5px solid ${isActive ? activeBorder : "#e2e8f0"
+                              }`,
+                            background: isActive ? activeBg : "#f8fafc",
+                            cursor: "pointer",
+                            fontSize: 13,
+                            fontWeight: 500,
+                            color: isActive ? activeColor : "#64748b",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            transition: "all 0.2s"
+                          }}
+                        >
+                          {label}
+                        </motion.button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Period */}
+                <div>
+                  <label
+                    style={{
+                      display: "block",
+                      fontSize: 11,
+                      fontWeight: 600,
+                      color: "#64748b",
+                      letterSpacing: "0.7px",
+                      textTransform: "uppercase",
+                      marginBottom: 7
+                    }}
+                  >
+                    Reset Period
+                  </label>
+
+                  <div className="relative">
+                    <select
+                      value={newBudget.period}
+                      onChange={(e) =>
+                        setNewBudget({ ...newBudget, period: e.target.value })
+                      }
+                      style={{
+                        width: "100%",
+                        background: "#f8fafc",
+                        border: "1.5px solid #e2e8f0",
+                        borderRadius: 12,
+                        padding: "13px 36px 13px 14px",
+                        fontSize: 14,
+                        color: "#1e293b",
+                        outline: "none",
+                        cursor: "pointer",
+                        appearance: "none",
+                        fontFamily: "inherit"
+                      }}
+                    >
+                      <option value="Weekly">Weekly</option>
+                      <option value="Monthly">Monthly</option>
+                      <option value="Quarterly">Quarterly</option>
+                      <option value="Yearly">Yearly</option>
+                    </select>
+
+                    <span
+                      style={{
+                        position: "absolute",
+                        right: 14,
+                        top: "50%",
+                        transform: "translateY(-50%)",
+                        color: "#94a3b8",
+                        fontSize: 12,
+                        pointerEvents: "none"
+                      }}
+                    >
+                      ▾
+                    </span>
+                  </div>
+                </div>
+
+                <div
+                  style={{
+                    height: 1,
+                    background: "linear-gradient(90deg, transparent, #e2e8f0, transparent)"
+                  }}
+                />
+
+                {/* Save button */}
+                <motion.button
+                  whileHover={{
+                    scale: 1.02,
+                    boxShadow: "0 10px 32px rgba(59,130,246,0.35)"
+                  }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={handleAddBudget}
+                  style={{
+                    width: "100%",
+                    padding: "15px",
+                    background: "#3b82f6",
+                    color: "white",
+                    border: "none",
+                    borderRadius: 12,
+                    fontSize: 15,
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    letterSpacing: "0.2px"
+                  }}
+                >
+                  Save Budget
+                </motion.button>
+              </div>
+
+              <p
+                style={{
+                  marginTop: 16,
+                  textAlign: "center",
+                  color: "#94a3b8",
+                  fontSize: 11
+                }}
+              >
+                Budget resets automatically at the start of each period
+              </p>
             </div>
-            <input
-              type="number"
-              placeholder="Amount (₹)"
-              value={newBudget.amount}
-              onChange={(e) => setNewBudget({ ...newBudget, amount: e.target.value })}
-              className={`w-full bg-white/50 border border-gray-200 rounded-lg p-0.5 sm:p-1 text-[10px] sm:text-xs focus:ring-1 focus:ring-indigo-500 focus:outline-none transition-all shadow-sm`}
-              min="0"
-              step="0.01"
-            />
-            <select
-              value={newBudget.type}
-              onChange={(e) => setNewBudget({ ...newBudget, type: e.target.value })}
-              className={`w-full bg-white/50 border border-gray-200 rounded-lg p-0.5 sm:p-1 text-[10px] sm:text-xs focus:ring-1 focus:ring-indigo-500 focus:outline-none transition-all shadow-sm`}
-            >
-              <option value="expense">Expense</option>
-              <option value="income">Income</option>
-            </select>
-            <select
-              value={newBudget.period}
-              onChange={(e) => setNewBudget({ ...newBudget, period: e.target.value })}
-              className={`w-full bg-white/50 border border-gray-200 rounded-lg p-0.5 sm:p-1 text-[10px] sm:text-xs focus:ring-1 focus:ring-indigo-500 focus:outline-none transition-all shadow-sm`}
-            >
-              <option value="Weekly">Weekly</option>
-              <option value="Monthly">Monthly</option>
-              <option value="Quarterly">Quarterly</option>
-              <option value="Yearly">Yearly</option>
-            </select>
-            <motion.button
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              onClick={handleAddBudget}
-              className="w-full bg-gradient-to-r from-indigo-600 to-blue-600 text-white p-0.5 sm:p-1 rounded-lg font-medium hover:bg-indigo-700 transition-all shadow-sm text-[10px] sm:text-sm"
-            >
-              Save Budget
-            </motion.button>
           </div>
         </motion.div>
       </motion.div>
     )}
   </AnimatePresence>
 );
-
 const BudgetView = () => {
   const [budgets, setBudgets] = useState([]);
   const [isModalOpen, setIsModalOpen] = useState(false);

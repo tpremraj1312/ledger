@@ -178,19 +178,69 @@ const AIAnalysisPage = () => {
 
   if (isLoading) {
     return (
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        className="flex flex-col justify-center items-center py-20 bg-gradient-to-br from-indigo-50 to-indigo-100 min-h-screen"
-      >
-        <div className="w-16 h-16 relative">
-          <div className="absolute inset-0 rounded-full border-t-4 border-indigo-500 animate-spin"></div>
-          <div className="absolute inset-3 rounded-full bg-white"></div>
-          <Loader2 size={32} className="absolute inset-0 m-auto text-ledger-primary" />
+      <div className="bg-gradient-to-br from-indigo-50 via-purple-50 to-blue-50 min-h-screen pb-12">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8 animate-pulse">
+          {/* Header Skeleton */}
+          <div className="mb-8">
+            <div className="flex flex-wrap justify-between items-center">
+              <div className="space-y-3 mb-4 md:mb-0">
+                <div className="h-8 w-64 bg-gray-200 rounded" />
+                <div className="h-4 w-80 bg-gray-200 rounded" />
+                <div className="h-10 w-44 bg-gray-200 rounded-xl mt-2" />
+              </div>
+              <div className="flex gap-3">
+                <div className="h-9 w-40 bg-white rounded-lg border border-gray-100" />
+                <div className="h-9 w-24 bg-white rounded-lg border border-gray-100" />
+              </div>
+            </div>
+          </div>
+          {/* Analysis Cards Skeleton */}
+          {Array.from({ length: 2 }).map((_, i) => (
+            <div key={i} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+              <div className="p-6 sm:p-8">
+                <div className="flex items-center mb-4">
+                  <div className="w-10 h-10 bg-gray-200 rounded-lg mr-3" />
+                  <div className="h-5 w-40 bg-gray-200 rounded" />
+                </div>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                  <div className="relative overflow-hidden bg-gray-50 p-6 rounded-xl space-y-3">
+                    <div className="h-3 w-full bg-gray-200 rounded" />
+                    <div className="h-3 w-5/6 bg-gray-200 rounded" />
+                    <div className="h-3 w-4/6 bg-gray-200 rounded" />
+                    <div className="h-3 w-3/4 bg-gray-200 rounded" />
+                    <div className="absolute inset-0 bg-shimmer animate-shimmer" />
+                  </div>
+                  <div className="relative overflow-hidden bg-gray-50 p-6 rounded-xl" style={{ height: 250 }}>
+                    <div className="h-4 w-32 bg-gray-200 rounded mb-4" />
+                    <div className="flex items-center justify-center h-44">
+                      <div className="w-40 h-40 bg-gray-200 rounded-full" />
+                    </div>
+                    <div className="absolute inset-0 bg-shimmer animate-shimmer" />
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))}
+          {/* Recommendations Skeleton */}
+          <div className="relative overflow-hidden bg-white rounded-2xl shadow-sm border border-gray-100 p-6 sm:p-8">
+            <div className="flex items-center mb-4">
+              <div className="w-10 h-10 bg-gray-200 rounded-lg mr-3" />
+              <div className="h-5 w-48 bg-gray-200 rounded" />
+            </div>
+            <div className="space-y-3 mb-6">
+              <div className="h-3 w-full bg-gray-200 rounded" />
+              <div className="h-3 w-5/6 bg-gray-200 rounded" />
+              <div className="h-3 w-2/3 bg-gray-200 rounded" />
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {Array.from({ length: 3 }).map((_, j) => (
+                <div key={j} className="h-14 bg-gray-100 rounded-lg" />
+              ))}
+            </div>
+            <div className="absolute inset-0 bg-shimmer animate-shimmer" />
+          </div>
         </div>
-        <p className="mt-6 text-lg text-gray-700 font-medium">Processing your financial insights...</p>
-        <p className="text-sm text-gray-500 mt-2">This may take a moment</p>
-      </motion.div>
+      </div>
     );
   }
 

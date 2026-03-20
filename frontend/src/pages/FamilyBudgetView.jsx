@@ -132,37 +132,112 @@ const FamilyBudgetView = () => {
                     <p className="text-sm">{error}</p>
                 </div>
             )}
-
             {loading ? (
-                <div className="flex items-center justify-center py-32">
-                    <Loader2 className="w-8 h-8 text-indigo-500 animate-spin" />
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-pulse">
+                    {/* Summary Sidebar Skeleton */}
+                    <div className="lg:col-span-1 space-y-6">
+                        <div className="relative overflow-hidden bg-white rounded-2xl p-8 border border-gray-100 shadow-sm">
+                            <div className="space-y-4">
+                                <div className="h-2.5 w-20 bg-gray-200 rounded" />
+                                <div className="h-7 w-32 bg-gray-200 rounded" />
+                                <div className="flex justify-between mt-6">
+                                    <div className="space-y-1.5">
+                                        <div className="h-2 w-10 bg-gray-200 rounded" />
+                                        <div className="h-4 w-20 bg-gray-200 rounded" />
+                                    </div>
+                                    <div className="space-y-1.5 text-right">
+                                        <div className="h-2 w-10 bg-gray-200 rounded ml-auto" />
+                                        <div className="h-4 w-12 bg-gray-200 rounded ml-auto" />
+                                    </div>
+                                </div>
+                                <div className="h-2 w-full bg-gray-200 rounded-full" />
+                            </div>
+                            <div className="absolute inset-0 bg-shimmer animate-shimmer" />
+                        </div>
+                        <div className="relative overflow-hidden bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
+                            <h3 className="text-sm font-semibold text-gray-900 mb-5 flex items-center gap-2">
+                                <Target size={16} className="text-indigo-500" />
+                                Member Spending
+                            </h3>
+                            <div className="h-4 w-32 bg-gray-200 rounded mb-5" />
+                            {Array.from({ length: 3 }).map((_, i) => (
+                                <div key={i} className="flex items-center gap-3 mb-4">
+                                    <div className="w-8 h-8 bg-gray-200 rounded-lg" />
+                                    <div className="flex-1 space-y-1.5">
+                                        <div className="flex justify-between">
+                                            <div className="h-3 w-16 bg-gray-200 rounded" />
+                                            <div className="h-3 w-20 bg-gray-200 rounded" />
+                                        </div>
+                                        <div className="h-1.5 w-full bg-gray-200 rounded-full" />
+                                    </div>
+                                </div>
+                            ))}
+                            <div className="absolute inset-0 bg-shimmer animate-shimmer" />
+                        </div>
+                    </div>
+                    {/* Categories Area Skeleton */}
+                    <div className="lg:col-span-2">
+                        <div className="relative overflow-hidden bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+                            <div className="flex items-center justify-between mb-6">
+                                <div className="h-4 w-32 bg-gray-200 rounded" />
+                                <div className="flex gap-2">
+                                    <div className="h-8 w-28 bg-gray-200 rounded-lg" />
+                                    <div className="h-8 w-28 bg-gray-200 rounded-lg" />
+                                </div>
+                            </div>
+                            <div className="space-y-4">
+                                {Array.from({ length: 4 }).map((_, i) => (
+                                    <div key={i} className="relative overflow-hidden p-5 bg-gray-50/50 border border-gray-100 rounded-xl">
+                                        <div className="flex items-center justify-between mb-3">
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-10 h-10 bg-gray-200 rounded-lg" />
+                                                <div className="space-y-1.5">
+                                                    <div className="h-3.5 w-24 bg-gray-200 rounded" />
+                                                    <div className="h-2.5 w-20 bg-gray-200 rounded" />
+                                                </div>
+                                            </div>
+                                            <div className="h-8 w-24 bg-gray-200 rounded-lg" />
+                                        </div>
+                                        <div className="space-y-1.5">
+                                            <div className="flex justify-between">
+                                                <div className="h-2.5 w-12 bg-gray-200 rounded" />
+                                                <div className="h-2.5 w-10 bg-gray-200 rounded" />
+                                            </div>
+                                            <div className="h-2 w-full bg-gray-200 rounded-full" />
+                                        </div>
+                                        <div className="absolute inset-0 bg-shimmer animate-shimmer" />
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
                 </div>
             ) : (
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                     {/* Summary Sidebar */}
                     <div className="lg:col-span-1 space-y-6">
-                        {/* Budget Summary Card */}
-                        <div className="bg-gray-900 rounded-2xl p-8 text-white shadow-lg">
+                        {/* Budget Summary Card — Light Theme */}
+                        <div className="bg-white rounded-2xl p-8 border border-gray-100 shadow-sm">
                             <p className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-3">Total Budget</p>
-                            <h2 className="text-2xl font-semibold mb-1">{formatCurrency(totalAllocated)}</h2>
+                            <h2 className="text-2xl font-semibold text-gray-900 mb-1">{formatCurrency(totalAllocated)}</h2>
                             <div className="flex justify-between items-center mt-6 text-sm">
                                 <div>
                                     <p className="text-xs text-gray-400 mb-0.5">Spent</p>
-                                    <p className="font-semibold">{formatCurrency(totalSpent)}</p>
+                                    <p className="font-semibold text-gray-900">{formatCurrency(totalSpent)}</p>
                                 </div>
                                 <div className="text-right">
                                     <p className="text-xs text-gray-400 mb-0.5">Usage</p>
-                                    <p className={`font-semibold ${totalSpent > totalAllocated ? 'text-red-400' : 'text-emerald-400'}`}>
+                                    <p className={`font-semibold ${totalSpent > totalAllocated ? 'text-red-500' : 'text-emerald-600'}`}>
                                         {totalAllocated > 0 ? ((totalSpent / totalAllocated) * 100).toFixed(1) : 0}%
                                     </p>
                                 </div>
                             </div>
-                            <div className="w-full h-2 bg-white/10 rounded-full overflow-hidden mt-4">
+                            <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden mt-4">
                                 <motion.div
                                     initial={{ width: 0 }}
                                     animate={{ width: `${Math.min((totalSpent / (totalAllocated || 1)) * 100, 100)}%` }}
                                     transition={{ duration: 1, ease: "easeOut" }}
-                                    className={`h-full rounded-full ${totalSpent > totalAllocated ? 'bg-red-500' : 'bg-ledger-primary-light0'}`}
+                                    className={`h-full rounded-full ${totalSpent > totalAllocated ? 'bg-red-500' : 'bg-indigo-500'}`}
                                 />
                             </div>
                         </div>
@@ -218,7 +293,7 @@ const FamilyBudgetView = () => {
                                         </button>
                                         <button
                                             onClick={() => setAddingCat(true)}
-                                            className="flex items-center gap-2 px-4 py-2 bg-ledger-primary hover:bg-ledger-primary-hover text-white rounded-lg text-xs font-medium transition-all"
+                                            className="flex items-center gap-2 px-4 py-2 bg-gray-50 hover:bg-gray-100 text-gray-600 border border-gray-200 rounded-lg text-xs font-medium transition-all disabled:opacity-50"
                                         >
                                             <Plus size={14} />
                                             Add Category
@@ -234,21 +309,21 @@ const FamilyBudgetView = () => {
                                             initial={{ opacity: 0, y: -10 }}
                                             animate={{ opacity: 1, y: 0 }}
                                             exit={{ opacity: 0, y: -10 }}
-                                            className="p-4 bg-ledger-primary-light rounded-xl border border-blue-100 flex flex-wrap gap-3 items-end"
+                                            className="p-4 bg-indigo-50 rounded-xl border border-indigo-100 flex flex-wrap gap-3 items-end"
                                         >
                                             <div className="flex-1 min-w-[200px]">
-                                                <label className="text-xs font-medium text-ledger-primary mb-1.5 block">Category Name</label>
+                                                <label className="text-xs font-medium text-indigo-600 mb-1.5 block">Category Name</label>
                                                 <input type="text" value={newCat.name} onChange={e => setNewCat({ ...newCat, name: e.target.value })}
-                                                    className="w-full bg-white border border-blue-200 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-indigo-200 outline-none" placeholder="e.g., Groceries" />
+                                                    className="w-full bg-white border border-indigo-200 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-indigo-200 outline-none" placeholder="e.g., Groceries" />
                                             </div>
                                             <div className="w-40">
-                                                <label className="text-xs font-medium text-ledger-primary mb-1.5 block">Amount (₹)</label>
+                                                <label className="text-xs font-medium text-indigo-600 mb-1.5 block">Amount (₹)</label>
                                                 <input type="number" value={newCat.allocatedAmount} onChange={e => setNewCat({ ...newCat, allocatedAmount: e.target.value })}
-                                                    className="w-full bg-white border border-blue-200 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-indigo-200 outline-none" placeholder="0.00" />
+                                                    className="w-full bg-white border border-indigo-200 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-indigo-200 outline-none" placeholder="0.00" />
                                             </div>
                                             <div className="flex gap-2">
-                                                <button onClick={addCategory} className="p-2.5 bg-ledger-primary text-white rounded-lg hover:bg-ledger-primary-hover transition-all"><CheckCircle2 size={18} /></button>
-                                                <button onClick={() => setAddingCat(false)} className="p-2.5 bg-white text-gray-400 border border-blue-200 rounded-lg hover:text-red-500 transition-all"><X size={18} /></button>
+                                                <button onClick={addCategory} className="p-2.5 bg-white text-gray-400 border border-indigo-200 rounded-lg hover:text-emerald-500 transition-all"><CheckCircle2 size={18} /></button>
+                                                <button onClick={() => setAddingCat(false)} className="p-2.5 bg-white text-gray-400 border border-indigo-200 rounded-lg hover:text-red-500 transition-all"><X size={18} /></button>
                                             </div>
                                         </motion.div>
                                     )}
@@ -277,7 +352,7 @@ const FamilyBudgetView = () => {
                                                 >
                                                     <div className="flex items-center justify-between mb-3">
                                                         <div className="flex items-center gap-3">
-                                                            <div className="w-10 h-10 rounded-lg bg-ledger-primary-light flex items-center justify-center text-sm font-bold text-indigo-500">
+                                                            <div className="w-10 h-10 rounded-lg bg-indigo-50 flex items-center justify-center text-sm font-bold text-indigo-500">
                                                                 {cat.name.charAt(0).toUpperCase()}
                                                             </div>
                                                             <div>
@@ -336,7 +411,7 @@ const FamilyBudgetView = () => {
                                     <button
                                         onClick={handleSave}
                                         disabled={saving}
-                                        className="px-8 py-3 bg-gray-900 hover:bg-black text-white rounded-xl text-sm font-medium transition-all disabled:opacity-50 flex items-center gap-2"
+                                        className="px-8 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-medium transition-all disabled:opacity-50 flex items-center gap-2"
                                     >
                                         {saving ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />}
                                         {saving ? 'Saving...' : 'Save Budget'}
