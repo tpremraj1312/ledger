@@ -15,7 +15,7 @@ import {
     Loader2, AlertTriangle, Shield, TrendingUp, ChevronDown, ChevronUp,
     Sparkles, ArrowRight, Info, CheckCircle2, Target, Zap, Clock, AlertCircle,
     DollarSign, PiggyBank, BarChart3, ArrowUpRight, ArrowDownRight,
-    Lightbulb, Heart, GraduationCap, Home, Calculator,
+    Lightbulb, Heart, GraduationCap, Home, Calculator, Play, X
 } from 'lucide-react';
 
 const formatCurrency = (amount) => {
@@ -104,7 +104,7 @@ const UtilizationBar = ({ section, claimed, limit, percentage }) => (
 );
 
 // ── Recommendation Card ──
-const RecommendationCard = ({ rec, index, onInvestNow }) => {
+const RecommendationCard = ({ rec, index, onInvestNow, onSimulate }) => {
     const [expanded, setExpanded] = useState(false);
     const risk = RISK_COLORS[rec.riskLevel] || RISK_COLORS['N/A'];
     const priority = PRIORITY_STYLES[rec.priority] || PRIORITY_STYLES['medium'];
@@ -133,7 +133,7 @@ const RecommendationCard = ({ rec, index, onInvestNow }) => {
                                 {rec.riskLevel}
                             </span>
                             <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">
-                                {rec.section}
+                                {rec.sectionKey || rec.section}
                             </span>
                         </div>
                         <h4 className="text-sm font-bold text-gray-900 mt-2">{rec.instrument}</h4>
@@ -168,7 +168,7 @@ const RecommendationCard = ({ rec, index, onInvestNow }) => {
                             <div className="bg-gradient-to-r from-teal-50/80 to-emerald-50/80 rounded-xl p-3 mb-3 border border-teal-100">
                                 <div className="flex items-start gap-2">
                                     <Info size={14} className="text-teal-600 mt-0.5 flex-shrink-0" />
-                                    <p className="text-xs text-teal-800 leading-relaxed font-medium">{rec.why}</p>
+                                    <p className="text-xs text-teal-800 leading-relaxed font-medium">{rec.actionDetails?.why || rec.why}</p>
                                 </div>
                             </div>
 
@@ -185,30 +185,38 @@ const RecommendationCard = ({ rec, index, onInvestNow }) => {
                                         <TrendingUp size={12} className="text-gray-400" />
                                         <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Returns</p>
                                     </div>
-                                    <p className="text-xs font-bold text-gray-800">{rec.expectedReturn}</p>
+                                    <p className="text-xs font-bold text-gray-800">{rec.meta?.expectedReturn || rec.expectedReturn}</p>
                                 </div>
                                 <div className="bg-gray-50 rounded-xl p-3 col-span-2 sm:col-span-1">
                                     <div className="flex items-center gap-1.5 mb-1">
                                         <Target size={12} className="text-gray-400" />
                                         <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Max Invest</p>
                                     </div>
-                                    <p className="text-xs font-bold text-gray-800">{formatCurrency(rec.maxInvestable)}</p>
+                                    <p className="text-xs font-bold text-gray-800">{formatCurrency(rec.actionDetails?.maxInvestable || rec.maxInvestable)}</p>
                                 </div>
                             </div>
 
                             <div className="bg-blue-50/70 rounded-xl p-3 mb-4 border border-blue-100">
                                 <p className="text-[10px] font-bold text-blue-600 uppercase tracking-wider mb-1">Wealth Impact</p>
-                                <p className="text-xs text-blue-800 leading-relaxed">{rec.wealthImpact}</p>
+                                <p className="text-xs text-blue-800 leading-relaxed">{rec.meta?.wealthImpact || rec.wealthImpact}</p>
                             </div>
 
-                            <button
-                                onClick={(e) => { e.stopPropagation(); onInvestNow(); }}
-                                className="w-full bg-gradient-to-r from-emerald-500 to-teal-600 text-white py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider hover:from-emerald-600 hover:to-teal-700 transition-all shadow-sm hover:shadow-md active:scale-[0.98] flex items-center justify-center gap-2"
-                            >
-                                <TrendingUp size={14} />
-                                Invest Now
-                                <ArrowRight size={14} />
-                            </button>
+                            <div className="flex gap-2">
+                                <button
+                                    onClick={(e) => { e.stopPropagation(); onSimulate(rec); }}
+                                    className="flex-1 bg-white border-2 border-slate-200 text-slate-700 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider hover:border-slate-300 hover:bg-slate-50 transition-all active:scale-[0.98] flex items-center justify-center gap-2"
+                                >
+                                    <Play size={14} className="text-indigo-500" />
+                                    Simulate Scenario
+                                </button>
+                                <button
+                                    onClick={(e) => { e.stopPropagation(); onInvestNow(); }}
+                                    className="flex-1 bg-gradient-to-r from-emerald-500 to-teal-600 text-white py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider hover:from-emerald-600 hover:to-teal-700 transition-all shadow-sm hover:shadow-md active:scale-[0.98] flex items-center justify-center gap-2"
+                                >
+                                    <TrendingUp size={14} />
+                                    Invest Now
+                                </button>
+                            </div>
                         </div>
                     </motion.div>
                 )}
@@ -254,6 +262,139 @@ const ActionItemCard = ({ item, index }) => {
 };
 
 
+// ── Simulator Modal Component ──
+const SimulatorModal = ({ isOpen, onClose, rec, baseTax }) => {
+    const [sliderValue, setSliderValue] = useState(0);
+    const [simResult, setSimResult] = useState(null);
+    const [isSimulating, setIsSimulating] = useState(false);
+
+    useEffect(() => {
+        if (!isOpen) {
+            setSliderValue(0);
+            setSimResult(null);
+        }
+    }, [isOpen]);
+
+    const handleSimulation = async (val) => {
+        if (!rec) return;
+        setIsSimulating(true);
+        try {
+            const sectionKey = rec.sectionKey || rec.section;
+            const res = await api.post('/api/tax/simulate', {
+                additionalInvestments: { [sectionKey]: val }
+            });
+            setSimResult(res.data);
+        } catch (err) {
+            console.error('Simulation error:', err);
+        } finally {
+            setIsSimulating(false);
+        }
+    };
+
+    // Debounce slider updates for API calls
+    useEffect(() => {
+        if (sliderValue > 0) {
+            const timeoutId = setTimeout(() => {
+                handleSimulation(sliderValue);
+            }, 300);
+            return () => clearTimeout(timeoutId);
+        } else {
+            setSimResult(null);
+        }
+    }, [sliderValue, rec]);
+
+    if (!isOpen || !rec) return null;
+
+    const maxLimit = rec.actionDetails?.maxInvestable || rec.maxInvestable || 150000;
+    const currentTax = baseTax;
+    const newTax = simResult ? simResult.simulatedTax : currentTax;
+    const taxSaved = simResult ? simResult.netTaxSaved : 0;
+
+    return (
+        <AnimatePresence>
+            <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
+            >
+                <motion.div
+                    initial={{ scale: 0.95, y: 20 }}
+                    animate={{ scale: 1, y: 0 }}
+                    exit={{ scale: 0.95, y: 20 }}
+                    className="bg-white rounded-3xl w-full max-w-md overflow-hidden shadow-2xl"
+                >
+                    <div className="bg-gradient-to-br from-indigo-600 to-purple-700 p-6 text-white relative">
+                        <button onClick={onClose} className="absolute top-4 right-4 bg-white/20 p-1.5 rounded-full hover:bg-white/30 transition">
+                            <X size={16} />
+                        </button>
+                        <div className="flex items-center gap-2 mb-2">
+                            <Sparkles size={18} className="text-purple-300" />
+                            <h3 className="text-lg font-black tracking-wide">Tax Simulator</h3>
+                        </div>
+                        <p className="text-sm font-medium text-white/80">{rec.instrument}</p>
+                    </div>
+
+                    <div className="p-6">
+                        <div className="mb-8">
+                            <div className="flex justify-between items-center mb-4">
+                                <label className="text-sm font-bold text-gray-700">Hypothetical Investment</label>
+                                <span className="text-lg font-black text-indigo-600">{formatCurrency(sliderValue)}</span>
+                            </div>
+                            <input
+                                type="range"
+                                min="0"
+                                max={maxLimit}
+                                step="1000"
+                                value={sliderValue}
+                                onChange={(e) => setSliderValue(Number(e.target.value))}
+                                className="w-full h-3 bg-indigo-100 rounded-lg appearance-none cursor-pointer accent-indigo-600"
+                            />
+                            <div className="flex justify-between items-center mt-2 text-xs font-semibold text-gray-400">
+                                <span>₹0</span>
+                                <span>Max: {formatCurrency(maxLimit)}</span>
+                            </div>
+                        </div>
+
+                        <div className="bg-gray-50 border border-gray-100 rounded-2xl p-5 mb-6 relative overflow-hidden">
+                            {isSimulating && (
+                                <div className="absolute inset-0 bg-white/50 backdrop-blur-sm flex items-center justify-center z-10">
+                                    <Loader2 className="w-6 h-6 text-indigo-500 animate-spin" />
+                                </div>
+                            )}
+                            <div className="flex justify-between items-center mb-4 pb-4 border-b border-gray-200">
+                                <div>
+                                    <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1">Current Tax</p>
+                                    <p className="text-lg font-bold text-gray-900">{formatCurrency(currentTax)}</p>
+                                </div>
+                                <ArrowRight size={16} className="text-gray-300" />
+                                <div className="text-right">
+                                    <p className="text-[10px] font-bold uppercase tracking-wider text-indigo-500 mb-1">New Tax</p>
+                                    <p className="text-lg font-black text-indigo-600">{formatCurrency(newTax)}</p>
+                                </div>
+                            </div>
+                            <div className="bg-emerald-50 text-emerald-700 py-3 px-4 rounded-xl flex items-center justify-between border border-emerald-100">
+                                <span className="text-sm font-bold flex items-center gap-2">
+                                    <TrendingUp size={16} /> Net Tax Saved
+                                </span>
+                                <span className="text-xl font-black">{formatCurrency(taxSaved)}</span>
+                            </div>
+                        </div>
+
+                        <button
+                            onClick={onClose}
+                            className="w-full bg-gray-900 text-white font-bold tracking-wide uppercase text-sm py-3.5 rounded-xl hover:bg-gray-800 transition active:scale-[0.98]"
+                        >
+                            Done
+                        </button>
+                    </div>
+                </motion.div>
+            </motion.div>
+        </AnimatePresence>
+    );
+};
+
+
 // ══════════════════════════════════════════════════════════════
 // ── MAIN COMPONENT ──
 // ══════════════════════════════════════════════════════════════
@@ -261,6 +402,8 @@ const TaxAdvisorView = ({ setActiveTab }) => {
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true); // Start loading immediately
     const [error, setError] = useState('');
+    const [activeSimRec, setActiveSimRec] = useState(null);
+    const [isSimOpen, setIsSimOpen] = useState(false);
 
     // Auto-fetch on mount
     const fetchFullAnalysis = useCallback(async () => {
@@ -927,6 +1070,10 @@ const TaxAdvisorView = ({ setActiveTab }) => {
                                 rec={rec}
                                 index={i}
                                 onInvestNow={() => setActiveTab('investments')}
+                                onSimulate={(rec) => {
+                                    setActiveSimRec(rec);
+                                    setIsSimOpen(true);
+                                }}
                             />
                         ))}
                     </div>
@@ -955,6 +1102,13 @@ const TaxAdvisorView = ({ setActiveTab }) => {
                     Chartered Accountant for accurate tax filing. Tax rules are subject to change.
                 </p>
             </motion.div>
+
+            <SimulatorModal 
+                isOpen={isSimOpen} 
+                onClose={() => setIsSimOpen(false)} 
+                rec={activeSimRec} 
+                baseTax={data ? Math.min(data.taxLiability?.oldRegime?.total || 0, data.taxLiability?.newRegime?.total || 0) : 0} 
+            />
         </div>
     );
 };

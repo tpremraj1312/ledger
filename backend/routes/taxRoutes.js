@@ -160,4 +160,42 @@ router.post('/projection', async (req, res) => {
     }
 });
 
+/**
+ * POST /simulate
+ * Body: { additionalInvestments: { '80C': 50000 } }
+ * Returns simulated tax savings entirely in-memory.
+ */
+router.post('/simulate', async (req, res) => {
+    try {
+        const userId = req.user._id || req.user.userId;
+        const { additionalInvestments } = req.body;
+
+        if (!additionalInvestments) {
+            return res.status(400).json({ message: 'additionalInvestments object is required' });
+        }
+
+        const { computeUserTaxProfile, simulateTaxProfile } = await import('../services/taxEngine/computationEngine.js');
+        const baseProfile = await computeUserTaxProfile(userId);
+        const simProfile = simulateTaxProfile(baseProfile, additionalInvestments);
+
+        // Calculate Net Benefit
+        const baseBestTax = Math.min(baseProfile.oldTotalTax, baseProfile.newTotalTax);
+        const simBestTax = Math.min(simProfile.oldTotalTax, simProfile.newTotalTax);
+        const netTaxSaved = Math.max(0, baseBestTax - simBestTax);
+
+        res.json({
+            originalTax: baseBestTax,
+            simulatedTax: simBestTax,
+            netTaxSaved,
+            details: {
+                baseProfile: { oldRegime: baseProfile.oldTotalTax, newRegime: baseProfile.newTotalTax },
+                simProfile: { oldRegime: simProfile.oldTotalTax, newRegime: simProfile.newTotalTax },
+            }
+        });
+    } catch (error) {
+        console.error('Tax Simulation Error:', error);
+        res.status(500).json({ message: error.message || 'Failed to compute tax simulation' });
+    }
+});
+
 export default router;
