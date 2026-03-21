@@ -19,9 +19,17 @@ import cors from "cors";
 import mongoose from "mongoose";
 import session from "express-session";
 import passport from "passport";
+import helmet from "helmet";
+import rateLimit from "express-rate-limit";
+import mongoSanitize from "express-mongo-sanitize";
+import xss from "xss-clean";
+import cookieParser from "cookie-parser";
+import morgan from "morgan";
+
 import { configurePassport } from "./utils/passwordConfig.js";
 import authRoutes from "./routes/authRoutes.js";
 import authMiddleware from "./middleware/authMiddleware.js";
+import logger from "./utils/logger.js";
 
 // Import API routes
 import transactionRoutes from "./routes/transactionRoutes.js";
@@ -51,9 +59,28 @@ configurePassport();
 
 const app = express();
 
+// 1. HTTP Security Headers
+app.use(helmet());
+
+// 2. Request Logging
+app.use(morgan('combined', { stream: { write: message => logger.info(message.trim()) } }));
+
+// 3. Cookie Parser
+app.use(cookieParser());
+
+// 4. Rate Limiting (Global)
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // Limit each IP to 100 requests per window
+  message: 'Too many requests from this IP, please try again later.',
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+app.use('/api', limiter);
+
 // CORS configuration
 app.use(cors({
-  origin: process.env.FRONTEND_URL,
+  origin: [process.env.FRONTEND_URL, process.env.FRONTEND_URL_APP],
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
   credentials: true
 }));
@@ -61,6 +88,12 @@ app.use(cors({
 // Middleware
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true, limit: '1mb' }));
+
+// 5. Data Sanitization against NoSQL query injection
+app.use(mongoSanitize());
+
+// 6. Data Sanitization against XSS
+app.use(xss());
 app.use(
   session({
     secret: process.env.JWT_SECRET || "your-session-secret",
@@ -108,9 +141,10 @@ app.get("/", (req, res) => {
 
 // Error handling middleware
 app.use((err, req, res, next) => {
-  console.error("Unhandled Error:", err);
+  logger.error(`${err.status || 500} - ${err.message} - ${req.originalUrl} - ${req.method} - ${req.ip}`);
+  
   let statusCode = 500;
-  let message = 'Something went wrong on the server!';
+  let message = process.env.NODE_ENV === 'production' ? 'Internal Server Error' : err.message;
 
   if (err.name === 'ValidationError') {
     statusCode = 400;
@@ -125,12 +159,12 @@ app.use((err, req, res, next) => {
       const keys = Object.keys(err.keyValue);
       message = `An entry with this ${keys.join(', ')} already exists.`;
     }
-  } else if (err.message.includes("Unknown authentication strategy")) {
+  } else if (err.message && err.message.includes("Unknown authentication strategy")) {
     statusCode = 500;
     message = "Authentication strategy not configured properly";
   }
 
-  res.status(statusCode).json({ message: message, error: err.message });
+  res.status(statusCode).json({ message: message, error: process.env.NODE_ENV === 'production' ? null : err.message });
 });
 
 // Connect to MongoDB

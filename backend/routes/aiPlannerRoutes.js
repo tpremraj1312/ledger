@@ -7,6 +7,23 @@ import { generateAIAnalysis, generateInvestmentPlan } from '../services/aiInvest
 import { getSnapshot } from '../services/portfolioEngine.js';
 import { getFinancialContext } from '../services/financialService.js';
 import { getInvestmentRecommendations } from '../utils/investmentHelper.js';
+import rateLimit from 'express-rate-limit';
+import { validateRequest } from '../middleware/validate.js';
+import Joi from 'joi';
+
+const aiRateLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 10, // 10 AI queries per hour per user
+  message: 'AI limit reached. Please wait an hour.'
+});
+
+const AIQuerySchema = Joi.object({
+  query: Joi.string().max(1000).optional(),
+  amount: Joi.number().optional(),
+  riskLevel: Joi.string().optional(),
+  investmentType: Joi.string().optional(),
+  durationYears: Joi.number().optional()
+}).unknown(true);
 
 const router = express.Router();
 
@@ -14,7 +31,7 @@ const router = express.Router();
  * POST /api/investments/ai/analyze
  * Full AI analysis with hash-based caching
  */
-router.post('/analyze', async (req, res) => {
+router.post('/analyze', aiRateLimiter, validateRequest(AIQuerySchema), async (req, res) => {
     try {
         const portfolio = await getSnapshot(req.user._id);
 
@@ -37,7 +54,7 @@ router.post('/analyze', async (req, res) => {
  * POST /api/investments/ai/planner
  * Simple deterministic investment planner (no AI calls)
  */
-router.post('/planner', async (req, res) => {
+router.post('/planner', aiRateLimiter, validateRequest(AIQuerySchema), async (req, res) => {
     try {
         const { income, expenses, age, riskPreference, investmentAmount } = req.body;
         if (!income && !expenses) {
@@ -54,7 +71,7 @@ router.post('/planner', async (req, res) => {
 /**
  * POST /api/investments/ai/recommend (legacy preserved)
  */
-router.post('/recommend', async (req, res) => {
+router.post('/recommend', aiRateLimiter, validateRequest(AIQuerySchema), async (req, res) => {
     const { amount, riskLevel, investmentType, durationYears } = req.body;
     if (!amount || !riskLevel || !investmentType || !durationYears) {
         return res.status(400).json({ message: 'All fields are required.' });

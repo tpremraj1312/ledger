@@ -3,6 +3,7 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import User from "../models/user.js";
 import authMiddleware from "../middleware/authMiddleware.js";
+import { authLimiter } from "../middleware/authRateLimiter.js";
 import passport from "passport";
 import GoogleStrategy from "passport-google-oauth20";
 import nodemailer from "nodemailer";
@@ -125,7 +126,7 @@ router.get(
 );
 
 // --- Forgot Password Route ---
-router.post("/forgot-password", async (req, res) => {
+router.post("/forgot-password", authLimiter, async (req, res) => {
   const { email } = req.body;
 
   try {
@@ -248,7 +249,7 @@ router.post("/signup", async (req, res) => {
 });
 
 // --- Login Route ---
-router.post("/login", async (req, res) => {
+router.post("/login", authLimiter, async (req, res) => {
   const { email, password } = req.body;
 
   try {
@@ -269,8 +270,21 @@ router.post("/login", async (req, res) => {
     const token = jwt.sign(
       { userId: existingUser._id },
       process.env.JWT_SECRET,
-      { expiresIn: "1h" }
+      { expiresIn: "15m" } // Short expiry
     );
+
+    const refreshToken = jwt.sign(
+      { userId: existingUser._id },
+      process.env.JWT_SECRET + "_refresh", // In production should have distinct env var
+      { expiresIn: "7d" }
+    );
+
+    res.cookie('refreshToken', refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+    });
 
     res.status(200).json({
       token,

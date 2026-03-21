@@ -15,6 +15,11 @@ const userSchema = new mongoose.Schema({
     trim: true,
     match: [/\S+@\S+\.\S+/, 'Please use a valid email address'],
   },
+  role: {
+    type: String,
+    enum: ['user', 'admin', 'family-admin'],
+    default: 'user'
+  },
   profile: {
     fullName: String,
     phoneNumber: String,
@@ -76,7 +81,14 @@ const userSchema = new mongoose.Schema({
   password: {
     type: String,
     required: [true, 'Password is required'],
-    minlength: [6, 'Password must be at least 6 characters long'],
+    minlength: [8, 'Password must be at least 8 characters long'],
+    validate: {
+      validator: function(v) {
+        // Enforce at least one number, one uppercase, one lowercase and one special character
+        return /^(?=.*\d)(?=.*[a-z])(?=.*[A-Z])(?=.*[^a-zA-Z0-9]).{8,}$/.test(v);
+      },
+      message: props => `Password does not meet complexity requirements! It needs an uppercase, lowercase, number, and special character.`
+    }
   },
   currentFamilyId: {
     type: mongoose.Schema.Types.ObjectId,
