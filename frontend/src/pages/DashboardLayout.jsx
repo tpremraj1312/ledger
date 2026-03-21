@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
 import {
-  FileText, Loader2, X as IconX, AlertTriangle, Trophy, Home, Gauge, Banknote, TrendingUp, Wallet, Settings, PieChart, BarChart3, Scan, Plus, BarChart2, PlusCircle, Brain, Bell, LogOut, Users, DollarSign, Menu, Shield, Bot
+  FileText, Loader2, X as IconX, AlertTriangle, Trophy, Home, Gauge, Banknote, TrendingUp, Wallet, Settings, PieChart, BarChart3, Scan, Plus, BarChart2, PlusCircle, Brain, Bell, LogOut, Users, DollarSign, Menu, Shield, Bot, Star
 } from 'lucide-react';
 import { useAuth } from '../context/authContext';
 import HomeView from './HomeView';
@@ -22,6 +22,7 @@ import TaxAdvisorView from './TaxAdvisorView';
 import AgentChatView from './AgentChatView';
 import { useFamily } from '../context/FamilyContext';
 import { useFinancial } from '../context/FinancialContext';
+import { useGamificationStore } from '../store/useGamificationStore';
 import { addFamilyTransaction } from '../services/familyService';
 
 // Notification Popup Component
@@ -77,6 +78,13 @@ const DashboardLayout = () => {
   const { refreshData: refreshPersonalData } = useFinancial();
   const [activeTab, setActiveTab] = useState('home');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+  // Global Gamification State
+  const xp = useGamificationStore(state => state.xp);
+  const level = useGamificationStore(state => state.level);
+  
+  const currentLevelBaseXp = (level - 1) * 500;
+  const progress = Math.min(100, ((xp - currentLevelBaseXp) / 500) * 100);
 
   const handleLogout = () => {
     logout();
@@ -138,6 +146,27 @@ const DashboardLayout = () => {
             <h1 className="text-xl font-bold text-gray-900 tracking-tight">Ledger</h1>
           </div>
           <div className="flex items-center gap-4">
+            {/* Gamification Level Widget */}
+            <div 
+              className="hidden sm:flex items-center gap-3 bg-gradient-to-r from-indigo-50 to-purple-50 px-3 py-1.5 rounded-xl border border-indigo-100 cursor-pointer hover:shadow-sm transition"
+              onClick={() => setActiveTab('gamification')}
+              title={`${xp} / ${level * 500} XP`}
+            >
+              <div className="flex items-center gap-1.5">
+                <div className="p-1 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-lg text-white shadow-sm">
+                  <Star size={14} fill="currentColor" />
+                </div>
+                <span className="text-sm font-bold text-gray-800">Lvl {level}</span>
+              </div>
+              <div className="w-20 h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                <motion.div 
+                    className="h-full bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full"
+                    animate={{ width: `${progress}%` }}
+                    transition={{ duration: 1, ease: "easeOut" }}
+                />
+              </div>
+            </div>
+
             <button className="relative p-2 text-gray-600 hover:text-blue-600 transition-colors duration-200" onClick={() => { setActiveTab('notification') }}>
               <Bell size={20} />
               <span className="absolute top-0 right-0 w-2.5 h-2.5 bg-red-500 rounded-full border border-white animate-pulse"></span>

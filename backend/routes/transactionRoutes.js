@@ -148,25 +148,21 @@ router.post('/', authMiddleware, budgetCheckMiddleware, async (req, res) => {
       }
 
       // --- GAMIFICATION HOOKS ---
-      const { addXP, checkStreak } = await import('../services/xpService.js');
-      const { checkBadges } = await import('../services/badgeService.js');
-      const { checkChallengeProgress } = await import('../services/challengeService.js');
-      const { checkMissionProgress } = await import('../services/missionService.js');
+      const { processEvent, GAMIFICATION_EVENTS } = await import('../services/gamificationEngine.js');
+      const gamificationResults = await processEvent(userId, GAMIFICATION_EVENTS.TRANSACTION_ADDED, { transaction: newTransaction }, session);
 
-      await addXP(userId, activeGroup ? 10 : 2, activeGroup ? `family_tx_${newTransaction._id}` : `tx_${newTransaction._id}`, session);
-      await checkStreak(userId, session);
-      await checkBadges(userId, session);
-      await checkChallengeProgress(userId, newTransaction, session);
-      await checkMissionProgress(userId, newTransaction, session);
+      // --- TAX OPTIMIZATION HOOKS ---
+      const { processTaxEvent, TAX_EVENTS } = await import('../services/taxEngine/taxOptimizationEngine.js');
+      const taxResults = await processTaxEvent(userId, TAX_EVENTS.TRANSACTION_ADDED, { transaction: newTransaction }, session);
 
       // --- GOAL TRACKING HOOK ---
       const { recalculateGoalProgress } = await import('../services/goalService.js');
       await recalculateGoalProgress(userId, session);
 
-      return { newTransaction, notification };
+      return { newTransaction, notification, gamificationResults, taxResults };
     });
 
-    const { newTransaction, notification } = result;
+    const { newTransaction, notification, gamificationResults, taxResults } = result;
 
     // Log transaction creation
     console.log('New transaction created:', {
@@ -189,7 +185,8 @@ router.post('/', authMiddleware, budgetCheckMiddleware, async (req, res) => {
         transaction: notification.transaction,
         createdAt: notification.createdAt,
         read: notification.read
-      } : null
+      } : null,
+      gamificationResults
     });
 
   } catch (err) {
@@ -427,20 +424,19 @@ router.delete('/:id', authMiddleware, async (req, res) => {
 
     await transaction.deleteOne();
 
-    // --- GAMIFICATION UPDATE (On Delete) ---
+    // --- GAMIFICATION & TAX HOOKS (On Delete) ---
     try {
-      const { checkChallengeProgress } = await import('../services/challengeService.js');
-      const { checkMissionProgress } = await import('../services/missionService.js');
-      const { checkBadges } = await import('../services/badgeService.js');
-
-      // We re-check challenges/missions. 
-      // Note: Reverting XP is complex, so we skip it for now or implement later.
-      // But we should re-eval challenges (e.g. if I deleted a big expense, I might now pass a spending limit)
-      await checkChallengeProgress(req.user._id, transaction);
-      // For missions, it's tricky since they accumulate. We might leave missions as is or implement complex revert logic.
+      const { processEvent, GAMIFICATION_EVENTS } = await import('../services/gamificationEngine.js');
+      const { processTaxEvent, TAX_EVENTS } = await import('../services/taxEngine/taxOptimizationEngine.js');
+      
+      const gamificationResults = await processEvent(req.user._id, GAMIFICATION_EVENTS.TRANSACTION_DELETED, { transaction });
+      const taxResults = await processTaxEvent(req.user._id, TAX_EVENTS.TRANSACTION_DELETED, { transaction });
+      
+      return res.json({ message: 'Transaction removed', gamificationResults, taxResults });
     } catch (err) { console.error(err); }
     // ----------------------------------------
 
+    // Fallback if hooks fail
     res.json({ message: 'Transaction removed' });
   } catch (err) {
     console.error('Error deleting transaction:', err);
@@ -506,14 +502,19 @@ router.put('/:id', authMiddleware, async (req, res) => {
 
     await transaction.save();
 
-    // --- GAMIFICATION UPDATE (On Edit) ---
+    // --- GAMIFICATION & TAX HOOKS (On Edit) ---
     try {
-      const { checkChallengeProgress } = await import('../services/challengeService.js');
-      // Re-check challenges with updated transaction
-      await checkChallengeProgress(req.user._id, transaction);
+      const { processEvent, GAMIFICATION_EVENTS } = await import('../services/gamificationEngine.js');
+      const { processTaxEvent, TAX_EVENTS } = await import('../services/taxEngine/taxOptimizationEngine.js');
+      
+      const gamificationResults = await processEvent(req.user._id, GAMIFICATION_EVENTS.TRANSACTION_UPDATED, { transaction });
+      const taxResults = await processTaxEvent(req.user._id, TAX_EVENTS.TRANSACTION_UPDATED, { transaction });
+      
+      return res.json({ ...transaction.toObject(), gamificationResults, taxResults });
     } catch (err) { console.error(err); }
     // -------------------------------------
 
+    // Fallback if hooks fail
     res.json(transaction);
   } catch (err) {
     console.error('Error updating transaction:', err);

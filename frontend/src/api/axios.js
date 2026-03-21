@@ -17,8 +17,21 @@ api.interceptors.request.use(
 );
 
 // Response interceptor - handle 401 gracefully
+import { useGamificationStore } from '../store/useGamificationStore';
+import { useTaxStore } from '../store/useTaxStore.js';
+
 api.interceptors.response.use(
-    (response) => response,
+    (response) => {
+        if (response.data && response.data.gamificationResults) {
+            useGamificationStore.getState().processResults(response.data.gamificationResults);
+            window.dispatchEvent(new CustomEvent('gamification_sync_required'));
+        }
+        if (response.data && response.data.taxResults) {
+            useTaxStore.getState().processTaxResults(response.data.taxResults);
+            window.dispatchEvent(new CustomEvent('tax_sync_required'));
+        }
+        return response;
+    },
     (error) => {
         if (error.response?.status === 401) {
             // Only redirect if we're pretty sure user should be logged in

@@ -21,9 +21,12 @@ import Notification from "./pages/Notification";
 import GamificationDashboard from "./pages/GamificationDashboard";
 import JoinFamily from "./pages/JoinFamily";
 
+import GamificationToaster from "./components/Gamification/GamificationToaster";
+
 function App() {
   return (
     <AuthProvider>
+      <GamificationToaster />
       <FinancialProvider>
         <FamilyProvider>
           <Router>
