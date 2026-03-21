@@ -68,7 +68,7 @@ export const generateWeeklyMissions = async (userId) => {
                 targetAmount: m.targetAmount || 0,
                 xpReward: m.xpReward || (m.difficulty === 'hard' ? 40 : m.difficulty === 'easy' ? 15 : 25),
                 targetRule: m,
-                status: 'pending'
+                status: 'accepted'
             });
             newMissions.push(mission);
         }
@@ -90,7 +90,7 @@ export const checkMissionProgress = async (userId, transaction, session = null) 
 
         for (const mission of missions) {
             // Only update if category matches and it's a debit
-            if (mission.category && transaction.category === mission.category && transaction.type === 'debit') {
+            if (mission.category && transaction.category.toLowerCase() === mission.category.toLowerCase() && transaction.type === 'debit') {
 
                 // --- ATOMIC PROGRESS UPDATE ---
                 const updatedMission = await Mission.findOneAndUpdate(

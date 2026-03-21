@@ -13,7 +13,7 @@ const missionSchema = new mongoose.Schema({
     status: {
         type: String,
         enum: ['pending', 'accepted', 'completed', 'failed', 'rejected'],
-        default: 'pending'
+        default: 'accepted'
     },
     xpReward: { type: Number, default: 30 },
     progressAmount: { type: Number, default: 0 },

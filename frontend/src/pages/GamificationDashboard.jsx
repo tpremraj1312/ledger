@@ -15,6 +15,7 @@ import BadgeVault from '../components/Gamification/BadgeVault';
 import FinancialGoals from '../components/Gamification/FinancialGoals';
 import ActivityFeed from '../components/Gamification/ActivityFeed';
 import FinanceQuestRulebook from './FinanceQuestRulebook';
+import { useGamificationStore } from '../store/useGamificationStore';
 
 const API = import.meta.env.VITE_BACKEND_URL;
 
@@ -268,8 +269,12 @@ const GamificationDashboard = () => {
     const [loading, setLoading] = useState(true);
     const [showChallengeModal, setShowChallengeModal] = useState(false);
     const [showXPPopover, setShowXPPopover] = useState(false);
-    const [toast, setToast] = useState(null);
-    const prevDataRef = useRef(null);
+    
+    // Zustand global store for live state
+    const setProfile = useGamificationStore(state => state.setProfile);
+    const globalXp = useGamificationStore(state => state.xp);
+    const globalLevel = useGamificationStore(state => state.level);
+    const globalBadges = useGamificationStore(state => state.badges);
 
     const token = localStorage.getItem('token');
     const headers = { headers: { Authorization: `Bearer ${token}` } };
@@ -280,40 +285,27 @@ const GamificationDashboard = () => {
             const res = await axios.get(`${API}/api/gamification/dashboard`, headers);
             const newData = res.data;
 
-            // Check for achievements to toast
-            if (prevDataRef.current && newData.profile) {
-                const prevXP = prevDataRef.current.profile?.xp || 0;
-                const newXP = newData.profile?.xp || 0;
-                const prevLevel = prevDataRef.current.profile?.level || 1;
-                const newLevel = newData.profile?.level || 1;
-                const prevBadgeCount = prevDataRef.current.profile?.badges?.length || 0;
-                const newBadgeCount = newData.profile?.badges?.length || 0;
-
-                if (newLevel > prevLevel) {
-                    setToast({ message: `🎉 Level Up! You're now Level ${newLevel}!`, type: 'xp' });
-                    setTimeout(() => setToast(null), 4000);
-                } else if (newBadgeCount > prevBadgeCount) {
-                    const newestBadge = newData.profile.badges[newData.profile.badges.length - 1];
-                    setToast({ message: `${newestBadge?.icon || '🏅'} Badge Unlocked: ${newestBadge?.name || 'New Badge'}!`, type: 'badge' });
-                    setTimeout(() => setToast(null), 4000);
-                } else if (newXP > prevXP) {
-                    setToast({ message: `⚡ +${newXP - prevXP} XP earned!`, type: 'xp' });
-                    setTimeout(() => setToast(null), 3000);
-                }
+            if (newData.profile) {
+                setProfile(newData.profile);
             }
-
-            prevDataRef.current = newData;
             setData(newData);
         } catch (err) {
             console.error('Dashboard fetch error:', err);
         } finally {
             setLoading(false);
         }
-    }, []);
+    }, [setProfile]); // eslint-disable-line react-hooks/exhaustive-deps
 
     // Initial fetch
     useEffect(() => {
         fetchDashboard();
+    }, [fetchDashboard]);
+
+    // Listen for cross-app gamification events (e.g. from transaction endpoints)
+    useEffect(() => {
+        const handleSync = () => fetchDashboard(true);
+        window.addEventListener('gamification_sync_required', handleSync);
+        return () => window.removeEventListener('gamification_sync_required', handleSync);
     }, [fetchDashboard]);
 
     // Auto-refresh polling every 30 seconds
@@ -463,8 +455,16 @@ const GamificationDashboard = () => {
         );
     }
 
+    const baseProfile = data?.profile || {};
+    // Override local profile with live global state from Zustand
+    const profile = { 
+        ...baseProfile, 
+        xp: globalXp > 0 ? globalXp : baseProfile.xp, 
+        level: globalLevel > 1 ? globalLevel : baseProfile.level, 
+        badges: globalBadges && globalBadges.length > 0 ? globalBadges : baseProfile.badges 
+    };
+
     const {
-        profile,
         missions = [],
         activeChallenges = [],
         completedChallenges = [],
@@ -638,16 +638,7 @@ const GamificationDashboard = () => {
                     )}
                 </AnimatePresence>
 
-                {/* Achievement Toast */}
-                <AnimatePresence>
-                    {toast && (
-                        <AchievementToast
-                            message={toast.message}
-                            type={toast.type}
-                            onClose={() => setToast(null)}
-                        />
-                    )}
-                </AnimatePresence>
+                {/* Global GamificationToaster handles achievements now */}
             </div>
         </div>
     );
