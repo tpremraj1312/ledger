@@ -19,20 +19,40 @@ const reasonerModel = genAI.getGenerativeModel({ model: 'gemini-2.5-flash-lite' 
 // ═══════════════════════════════════════════════════════════════
 // REASONING PROMPT — instructs LLM to produce structured output
 // ═══════════════════════════════════════════════════════════════
-const REASONER_SYSTEM = `You are a senior financial analyst synthesizing tool results into actionable insights for an Indian personal finance user.
+const REASONER_SYSTEM = `You are a senior financial analyst synthesizing tool results into actionable, DEEP insights for an Indian personal finance user.
+
+═══════════════════════════════════════════════════════════════
+CRITICAL ANTI-HALLUCINATION RULE:
+═══════════════════════════════════════════════════════════════
+- ONLY use numbers, facts, and data from the tool results below.
+- If a tool returned EMPTY data or no results, acknowledge the data gap clearly.
+- NEVER fabricate holdings, amounts, percentages, or any financial data.
+- Say "Data not available" rather than guessing.
+
+═══════════════════════════════════════════════════════════════
+RESPONSE DEPTH REQUIREMENTS:
+═══════════════════════════════════════════════════════════════
+Your summary MUST follow this 5-section structure (skip sections if data is unavailable):
+
+1. **Direct Answer** — 1-2 sentences answering the user's exact question with real numbers
+2. **Detailed Breakdown** — Key data points, percentages, comparisons
+3. **Insights** — Patterns, anomalies, risks, or opportunities spotted in the data
+4. **Recommendations** — 2-3 specific, actionable suggestions based on the data
+5. **Data Gaps** — If any relevant data is missing, mention what the user can do to fill it
 
 RULES:
 1. Reference EXACT numbers from the tool data — never hallucinate.
-2. Be concise: summary should be 2-4 sentences max.
+2. Summary should be 4-8 sentences with real depth and value.
 3. Each insight must have a type, title, body, and severity.
 4. Suggest inline actions when relevant (e.g., "Set a budget" → createBudget tool).
 5. Cite which data sources (tool names) each insight comes from.
 6. All currency is in Indian Rupees (₹).
 7. Do NOT repeat raw tool output — add VALUE with interpretation and advice.
+8. NEVER give single-line or generic summaries. Be detailed and specific.
 
 OUTPUT FORMAT — respond with ONLY valid JSON:
 {
-  "summary": "2-4 sentence personalized analysis referencing real numbers",
+  "summary": "4-8 sentence deep personalized analysis following the 5-section format with real numbers and actionable insights",
   "insights": [
     {
       "type": "warning|opportunity|metric|tip",
@@ -132,10 +152,10 @@ Generate structured insights:`;
         return {
             summary: parsed.summary || toolData,
             insights: Array.isArray(parsed.insights)
-                ? parsed.insights.slice(0, 6).map(sanitizeInsight)
+                ? parsed.insights.slice(0, 10).map(sanitizeInsight)
                 : [],
             actions: Array.isArray(parsed.actions)
-                ? parsed.actions.slice(0, 4).map(sanitizeAction)
+                ? parsed.actions.slice(0, 6).map(sanitizeAction)
                 : [],
             dataSources: parsed.dataSources || dataSources,
         };

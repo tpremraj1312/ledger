@@ -16,6 +16,12 @@ import {
     EXTENDED_SCHEMAS,
     EXTENDED_DESTRUCTIVE_TOOLS,
 } from './agentToolsExtended.js';
+import {
+    FINANCIAL_TOOL_REGISTRY,
+    FINANCIAL_PERMISSION_MAP,
+    FINANCIAL_SCHEMAS,
+    FINANCIAL_DESTRUCTIVE_TOOLS,
+} from './agentToolsFinancial.js';
 import Transaction from '../models/transaction.js';
 import Budget from '../models/budget.js';
 import Investment from '../models/Investment.js';
@@ -662,10 +668,13 @@ const CORE_REGISTRY = {
     updatePreference,
 };
 
-export const TOOL_REGISTRY = { ...CORE_REGISTRY, ...EXTENDED_TOOL_REGISTRY };
+export const TOOL_REGISTRY = { ...CORE_REGISTRY, ...EXTENDED_TOOL_REGISTRY, ...FINANCIAL_TOOL_REGISTRY };
 
 // Merge permission maps
 for (const [key, val] of Object.entries(EXTENDED_PERMISSION_MAP)) {
+    TOOL_PERMISSION_MAP[key] = val;
+}
+for (const [key, val] of Object.entries(FINANCIAL_PERMISSION_MAP)) {
     TOOL_PERMISSION_MAP[key] = val;
 }
 
@@ -673,8 +682,14 @@ for (const [key, val] of Object.entries(EXTENDED_PERMISSION_MAP)) {
 for (const [key, val] of Object.entries(EXTENDED_SCHEMAS)) {
     TOOL_SCHEMAS[key] = val;
 }
+for (const [key, val] of Object.entries(FINANCIAL_SCHEMAS)) {
+    TOOL_SCHEMAS[key] = val;
+}
 
 // Merge destructive tools
 for (const tool of EXTENDED_DESTRUCTIVE_TOOLS) {
+    DESTRUCTIVE_TOOLS.add(tool);
+}
+for (const tool of FINANCIAL_DESTRUCTIVE_TOOLS) {
     DESTRUCTIVE_TOOLS.add(tool);
 }

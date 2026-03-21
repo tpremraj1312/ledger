@@ -252,6 +252,20 @@ const TOOL_LABEL_MAP = {
     getQuestStatus: '🏆 Quest Status',
     getXPProgress: '⭐ XP Progress',
     getStreak: '🔥 Streak',
+    // Financial Intelligence tools
+    getInvestmentHoldingsDetailed: '📈 Investment Holdings',
+    getTopHoldings: '🏆 Top Holdings',
+    getSectorAllocation: '📊 Sector Allocation',
+    getInvestmentsByType: '📈 Investments by Type',
+    getInvestmentGrowthTimeline: '📈 Growth Timeline',
+    getGoalsOverview: '🎯 Goals Overview',
+    getGoalProgress: '🎯 Goal Progress',
+    createGoal: '✅ Create Goal',
+    getTransactionsByDateRange: '📋 Transaction Search',
+    getIncomeBreakdown: '💰 Income Breakdown',
+    getTopMerchants: '🏪 Top Merchants',
+    getMonthOverMonthTrend: '📊 Monthly Trend',
+    getFinancialHealthScore: '❤️ Health Score',
 };
 
 const getToolLabel = (toolName) => {

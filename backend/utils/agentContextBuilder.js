@@ -14,6 +14,7 @@ import Investment from '../models/Investment.js';
 import FamilyGroup from '../models/FamilyGroup.js';
 import User from '../models/user.js';
 import RecurringExpense from '../models/RecurringExpense.js';
+import FinancialGoal from '../models/FinancialGoal.js';
 import { getGamificationProfile } from '../services/xpService.js';
 
 // ═══════════════════════════════════════════════════════════════
@@ -157,6 +158,26 @@ export const buildUserContext = async (userId) => {
         ]);
         const monthlyRecurring = recurringTotal[0]?.total || 0;
 
+        // ── 4b. Top Investment Holdings ──
+        const topHoldings = investments.slice().sort((a, b) => (b.investedAmount || 0) - (a.investedAmount || 0)).slice(0, 5);
+        const topHoldingsLines = topHoldings.map((h, i) => `${i + 1}. ${h.name} (${h.assetType}) — ${fmt(h.investedAmount || 0)}`).join('\n• ');
+
+        // ── 4c. Financial Goals ──
+        const activeGoals = await FinancialGoal.find({ user: userOid, status: 'active' }).lean();
+        const completedGoalCount = await FinancialGoal.countDocuments({ user: userOid, status: 'completed' });
+        const goalLines = activeGoals.slice(0, 5).map(g => {
+            const progress = g.targetAmount > 0 ? Math.round((g.currentAmount / g.targetAmount) * 100) : 0;
+            return `${g.title}: ${fmt(g.currentAmount)}/${fmt(g.targetAmount)} (${progress}%)`;
+        });
+
+        // ── 4d. Income Breakdown ──
+        const incomeByCategory = await Transaction.aggregate([
+            { $match: { user: userOid, type: 'credit', isDeleted: false, mode: 'PERSONAL', date: { $gte: start, $lte: end } } },
+            { $group: { _id: '$category', total: { $sum: '$amount' }, count: { $sum: 1 } } },
+            { $sort: { total: -1 } },
+        ]);
+        const incomeLines = incomeByCategory.map(c => `${c._id}: ${fmt(c.total)} (${incomeByCategory.length > 0 ? Math.round((c.total / totalIncome) * 100) : 0}%)`);
+
         // ── 5. Gamification ──
         let questLine = '';
         try {
@@ -229,6 +250,13 @@ export const buildUserContext = async (userId) => {
             ``,
             `📈 INVESTMENTS (${investments.length} holdings | ${fmt(totalInvested)} total)`,
             investAlloc.length > 0 ? `Allocation: ${investAlloc.join(', ')}` : 'No investments',
+            topHoldings.length > 0 ? `Top Holdings:\n• ${topHoldingsLines}` : '',
+            ``,
+            `💰 INCOME SOURCES`,
+            incomeLines.length > 0 ? incomeLines.map(l => `• ${l}`).join('\n') : `• Total income: ${fmt(totalIncome)} (no category breakdown)`,
+            ``,
+            `🎯 GOALS (${activeGoals.length} active, ${completedGoalCount} completed)`,
+            goalLines.length > 0 ? goalLines.map(l => `• ${l}`).join('\n') : '• No active goals set',
             ``,
             `🔄 RECURRING: ${recurringCount} active subscriptions (${fmt(monthlyRecurring)}/cycle)`,
             ``,

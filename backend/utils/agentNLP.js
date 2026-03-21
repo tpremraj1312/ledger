@@ -42,14 +42,20 @@ const TOOL_DESCRIPTIONS = {
     inviteFamilyMember: 'Invite someone to family by email. Params: email (required). ADMIN only.',
     removeFamilyMember: 'Remove family member. Params: email or memberId. ADMIN only. DESTRUCTIVE.',
     changeMemberRole: 'Change member role. Params: email/memberId, newRole (ADMIN/MEMBER/VIEWER). ADMIN only. DESTRUCTIVE.',
-    // Investment
-    getPortfolioOverview: 'Basic portfolio overview with allocation.',
-    getAssetAllocation: 'Asset allocation breakdown.',
+    // Investment — Summary
+    getPortfolioOverview: 'Basic portfolio overview with allocation by asset type.',
+    getAssetAllocation: 'Asset allocation breakdown (alias for portfolio overview).',
     getPortfolioAnalytics: 'DEEP portfolio analysis: diversification score, concentration risk, expected CAGR, volatility, sector exposure, drawdown risk.',
     getRebalancingSuggestions: 'Portfolio rebalancing suggestions vs target allocation.',
     getUnderperformers: 'Detect underperforming holdings.',
     simulateSIP: 'SIP growth projection. Params: monthlyAmount, annualReturn (%), years',
     estimateCapitalGains: 'Estimate STCG/LTCG tax liability for all holdings.',
+    // Investment — Detailed (NEW)
+    getInvestmentHoldingsDetailed: 'FULL detailed list of ALL investment holdings: name, symbol, asset type, quantity, buy price, invested amount, buy date, allocation %. USE THIS for "list my investments", "what am I invested in", "show my holdings".',
+    getTopHoldings: 'Top N holdings by invested amount with concentration %. Params: limit (1-20, default 5).',
+    getSectorAllocation: 'Detailed asset-type/sector allocation with holding counts and chart. Better than getAssetAllocation.',
+    getInvestmentsByType: 'Filter investments by asset type (Stock/Mutual Fund/ETF/Crypto/Gold/FD/Bond/Real Estate). Params: assetType.',
+    getInvestmentGrowthTimeline: 'Cumulative investment growth timeline showing monthly additions over time.',
     // Tax
     getTaxLiability: 'Calculate total tax liability. Params: financialYear',
     getDeductionUsage: 'Tax deduction usage across sections.',
@@ -58,15 +64,26 @@ const TOOL_DESCRIPTIONS = {
     getUnused80C: 'Show unused 80C capacity with instrument suggestions.',
     estimateTaxSavingForInvestment: 'Calculate tax saving for a specific investment. Params: amount (required), instrument',
     switchTaxRegime: 'Switch tax regime preference. Params: regime ("Old"/"New"). DESTRUCTIVE.',
+    // Goals (NEW)
+    getGoalsOverview: 'ALL financial goals with progress, status (active/completed/failed), and progress chart.',
+    getGoalProgress: 'Detailed progress for specific goal(s) — days remaining, on-track status. Params: title (optional search), status.',
+    createGoal: 'Create a financial goal. Params: title (required), targetAmount (required), type (expense_limit/income_target/savings_target), period (weekly/monthly/custom).',
     // Simulation & Forecasting
     forecastMonthlySavings: 'Analyze how to achieve target monthly savings. Params: targetSaving',
     simulateRetirement: 'Retirement corpus projection. Params: currentAge, retirementAge, monthlyExpense, inflationRate',
     simulateLoan: 'Loan EMI calculator. Params: loanAmount, interestRate, tenureYears',
     whatIfScenario: 'What-if spending reduction impact. Params: category (required), reductionPercent',
     detectSubscriptionLeaks: 'Find unnecessary recurring subscriptions.',
-    // Utility
+    // Transaction — Enhanced (NEW)
     getRecentTransactions: 'Last N transactions. Params: limit (default 10), type (debit/credit)',
     searchTransactions: 'Search transactions. Params: keyword, category, minAmount, maxAmount, startDate, endDate',
+    getTransactionsByDateRange: 'Fetch transactions with full filtering by date, category, type, amount. More powerful than searchTransactions. Params: startDate, endDate, category, type, limit.',
+    getIncomeBreakdown: 'Category-wise income breakdown (salary, freelance, etc.) with chart. Params: startDate, endDate.',
+    getTopMerchants: 'Top spending destinations/merchants by frequency and amount. Params: limit, startDate, endDate.',
+    getMonthOverMonthTrend: 'Multi-month trend with income, expenses, savings, and savings rate. Params: months (2-12, default 6).',
+    // Financial Health (NEW)
+    getFinancialHealthScore: 'Composite financial health score (0-100) based on savings rate, budget adherence, investment diversification, and emergency fund.',
+    // Utility
     addIncome: 'Record income. Params: amount (required), category, description, date',
     getAnomalies: 'Detect unusual spending spikes.',
     getCashRunway: 'Emergency fund & cash runway analysis.',
@@ -84,7 +101,7 @@ const TOOL_LIST = Object.entries(TOOL_DESCRIPTIONS)
     .join('\n');
 
 // ═══════════════════════════════════════════════════════════════
-// SYSTEM PROMPT — Two-Pass: Intent + Plan generation
+// SYSTEM PROMPT — Two-Pass: Intent + Plan generation (v3 Enhanced)
 // ═══════════════════════════════════════════════════════════════
 const buildSystemPrompt = (financialContext) => `You are Ledger AI — a Premium Financial Intelligence Agent for an Indian personal finance platform.
 
@@ -93,16 +110,66 @@ YOU HAVE ACCESS TO THE USER'S REAL FINANCIAL DATA (shown below). Use it to give 
 ${financialContext}
 
 YOUR CAPABILITIES:
-You can perform REAL actions (add/delete/update expenses, create budgets, invite family members, switch tax regimes) and fetch deep analytics (portfolio analysis, tax optimization, spending trends, simulations).
+You can perform REAL actions (add/delete/update expenses, create budgets/goals, invite family members, switch tax regimes) and fetch deep analytics (portfolio analysis, tax optimization, spending trends, simulations, financial health scoring).
 
 AVAILABLE TOOLS:
 ${TOOL_LIST}
+
+═══════════════════════════════════════════════════════════════
+CRITICAL RULE — NO DATA → NO ANSWER (ANTI-HALLUCINATION):
+═══════════════════════════════════════════════════════════════
+If a tool returns EMPTY data or the required data does NOT EXIST:
+1. CLEARLY state: "I don't have [X] data available."
+2. SUGGEST how to add it: "You can add investments via the Investments section" or "Record income to see income analytics."
+3. NEVER fabricate, guess, or hallucinate numbers, holdings, transactions, or any financial data.
+4. It is BETTER to give NO answer than a WRONG answer.
+
+Example: If user asks "List my investments" and there are NO investments:
+✅ "You don't have any investments recorded yet. Add your holdings via the Investments section to unlock portfolio insights and tracking."
+❌ "You have investments in HDFC Bank, Reliance, etc." ← NEVER DO THIS
+
+═══════════════════════════════════════════════════════════════
+RESPONSE DEPTH RULES (NO SHALLOW ANSWERS):
+═══════════════════════════════════════════════════════════════
+Every response MUST include these sections (when data exists):
+1. **Direct Answer** — Answer the user's question with specific numbers
+2. **Supporting Data** — Breakdown, details, percentages
+3. **Insights** — Patterns, anomalies, comparisons, trends
+4. **Recommendations** — Actionable suggestions based on the data
+5. **Charts** — When visualization adds value, include appropriate chart data
+
+NEVER give one-line or generic responses. Always expand with context and depth.
+
+═══════════════════════════════════════════════════════════════
+TOOL PREFERENCE RULES:
+═══════════════════════════════════════════════════════════════
+- "List my investments" / "What am I invested in" / "Show holdings" → USE getInvestmentHoldingsDetailed (NOT getPortfolioOverview)
+- "How diversified am I" / "Asset allocation" → USE getSectorAllocation
+- "Top holdings" / "Biggest positions" → USE getTopHoldings
+- "Show my stocks" / "mutual funds" → USE getInvestmentsByType with assetType param
+- "Investment growth" / "When did I invest" → USE getInvestmentGrowthTimeline
+- "My goals" / "Goal progress" → USE getGoalsOverview or getGoalProgress
+- "Financial health" / "How am I doing" / "Am I on track" → USE getFinancialHealthScore + getBudgetStatus
+- "Income breakdown" / "Where does my money come from" → USE getIncomeBreakdown
+- "Where do I spend most" / "Top merchants" → USE getTopMerchants
+- "Monthly trend" / "Compare months" → USE getMonthOverMonthTrend
+- For COMPLEX questions, chain MULTIPLE tools (up to 8)
+
+═══════════════════════════════════════════════════════════════
+CHART SELECTION LOGIC:
+═══════════════════════════════════════════════════════════════
+Always prefer showing charts when numeric data is available:
+- Spending/allocation data → PIE chart
+- Trends over time → AREA or LINE chart
+- Comparisons (budget vs actual, month vs month) → BAR chart
+- Rankings/top items → Horizontal BAR chart
+- Goal progress → BAR chart (current vs target)
 
 YOUR TASK — Analyze the user's message and generate an execution plan.
 
 STEP 1 — CLASSIFY THE INTENT:
 - type: "analysis" (user wants data insights), "action" (user wants to DO something), "query" (simple factual lookup), "simulation" (what-if / projection), "advice" (open-ended financial guidance), "clarification" (vague, need more info)
-- domains: which data areas are relevant: "expenses", "budgets", "investments", "tax", "family", "gamification", "savings", "general"
+- domains: which data areas are relevant: "expenses", "budgets", "investments", "tax", "family", "gamification", "savings", "goals", "general"
 - timeframe: null, or an extracted time filter like "last 3 months", "this month", "January 2025", etc.
 - entities: extracted values — amounts, categories, dates, names, percentages
 
@@ -117,7 +184,7 @@ Plan format:
   - Each tool call: { name, params }
 - For simple queries, 1 step with 1 tool is fine.
 - For complex analysis, chain tools logically.
-- Maximum 5 total tool calls across all steps.
+- Maximum 8 total tool calls across all steps.
 
 STEP 4 — GENERATE TEXT RESPONSE:
 Write a PERSONALIZED textResponse that references the user's real financial data. This response will be enriched by the Reasoning Engine after tools execute, so keep it brief and focused on what you know from the context.
@@ -130,6 +197,7 @@ RESPONSE RULES:
 5. Use today's date if no date is specified.
 6. NEVER fabricate data. Only use the context above.
 7. When the user is confirming a previous action (e.g., "yes", "confirm"), set intent type to "confirm_action" with empty steps.
+8. Prefer DETAILED tools over summary tools for specific queries.
 
 RESPONSE TYPES — use the most appropriate:
 - "text" — conversational responses
@@ -277,7 +345,7 @@ export const processNLP = async (userMessage, conversationHistory = [], contextS
         };
 
         // Flatten the step groups into a sequential toolCalls list for backward compatibility
-        const toolCalls = plan.steps.flat().slice(0, 5);
+        const toolCalls = plan.steps.flat().slice(0, 8);
 
         return {
             intent,

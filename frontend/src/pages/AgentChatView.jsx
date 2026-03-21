@@ -149,6 +149,11 @@ const DataAttribution = ({ sources }) => {
         getTaxLiability: 'Tax Data', compareRegimes: 'Regimes', getUnused80C: '80C Usage',
         getRecentTransactions: 'Transactions', getAnomalies: 'Anomalies', getCashRunway: 'Cash Runway',
         forecastMonthlySavings: 'Savings', getQuestStatus: 'Gamification', getDeductionUsage: 'Deductions',
+        getInvestmentHoldingsDetailed: 'Holdings', getTopHoldings: 'Top Holdings', getSectorAllocation: 'Allocation',
+        getInvestmentsByType: 'Holdings by Type', getInvestmentGrowthTimeline: 'Growth Timeline',
+        getGoalsOverview: 'Goals', getGoalProgress: 'Goal Progress', createGoal: 'Goal Created',
+        getTransactionsByDateRange: 'Transactions', getIncomeBreakdown: 'Income', getTopMerchants: 'Merchants',
+        getMonthOverMonthTrend: 'Monthly Trend', getFinancialHealthScore: 'Health Score',
     };
 
     return (
@@ -198,6 +203,29 @@ const ChartCarousel = ({ charts }) => {
 // ═══════════════════════════════════════════════════════════════
 // SINGLE CHART RENDERER
 // ═══════════════════════════════════════════════════════════════
+const fmtCurrency = (value) => {
+    if (value >= 10000000) return `₹${(value / 10000000).toFixed(1)}Cr`;
+    if (value >= 100000) return `₹${(value / 100000).toFixed(1)}L`;
+    if (value >= 1000) return `₹${(value / 1000).toFixed(1)}K`;
+    return `₹${Math.round(value)}`;
+};
+
+const tooltipStyle = { borderRadius: '12px', border: 'none', boxShadow: '0 8px 32px rgba(0,0,0,0.08)', fontSize: '11px', padding: '8px 12px' };
+
+const CurrencyTooltip = ({ active, payload, label }) => {
+    if (!active || !payload?.length) return null;
+    return (
+        <div style={tooltipStyle} className="bg-white">
+            <p className="text-[10px] font-semibold text-gray-700 mb-1">{label}</p>
+            {payload.map((entry, i) => (
+                <p key={i} className="text-[10px]" style={{ color: entry.color }}>
+                    {entry.name}: {typeof entry.value === 'number' ? fmtCurrency(entry.value) : entry.value}
+                </p>
+            ))}
+        </div>
+    );
+};
+
 const SingleChart = ({ chartData }) => {
     if (!chartData || !chartData.data || chartData.data.length === 0) return null;
     const { type, data, xKey, yKey, nameKey, valueKey, title, colors = COLORS.chart } = chartData;
@@ -205,27 +233,27 @@ const SingleChart = ({ chartData }) => {
     return (
         <div className="p-4 bg-gradient-to-br from-slate-50/80 to-gray-50/80 rounded-xl border border-gray-100/80 backdrop-blur-sm">
             {title && <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-3">{title}</p>}
-            <ResponsiveContainer width="100%" height={200}>
+            <ResponsiveContainer width="100%" height={240}>
                 {type === 'bar' ? (
-                    <BarChart data={data} margin={{ top: 5, right: 5, left: -15, bottom: 5 }}>
+                    <BarChart data={data} margin={{ top: 5, right: 5, left: -5, bottom: 5 }}>
                         <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                        <XAxis dataKey={xKey} tick={{ fontSize: 10 }} stroke="#9CA3AF" />
-                        <YAxis tick={{ fontSize: 10 }} stroke="#9CA3AF" />
-                        <Tooltip contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 8px 32px rgba(0,0,0,0.08)', fontSize: '11px' }} />
+                        <XAxis dataKey={xKey} tick={{ fontSize: 9 }} stroke="#9CA3AF" />
+                        <YAxis tick={{ fontSize: 9 }} stroke="#9CA3AF" tickFormatter={fmtCurrency} />
+                        <Tooltip content={<CurrencyTooltip />} />
                         {Object.keys(data[0] || {}).filter(k => k !== xKey).map((key, i) => (
                             <Bar key={key} dataKey={key} fill={colors[i % colors.length]} radius={[6, 6, 0, 0]} />
                         ))}
                     </BarChart>
                 ) : type === 'line' ? (
-                    <LineChart data={data} margin={{ top: 5, right: 5, left: -15, bottom: 5 }}>
+                    <LineChart data={data} margin={{ top: 5, right: 5, left: -5, bottom: 5 }}>
                         <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                        <XAxis dataKey={xKey} tick={{ fontSize: 10 }} stroke="#9CA3AF" />
-                        <YAxis tick={{ fontSize: 10 }} stroke="#9CA3AF" />
-                        <Tooltip contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 8px 32px rgba(0,0,0,0.08)', fontSize: '11px' }} />
+                        <XAxis dataKey={xKey} tick={{ fontSize: 9 }} stroke="#9CA3AF" />
+                        <YAxis tick={{ fontSize: 9 }} stroke="#9CA3AF" tickFormatter={fmtCurrency} />
+                        <Tooltip content={<CurrencyTooltip />} />
                         <Line type="monotone" dataKey={yKey} stroke={colors[0]} strokeWidth={2.5} dot={{ r: 3.5, fill: colors[0] }} />
                     </LineChart>
                 ) : type === 'area' ? (
-                    <AreaChart data={data} margin={{ top: 5, right: 5, left: -15, bottom: 5 }}>
+                    <AreaChart data={data} margin={{ top: 5, right: 5, left: -5, bottom: 5 }}>
                         <defs>
                             <linearGradient id={`areaGrad_${title}`} x1="0" y1="0" x2="0" y2="1">
                                 <stop offset="5%" stopColor={colors[0]} stopOpacity={0.25} />
@@ -233,17 +261,17 @@ const SingleChart = ({ chartData }) => {
                             </linearGradient>
                         </defs>
                         <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                        <XAxis dataKey={xKey} tick={{ fontSize: 10 }} stroke="#9CA3AF" />
-                        <YAxis tick={{ fontSize: 10 }} stroke="#9CA3AF" />
-                        <Tooltip contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 8px 32px rgba(0,0,0,0.08)', fontSize: '11px' }} />
+                        <XAxis dataKey={xKey} tick={{ fontSize: 9 }} stroke="#9CA3AF" />
+                        <YAxis tick={{ fontSize: 9 }} stroke="#9CA3AF" tickFormatter={fmtCurrency} />
+                        <Tooltip content={<CurrencyTooltip />} />
                         <Area type="monotone" dataKey={yKey} stroke={colors[0]} strokeWidth={2.5} fill={`url(#areaGrad_${title})`} />
                     </AreaChart>
                 ) : type === 'pie' ? (
                     <PieChart>
-                        <Pie data={data} dataKey={valueKey || 'value' || 'amount'} nameKey={nameKey || 'name' || 'category'} cx="50%" cy="50%" outerRadius={72} innerRadius={38} paddingAngle={2} label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`} labelLine={false} style={{ fontSize: '9px' }}>
+                        <Pie data={data} dataKey={valueKey || 'value'} nameKey={nameKey || 'name'} cx="50%" cy="50%" outerRadius={80} innerRadius={42} paddingAngle={2} label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`} labelLine={false} style={{ fontSize: '9px' }}>
                             {data.map((_, i) => <Cell key={i} fill={colors[i % colors.length]} />)}
                         </Pie>
-                        <Tooltip contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 8px 32px rgba(0,0,0,0.08)', fontSize: '11px' }} />
+                        <Tooltip formatter={(value) => typeof value === 'number' ? fmtCurrency(value) : value} contentStyle={tooltipStyle} />
                     </PieChart>
                 ) : null}
             </ResponsiveContainer>
@@ -408,6 +436,26 @@ const SuggestionChips = ({ suggestions, onSelect }) => {
 };
 
 // ═══════════════════════════════════════════════════════════════
+// EXPANDABLE TEXT — truncates long responses with show more/less
+// ═══════════════════════════════════════════════════════════════
+const ExpandableText = ({ text, previewLength = 500 }) => {
+    const [expanded, setExpanded] = useState(false);
+    if (!text || text.length <= previewLength) return text;
+
+    return (
+        <>
+            {expanded ? text : text.substring(0, previewLength) + '…'}
+            <button
+                onClick={(e) => { e.stopPropagation(); setExpanded(p => !p); }}
+                className="block mt-1.5 text-[10px] font-semibold text-blue-600 hover:text-blue-700 transition-colors"
+            >
+                {expanded ? '▲ Show less' : '▼ Show more'}
+            </button>
+        </>
+    );
+};
+
+// ═══════════════════════════════════════════════════════════════
 // MESSAGE BUBBLE — v2 with insights, actions, charts, attribution
 // ═══════════════════════════════════════════════════════════════
 const MessageBubble = ({ message, onConfirm, onCancel, onSuggestionSelect, onAction }) => {
@@ -428,7 +476,11 @@ const MessageBubble = ({ message, onConfirm, onCancel, onSuggestionSelect, onAct
                     ? 'bg-gray-800 text-white rounded-2xl rounded-tr-sm shadow-sm'
                     : 'bg-white text-gray-800 rounded-2xl rounded-tl-sm border border-gray-100/80 shadow-sm'
                     }`}>
-                    {message.content}
+                    {!isUser && message.content && message.content.length > 600 ? (
+                        <ExpandableText text={message.content} />
+                    ) : (
+                        message.content
+                    )}
                 </div>
 
                 {/* v2: Insight Cards */}
@@ -494,10 +546,10 @@ const MessageBubble = ({ message, onConfirm, onCancel, onSuggestionSelect, onAct
 // WELCOME SUGGESTIONS — Organized by capability
 // ═══════════════════════════════════════════════════════════════
 const WELCOME_GROUPS = [
-    { label: '💰 Spending', icon: <Wallet size={13} />, items: ['Show my spending this month', 'Add ₹500 for groceries', 'Recent transactions'] },
-    { label: '📊 Analytics', icon: <BarChart3 size={13} />, items: ['Budget status', 'Detect spending anomalies', 'Cash runway analysis'] },
-    { label: '📈 Investments', icon: <TrendingUp size={13} />, items: ['Am I diversified?', 'Portfolio analytics', 'Simulate ₹5000 monthly SIP'] },
-    { label: '🧾 Tax & Savings', icon: <Calculator size={13} />, items: ['Compare tax regimes', 'How can I save ₹10K?', 'Unused 80C capacity'] },
+    { label: '💰 Spending', icon: <Wallet size={13} />, items: ['Show my spending this month', 'Top merchants this month', 'Monthly trend'] },
+    { label: '📊 Analytics', icon: <BarChart3 size={13} />, items: ['Budget status', 'Financial health score', 'Cash runway analysis'] },
+    { label: '📈 Investments', icon: <TrendingUp size={13} />, items: ['List my investments', 'Sector allocation', 'Investment growth timeline'] },
+    { label: '🎯 Goals & Tax', icon: <Target size={13} />, items: ['My goals', 'Compare tax regimes', 'Income breakdown'] },
 ];
 
 // ═══════════════════════════════════════════════════════════════
@@ -752,7 +804,7 @@ const AgentChatView = () => {
                             <div>
                                 <h1 className="text-[13px] font-bold text-gray-900">Ledger AI</h1>
                                 <p className="text-[9px] text-emerald-500 font-semibold flex items-center gap-1">
-                                    <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full inline-block" /> Agentic Intelligence · 47 tools
+                                    <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full inline-block" /> Agentic Intelligence · 60+ tools
                                 </p>
                             </div>
                         </div>
