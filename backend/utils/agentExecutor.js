@@ -7,12 +7,17 @@
  *   4. Confirmation Hardening (nonce + expiry)
  *   5. Tool Call Limiter (per-message + per-window)
  *   6. Ownership & Family Boundary Enforcement
- *   7. Post-execution LLM contextual synthesis
+ *   7. Post-execution LLM contextual synthesis (now via agentReasoner)
+ *
+ * v2 Enhancements:
+ *   - Parallel tool execution via plan DAG
+ *   - Multi-chart aggregation
+ *   - Fallback chains for empty results
+ *   - Structured reasoning integration
  */
 
 import crypto from 'crypto';
 import mongoose from 'mongoose';
-import { GoogleGenerativeAI } from '@google/generative-ai';
 import AgentLog from '../models/AgentLog.js';
 import User from '../models/user.js';
 import {
@@ -21,10 +26,8 @@ import {
     TOOL_SCHEMAS,
     DESTRUCTIVE_TOOLS,
 } from './agentTools.js';
-import { resolveUserRole, buildUserContext } from './agentContextBuilder.js';
-
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-const synthesisModel = genAI.getGenerativeModel({ model: 'gemini-2.5-flash-lite' });
+import { resolveUserRole } from './agentContextBuilder.js';
+import { generateInsights } from './agentReasoner.js';
 
 // ═══════════════════════════════════════════════════════════════
 // 2. IDEMPOTENCY CONTROL — In-memory dedup store
@@ -206,17 +209,119 @@ const logAction = async (data) => {
 };
 
 // ═══════════════════════════════════════════════════════════════
-// MAIN EXECUTOR — processes NLP output and executes tools
+// FALLBACK MAP — alternative tools when primary returns empty
+// ═══════════════════════════════════════════════════════════════
+const FALLBACK_MAP = {
+    getSpendingByCategory: 'getRecentTransactions',
+    getExpenseSummary: 'getRecentTransactions',
+    getBudgetStatus: 'getExpenseSummary',
+    getPortfolioAnalytics: 'getPortfolioOverview',
+    getAssetAllocation: 'getPortfolioOverview',
+    compareBudgetVsExpense: 'getBudgetStatus',
+};
+
+const isEmptyResult = (result) => {
+    if (!result || !result.success) return true;
+    if (!result.data) return true;
+    // Check common empty patterns
+    if (Array.isArray(result.data) && result.data.length === 0) return true;
+    const dataValues = Object.values(result.data);
+    if (dataValues.every(v => v === 0 || v === null || (Array.isArray(v) && v.length === 0))) return true;
+    return false;
+};
+
+// ═══════════════════════════════════════════════════════════════
+// SINGLE TOOL EXECUTOR — with all security checks
+// ═══════════════════════════════════════════════════════════════
+const executeSingleTool = async (toolName, params, user, conversation, startTime) => {
+    const userId = user._id.toString();
+    const conversationId = conversation?._id;
+
+    // ═══ 1. TOOL PERMISSION MATRIX ═══
+    const permission = TOOL_PERMISSION_MAP[toolName];
+    if (!permission) {
+        await logAction({ userId, conversationId, intent: 'tool_execution', action: 'unknown_tool', toolName, success: false, denied: true, denialReason: `Tool "${toolName}" does not exist`, duration: Date.now() - startTime });
+        return { toolName, success: false, message: `I don't have a tool called "${toolName}".`, data: null };
+    }
+
+    // Role check: DB-verified, NEVER trust frontend
+    const userRole = await resolveUserRole(user._id.toString());
+    const hasPermission = permission.roles.includes('user') || permission.roles.includes(userRole);
+    if (!hasPermission) {
+        await logAction({ userId, conversationId, intent: 'tool_execution', action: 'permission_denied', toolName, success: false, denied: true, denialReason: `DB role "${userRole}" not in allowed: ${permission.roles.join(',')}`, duration: Date.now() - startTime });
+        return { toolName, success: false, message: `🔒 You don't have permission for "${toolName}". Your role: ${userRole}. Required: ${permission.roles.join(' or ')}.`, data: null };
+    }
+
+    // ═══ 3. STRICT SCHEMA VALIDATION ═══
+    const validation = validateParams(toolName, params);
+    if (!validation.valid) {
+        await logAction({ userId, conversationId, intent: 'tool_execution', action: 'validation_failed', toolName, success: false, denied: true, denialReason: validation.errors.join('; '), duration: Date.now() - startTime });
+        return { toolName, success: false, message: `⚠️ Invalid parameters for "${toolName}": ${validation.errors.join(', ')}`, data: null };
+    }
+
+    // ═══ 4. CONFIRMATION HARDENING ═══
+    if (DESTRUCTIVE_TOOLS.has(toolName)) {
+        // Return a special confirmation result
+        const pending = createPendingConfirmation(toolName, params);
+        if (conversation) {
+            conversation.pendingConfirmation = pending;
+            await conversation.save();
+        }
+        return {
+            toolName,
+            success: true,
+            needsConfirmation: true,
+            confirmationData: {
+                toolName,
+                params,
+                nonce: pending.nonce,
+                message: getConfirmationMessage(toolName, params),
+            },
+            message: getConfirmationMessage(toolName, params),
+            data: null,
+        };
+    }
+
+    // ═══ 2. IDEMPOTENCY CONTROL ═══
+    const idempotency = checkIdempotency(userId, toolName, params);
+    if (idempotency.isDuplicate) {
+        await logAction({ userId, conversationId, intent: 'tool_execution', action: 'duplicate_blocked', toolName, success: false, denied: true, denialReason: 'Duplicate request within dedup window', duration: Date.now() - startTime });
+        return { toolName, success: false, message: `⏳ This action was just performed. Please wait a moment before retrying.`, data: null };
+    }
+
+    // ═══ 6. OWNERSHIP ENFORCEMENT (inside tools) + EXECUTE ═══
+    try {
+        const toolFn = TOOL_REGISTRY[toolName];
+        const toolResult = await toolFn(user._id, params);
+
+        // 5. Loop detection
+        const loopCheck = recordToolExecution(conversationId, toolName);
+        if (loopCheck.loopDetected) {
+            await logAction({ userId, conversationId, intent: 'tool_execution', action: 'loop_detected', toolName, success: false, denied: true, denialReason: `Loop: "${toolName}" called 3+ times`, duration: Date.now() - startTime });
+        }
+
+        await logAction({ userId, conversationId, intent: 'tool_execution', action: 'executed', toolName, success: toolResult.success, duration: Date.now() - startTime });
+
+        return { toolName, ...toolResult };
+    } catch (error) {
+        console.error(`Tool execution error [${toolName}]:`, error);
+        await logAction({ userId, conversationId, intent: 'tool_execution', action: 'execution_error', toolName, success: false, error: error.message, duration: Date.now() - startTime });
+        return { toolName, success: false, message: `An error occurred while executing "${toolName}".`, data: null };
+    }
+};
+
+// ═══════════════════════════════════════════════════════════════
+// MAIN EXECUTOR — processes NLP output with DAG-style execution
 // ═══════════════════════════════════════════════════════════════
 
 /**
- * Execute the NLP layer's tool calls with full security enforcement.
+ * Execute the NLP layer's plan with full security enforcement.
  *
- * @param {Object} nlpResult   — { intent, toolCalls, textResponse, responseType }
+ * @param {Object} nlpResult   — { intent, plan, toolCalls, textResponse, responseType }
  * @param {Object} user        — authenticated Mongoose user document
- * @param {Object} conversation — ChatConversation document (for pending confirmations)
- * @param {Object} options      — { confirmAction?: { nonce } }
- * @returns {Object} — { text, chartData?, actionResult?, confirmationRequired?, pendingAction?, suggestions[] }
+ * @param {Object} conversation — ChatConversation document
+ * @param {Object} options      — { confirmAction?: { nonce }, onStepComplete?: fn }
+ * @returns {Object} — { text, charts[], insights[], actions[], dataSources[], ... }
  */
 export const executeAgentAction = async (nlpResult, user, conversation, options = {}) => {
     const userId = user._id.toString();
@@ -229,106 +334,90 @@ export const executeAgentAction = async (nlpResult, user, conversation, options 
     }
 
     // ─── Handle confirm intent from NLP ───
-    if (nlpResult.intent === 'confirm_action' && conversation?.pendingConfirmation) {
+    if (nlpResult.intent?.type === 'confirm_action' && conversation?.pendingConfirmation) {
         return await handleConfirmation(user, conversation, conversation.pendingConfirmation.nonce);
     }
 
     // ─── No tool calls — pure text response ───
-    if (!nlpResult.toolCalls || nlpResult.toolCalls.length === 0) {
+    const flatToolCalls = nlpResult.toolCalls || nlpResult.plan?.steps?.flat() || [];
+    if (flatToolCalls.length === 0) {
         return {
             text: nlpResult.textResponse || "I'm here to help with your finances. Try asking about your spending, budget, or investments!",
+            charts: [],
+            insights: [],
+            actions: [],
+            dataSources: [],
             suggestions: getDefaultSuggestions(),
+            responseType: nlpResult.responseType || 'text',
         };
     }
 
     // ═══ 5. TOOL CALL LIMITER ═══
-    const limitCheck = checkToolCallLimit(conversationId, nlpResult.toolCalls.length);
+    const limitCheck = checkToolCallLimit(conversationId, flatToolCalls.length);
     if (!limitCheck.allowed) {
-        await logAction({ userId, conversationId, intent: nlpResult.intent, action: 'tool_limit_exceeded', toolName: '', success: false, denied: true, denialReason: limitCheck.reason, duration: Date.now() - startTime });
-        return { text: `⚠️ ${limitCheck.reason}`, suggestions: getDefaultSuggestions() };
+        await logAction({ userId, conversationId, intent: nlpResult.intent?.type, action: 'tool_limit_exceeded', toolName: '', success: false, denied: true, denialReason: limitCheck.reason, duration: Date.now() - startTime });
+        return {
+            text: `⚠️ ${limitCheck.reason}`,
+            charts: [],
+            insights: [],
+            actions: [],
+            dataSources: [],
+            suggestions: getDefaultSuggestions(),
+        };
     }
 
-    // ─── Execute each tool call ───
-    const results = [];
-    let lastChartData = null;
+    // ─── Execute plan step-by-step (parallel within steps) ───
+    const allResults = [];
+    const allCharts = [];
     let confirmationNeeded = null;
 
-    for (const toolCall of nlpResult.toolCalls) {
-        const { name: toolName, params = {} } = toolCall;
+    // Use plan.steps (DAG) if available, otherwise treat toolCalls as a single parallel group
+    const steps = nlpResult.plan?.steps?.length > 0
+        ? nlpResult.plan.steps
+        : [flatToolCalls];
 
-        // ═══ 1. TOOL PERMISSION MATRIX ═══
-        const permission = TOOL_PERMISSION_MAP[toolName];
-        if (!permission) {
-            await logAction({ userId, conversationId, intent: nlpResult.intent, action: 'unknown_tool', toolName, success: false, denied: true, denialReason: `Tool "${toolName}" does not exist`, duration: Date.now() - startTime });
-            results.push({ success: false, message: `I don't have a tool called "${toolName}".` });
-            continue;
-        }
+    for (const stepGroup of steps) {
+        if (confirmationNeeded) break;
 
-        // Role check: DB-verified, NEVER trust frontend
-        const userRole = await resolveUserRole(user._id.toString());
-        const hasPermission = permission.roles.includes('user') || permission.roles.includes(userRole);
-        if (!hasPermission) {
-            await logAction({ userId, conversationId, intent: nlpResult.intent, action: 'permission_denied', toolName, success: false, denied: true, denialReason: `DB role "${userRole}" not in allowed: ${permission.roles.join(',')}`, duration: Date.now() - startTime });
-            results.push({ success: false, message: `🔒 You don't have permission for "${toolName}". Your role: ${userRole}. Required: ${permission.roles.join(' or ')}.` });
-            continue;
-        }
+        // Execute all tools in this step group concurrently
+        const groupCalls = (Array.isArray(stepGroup) ? stepGroup : [stepGroup]).map(
+            async (toolCall) => {
+                const { name: toolName, params = {} } = toolCall;
+                let result = await executeSingleTool(toolName, params, user, conversation, startTime);
 
-        // ═══ 3. STRICT SCHEMA VALIDATION ═══
-        const validation = validateParams(toolName, params);
-        if (!validation.valid) {
-            await logAction({ userId, conversationId, intent: nlpResult.intent, action: 'validation_failed', toolName, success: false, denied: true, denialReason: validation.errors.join('; '), duration: Date.now() - startTime });
-            results.push({ success: false, message: `⚠️ Invalid parameters for "${toolName}": ${validation.errors.join(', ')}` });
-            continue;
-        }
+                // Check for confirmation requirement
+                if (result.needsConfirmation) {
+                    confirmationNeeded = result.confirmationData;
+                    return result;
+                }
 
-        // ═══ 4. CONFIRMATION HARDENING ═══
-        if (DESTRUCTIVE_TOOLS.has(toolName)) {
-            const pending = createPendingConfirmation(toolName, params);
-            conversation.pendingConfirmation = pending;
-            await conversation.save();
+                // Fallback chain: if result is empty, try the fallback tool
+                if (isEmptyResult(result) && FALLBACK_MAP[toolName]) {
+                    const fallbackName = FALLBACK_MAP[toolName];
+                    const fallbackResult = await executeSingleTool(fallbackName, params, user, conversation, startTime);
+                    if (!isEmptyResult(fallbackResult)) {
+                        result = fallbackResult;
+                    }
+                }
 
-            confirmationNeeded = {
-                toolName,
-                params,
-                nonce: pending.nonce,
-                message: getConfirmationMessage(toolName, params),
-            };
-
-            await logAction({ userId, conversationId, intent: nlpResult.intent, action: 'confirmation_requested', toolName, success: true, duration: Date.now() - startTime });
-            break; // Stop processing — wait for confirmation
-        }
-
-        // ═══ 2. IDEMPOTENCY CONTROL ═══
-        const idempotency = checkIdempotency(userId, toolName, params);
-        if (idempotency.isDuplicate) {
-            await logAction({ userId, conversationId, intent: nlpResult.intent, action: 'duplicate_blocked', toolName, success: false, denied: true, denialReason: 'Duplicate request within dedup window', duration: Date.now() - startTime });
-            results.push({ success: false, message: `⏳ This action was just performed. Please wait a moment before retrying.` });
-            continue;
-        }
-
-        // ═══ 6. OWNERSHIP ENFORCEMENT (inside tools) + EXECUTE ═══
-        try {
-            const toolFn = TOOL_REGISTRY[toolName];
-            const toolResult = await toolFn(user._id, params);
-
-            // 5. Loop detection
-            const loopCheck = recordToolExecution(conversationId, toolName);
-            if (loopCheck.loopDetected) {
-                await logAction({ userId, conversationId, intent: nlpResult.intent, action: 'loop_detected', toolName, success: false, denied: true, denialReason: `Loop: "${toolName}" called 3+ times`, duration: Date.now() - startTime });
+                return result;
             }
+        );
 
-            results.push(toolResult);
-            if (toolResult.chartData) lastChartData = toolResult.chartData;
+        const groupResults = await Promise.all(groupCalls);
 
-            await logAction({ userId, conversationId, intent: nlpResult.intent, action: 'executed', toolName, success: toolResult.success, duration: Date.now() - startTime });
-        } catch (error) {
-            console.error(`Tool execution error [${toolName}]:`, error);
-            results.push({ success: false, message: `An error occurred while executing "${toolName}".` });
-            await logAction({ userId, conversationId, intent: nlpResult.intent, action: 'execution_error', toolName, success: false, error: error.message, duration: Date.now() - startTime });
+        for (const result of groupResults) {
+            allResults.push(result);
+            if (result.chartData) allCharts.push(result.chartData);
+        }
+
+        // Notify step completion for SSE streaming
+        if (options.onStepComplete) {
+            options.onStepComplete(stepGroup, groupResults);
         }
     }
 
-    // ─── Build final response ───
+    // ─── Confirmation response ───
     if (confirmationNeeded) {
         return {
             text: confirmationNeeded.message,
@@ -336,24 +425,32 @@ export const executeAgentAction = async (nlpResult, user, conversation, options 
             pendingAction: { toolName: confirmationNeeded.toolName, nonce: confirmationNeeded.nonce },
             suggestions: ['✅ Yes, confirm', '❌ No, cancel'],
             responseType: 'confirmation',
+            charts: [],
+            insights: [],
+            actions: [],
+            dataSources: [],
         };
     }
 
-    // ─── Post-execution LLM synthesis ───
-    const toolMessages = results.map(r => r.message).filter(Boolean);
-    const nlpText = nlpResult.textResponse || '';
-    let finalText = '';
+    // ─── Reasoning Layer (Layer 3) — generate structured insights ───
+    const userQuery = nlpResult.intent?.normalizedQuery || '';
+    const intentType = nlpResult.intent?.type || 'query';
+    const reasoning = await generateInsights(userId, allResults, intentType, userQuery);
 
-    // If NLP already provided a contextual response, use it with tool data
-    if (nlpText && nlpText.length > 20) {
-        finalText = nlpText + '\n\n' + toolMessages.join('\n\n');
-    } else {
-        // Try to synthesize a contextual response from tool results
-        finalText = await synthesizeResponse(user._id.toString(), toolMessages, nlpResult.intent);
+    // ─── Build final text ───
+    let finalText = '';
+    if (nlpResult.textResponse && nlpResult.textResponse.length > 20) {
+        finalText = nlpResult.textResponse;
+    }
+    if (reasoning.summary && reasoning.summary.length > 10) {
+        finalText = finalText ? finalText + '\n\n' + reasoning.summary : reasoning.summary;
+    }
+    if (!finalText) {
+        finalText = allResults.map(r => r.message).filter(Boolean).join('\n\n');
     }
 
-    // Build response cards from tool results
-    const responseCards = results
+    // ─── Build response cards from tool results (backward compatible) ───
+    const responseCards = allResults
         .filter(r => r.success && r.data)
         .map(r => ({
             type: determineCardType(nlpResult.responseType, r),
@@ -363,11 +460,19 @@ export const executeAgentAction = async (nlpResult, user, conversation, options 
 
     return {
         text: finalText,
-        chartData: lastChartData,
-        actionResult: results.length === 1 ? results[0].data : results.map(r => r.data),
+        // v2: Multi-chart, insights, actions, attribution
+        charts: allCharts,
+        insights: reasoning.insights || [],
+        actions: reasoning.actions || [],
+        dataSources: reasoning.dataSources || [],
+        // Legacy compatibility
+        chartData: allCharts.length > 0 ? allCharts[0] : null,
+        actionResult: allResults.length === 1 ? allResults[0].data : allResults.map(r => r.data),
         responseCards,
         responseType: nlpResult.responseType || 'text',
-        suggestions: getSuggestionsForIntent(nlpResult.intent),
+        suggestions: getSuggestionsForIntent(intentType),
+        // Plan metadata for frontend stepper
+        executedPlan: nlpResult.plan?.steps || [],
     };
 };
 
@@ -377,13 +482,13 @@ export const executeAgentAction = async (nlpResult, user, conversation, options 
 const handleConfirmation = async (user, conversation, nonce) => {
     const pending = conversation.pendingConfirmation;
     if (!pending) {
-        return { text: "There's no pending action to confirm.", suggestions: getDefaultSuggestions() };
+        return { text: "There's no pending action to confirm.", suggestions: getDefaultSuggestions(), charts: [], insights: [], actions: [], dataSources: [] };
     }
 
     // Validate nonce
     if (pending.nonce !== nonce) {
         await logAction({ userId: user._id.toString(), conversationId: conversation._id, intent: 'confirm_action', action: 'nonce_mismatch', toolName: pending.toolName, success: false, denied: true, denialReason: 'Nonce mismatch — possible replay attack' });
-        return { text: '🔒 Security check failed. Please re-initiate the action.', suggestions: getDefaultSuggestions() };
+        return { text: '🔒 Security check failed. Please re-initiate the action.', suggestions: getDefaultSuggestions(), charts: [], insights: [], actions: [], dataSources: [] };
     }
 
     // Check expiry
@@ -391,7 +496,7 @@ const handleConfirmation = async (user, conversation, nonce) => {
         conversation.pendingConfirmation = null;
         await conversation.save();
         await logAction({ userId: user._id.toString(), conversationId: conversation._id, intent: 'confirm_action', action: 'confirmation_expired', toolName: pending.toolName, success: false, denied: true, denialReason: 'Confirmation expired (60s)' });
-        return { text: '⏰ Confirmation expired. Please request the action again.', suggestions: getDefaultSuggestions() };
+        return { text: '⏰ Confirmation expired. Please request the action again.', suggestions: getDefaultSuggestions(), charts: [], insights: [], actions: [], dataSources: [] };
     }
 
     // Execute the confirmed tool
@@ -399,7 +504,7 @@ const handleConfirmation = async (user, conversation, nonce) => {
     if (!toolFn) {
         conversation.pendingConfirmation = null;
         await conversation.save();
-        return { text: '❌ The confirmed action is no longer available.', suggestions: getDefaultSuggestions() };
+        return { text: '❌ The confirmed action is no longer available.', suggestions: getDefaultSuggestions(), charts: [], insights: [], actions: [], dataSources: [] };
     }
 
     try {
@@ -412,50 +517,19 @@ const handleConfirmation = async (user, conversation, nonce) => {
         return {
             text: result.message || 'Action completed.',
             chartData: result.chartData,
+            charts: result.chartData ? [result.chartData] : [],
             actionResult: result.data,
             suggestions: getSuggestionsForIntent('post_action'),
+            insights: [],
+            actions: [],
+            dataSources: [pending.toolName],
         };
     } catch (error) {
         conversation.pendingConfirmation = null;
         await conversation.save();
         console.error('Confirmed action error:', error);
-        return { text: '❌ An error occurred while executing the confirmed action.', suggestions: getDefaultSuggestions() };
+        return { text: '❌ An error occurred while executing the confirmed action.', suggestions: getDefaultSuggestions(), charts: [], insights: [], actions: [], dataSources: [] };
     }
-};
-
-// ═══════════════════════════════════════════════════════════════
-// POST-EXECUTION SYNTHESIS — LLM contextual response
-// ═══════════════════════════════════════════════════════════════
-const synthesizeResponse = async (userId, toolMessages, intent) => {
-    if (toolMessages.length === 0) return 'Done!';
-
-    const combinedData = toolMessages.join('\n\n');
-
-    try {
-        let financialContext = '';
-        try { financialContext = await buildUserContext(userId); } catch { /* ignore */ }
-
-        const prompt = `You are a premium financial AI assistant. Based on the tool results below and the user's financial context, write a brief, insightful response (2-4 sentences max). Be specific with numbers. Don't repeat the raw data — add VALUE with interpretation, trend analysis, or actionable advice.
-
-${financialContext ? `User Context:\n${financialContext}\n` : ''}
-Tool Results:
-${combinedData}
-
-Intent: ${intent}
-
-Write a concise, personalized response:`;
-
-        const result = await synthesisModel.generateContent(prompt);
-        const synthesis = result.response.text().trim();
-
-        if (synthesis && synthesis.length > 10 && synthesis.length < 1000) {
-            return synthesis + '\n\n' + combinedData;
-        }
-    } catch (err) {
-        console.error('Synthesis error:', err.message);
-    }
-
-    return combinedData;
 };
 
 // ═══════════════════════════════════════════════════════════════
@@ -494,6 +568,13 @@ const getDefaultSuggestions = () => [
 
 const getSuggestionsForIntent = (intent) => {
     const map = {
+        'analysis': ['Show spending trend', 'Compare months', 'Budget status', 'Detect anomalies'],
+        'action': ['Show expense summary', 'Budget status', 'Recent transactions'],
+        'query': ['Compare budget vs expense', 'Forecast overspending', 'Savings forecast'],
+        'simulation': ['Simulate SIP', 'Retirement projection', 'Loan calculator'],
+        'advice': ['Portfolio analytics', 'Tax saving tips', 'Subscription leaks'],
+        'post_action': ['Show expense summary', 'Budget status', 'Recent transactions'],
+        // Legacy compatibility
         'expense_query': ['Show spending trend', 'Compare months', 'Budget status', 'Detect anomalies'],
         'expense_action': ['Show expense summary', 'Budget status', 'Recent transactions'],
         'budget_query': ['Compare budget vs expense', 'Forecast overspending', 'Savings forecast'],
@@ -503,8 +584,6 @@ const getSuggestionsForIntent = (intent) => {
         'family_query': ['Family members', 'Contribution breakdown', 'Family summary'],
         'simulation_query': ['Simulate SIP', 'Retirement projection', 'Loan calculator'],
         'savings_query': ['Subscription leaks', 'What-if spending cut', 'Cash runway'],
-        'post_action': ['Show expense summary', 'Budget status', 'Recent transactions'],
     };
     return map[intent] || getDefaultSuggestions();
 };
-

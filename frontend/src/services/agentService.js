@@ -1,6 +1,10 @@
 /**
  * Agent Service — Frontend API layer for AI Agent endpoints
  * Uses fetch for SSE streaming (EventSource doesn't support POST + headers)
+ *
+ * v2 Enhancements:
+ *   - New SSE event handlers: plan, insight, charts
+ *   - Progressive rendering support
  */
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
@@ -17,7 +21,7 @@ const getAuthHeaders = () => ({
  * @param {string} message
  * @param {string|null} conversationId
  * @param {Object|null} confirmAction - { nonce } for confirming destructive actions
- * @param {Object} callbacks - { onToken, onStatus, onComplete, onError }
+ * @param {Object} callbacks - { onToken, onStatus, onComplete, onError, onPlan, onInsight, onCharts }
  * @returns {Object} - { abort() } to cancel the stream
  */
 export const sendAgentMessage = (message, conversationId, confirmAction, callbacks) => {
@@ -73,6 +77,16 @@ export const sendAgentMessage = (message, conversationId, confirmAction, callbac
                                     break;
                                 case 'error':
                                     callbacks.onError?.(data.message);
+                                    break;
+                                // v2 events
+                                case 'plan':
+                                    callbacks.onPlan?.(data);
+                                    break;
+                                case 'insight':
+                                    callbacks.onInsight?.(data);
+                                    break;
+                                case 'charts':
+                                    callbacks.onCharts?.(data);
                                     break;
                             }
                         } catch {

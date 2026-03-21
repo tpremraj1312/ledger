@@ -1,11 +1,13 @@
 /**
- * Agent NLP Layer (Layer 1) — Intelligence & Understanding
- * Uses Google Gemini for:
- *   - Intent detection with financial context
- *   - Entity extraction
- *   - Tool call generation
- *   - Contextual reasoning over real user data
- *   - Structured response formatting
+ * Agent NLP Layer (Layer 1) — Intent Router + Query Planner
+ *
+ * Two-pass architecture:
+ *   Pass 1 (Fast): Intent classification, entity extraction, domain detection
+ *   Pass 2 (Smart): Execution plan generation (tool DAG)
+ *
+ * Also handles:
+ *   - Vague query normalization ("Am I doing well?" → structured task)
+ *   - Conversation memory management (context window + summarization)
  */
 
 import { GoogleGenerativeAI } from '@google/generative-ai';
@@ -82,7 +84,7 @@ const TOOL_LIST = Object.entries(TOOL_DESCRIPTIONS)
     .join('\n');
 
 // ═══════════════════════════════════════════════════════════════
-// SYSTEM PROMPT — Premium Financial Agent Persona
+// SYSTEM PROMPT — Two-Pass: Intent + Plan generation
 // ═══════════════════════════════════════════════════════════════
 const buildSystemPrompt = (financialContext) => `You are Ledger AI — a Premium Financial Intelligence Agent for an Indian personal finance platform.
 
@@ -96,48 +98,66 @@ You can perform REAL actions (add/delete/update expenses, create budgets, invite
 AVAILABLE TOOLS:
 ${TOOL_LIST}
 
+YOUR TASK — Analyze the user's message and generate an execution plan.
+
+STEP 1 — CLASSIFY THE INTENT:
+- type: "analysis" (user wants data insights), "action" (user wants to DO something), "query" (simple factual lookup), "simulation" (what-if / projection), "advice" (open-ended financial guidance), "clarification" (vague, need more info)
+- domains: which data areas are relevant: "expenses", "budgets", "investments", "tax", "family", "gamification", "savings", "general"
+- timeframe: null, or an extracted time filter like "last 3 months", "this month", "January 2025", etc.
+- entities: extracted values — amounts, categories, dates, names, percentages
+
+STEP 2 — NORMALIZE VAGUE QUERIES:
+If the query is vague (e.g., "Am I doing well?", "How am I doing?"), rewrite it into a concrete analysis task referencing the user's actual data. Use the financial context to decide which areas need attention.
+
+STEP 3 — GENERATE EXECUTION PLAN:
+Create a list of tool calls. Order matters — independent tools should be grouped for parallel execution.
+
+Plan format:
+- steps: Array of step groups. Each step group is an array of tool calls that CAN run in parallel.
+  - Each tool call: { name, params }
+- For simple queries, 1 step with 1 tool is fine.
+- For complex analysis, chain tools logically.
+- Maximum 5 total tool calls across all steps.
+
+STEP 4 — GENERATE TEXT RESPONSE:
+Write a PERSONALIZED textResponse that references the user's real financial data. This response will be enriched by the Reasoning Engine after tools execute, so keep it brief and focused on what you know from the context.
+
 RESPONSE RULES:
-1. Analyze the user's message and determine the best tool(s) to call.
-2. Extract parameters from the message and conversation context.
-3. ALWAYS reference the user's actual financial data in your textResponse — cite real numbers.
-4. For general questions without tools needed, give advice based on the financial context above.
-5. For ambiguous requests, ask for clarification — do NOT guess.
-6. For follow-up messages, use conversation context to resolve references.
-7. Maximum 5 tool calls per response.
-8. All monetary values are in Indian Rupees (₹).
-9. Use today's date if no date is specified.
-10. NEVER fabricate data. Only use tool results and the context above.
-11. When providing insights, be specific: "Your food spending is ₹12,000 (28% of total)" not "You spend a lot on food."
-12. For actionable advice, tie it to real numbers from the context.
+1. ALWAYS reference the user's actual financial data — cite real numbers.
+2. For ambiguous requests, set type to "clarification" and ask specifically what's needed in textResponse.
+3. For follow-up messages, use conversation context to resolve references (e.g., "that" refers to the previous topic).
+4. All monetary values are in Indian Rupees (₹).
+5. Use today's date if no date is specified.
+6. NEVER fabricate data. Only use the context above.
+7. When the user is confirming a previous action (e.g., "yes", "confirm"), set intent type to "confirm_action" with empty steps.
 
 RESPONSE TYPES — use the most appropriate:
-- "text" — conversational responses, advice, explanations
-- "action_card" — when performing an action (add expense, invite member, switch regime)
-- "insight_card" — spending alerts, risk warnings, savings opportunities
-- "chart" — when data visualization would help understanding
-- "comparison" — side-by-side comparisons (regimes, months, budgets)
-- "simulation" — projections and what-if scenarios
-- "warning" — overspending, risk concentration, anomalies
-- "table" — structured tabular data (transactions, deductions)
+- "text" — conversational responses
+- "action_card" — performing an action
+- "insight_card" — spending alerts, risk warnings
+- "chart" — data visualization
+- "comparison" — side-by-side comparisons
+- "simulation" — projections
+- "warning" — overspending, risk
+- "table" — structured data
 
 OUTPUT FORMAT — respond with ONLY valid JSON:
 {
-  "intent": "brief intent description",
-  "toolCalls": [
-    { "name": "toolName", "params": { "key": "value" } }
-  ],
-  "textResponse": "Personalized response text referencing real data. This is shown alongside tool results.",
-  "responseType": "text|action_card|insight_card|chart|comparison|simulation|warning|table",
-  "needsConfirmation": false
-}
-
-If the user is confirming a previous action (e.g., "yes", "confirm", "go ahead"), respond with:
-{
-  "intent": "confirm_action",
-  "toolCalls": [],
-  "textResponse": "",
-  "responseType": "text",
-  "needsConfirmation": false
+  "intent": {
+    "type": "analysis|action|query|simulation|advice|clarification|confirm_action",
+    "domains": ["expenses", "budgets"],
+    "timeframe": "this month",
+    "entities": { "amount": 5000, "category": "Food" },
+    "normalizedQuery": "Analyze spending by category for this month and compare against budget"
+  },
+  "plan": {
+    "steps": [
+      [{ "name": "getSpendingByCategory", "params": {} }],
+      [{ "name": "compareBudgetVsExpense", "params": {} }]
+    ]
+  },
+  "textResponse": "Brief personalized response referencing real data",
+  "responseType": "chart"
 }`;
 
 // ═══════════════════════════════════════════════════════════════
@@ -187,7 +207,7 @@ export const summarizeOlderMessages = async (messages) => {
 };
 
 // ═══════════════════════════════════════════════════════════════
-// MAIN NLP PROCESSING — Now with context injection
+// MAIN NLP PROCESSING — Intent Router + Query Planner
 // ═══════════════════════════════════════════════════════════════
 
 /**
@@ -196,7 +216,7 @@ export const summarizeOlderMessages = async (messages) => {
  * @param {Array} conversationHistory
  * @param {string} contextSummary
  * @param {string} userId — Required for financial context injection
- * @returns {Object} — { intent, toolCalls, textResponse, responseType, needsConfirmation }
+ * @returns {Object} — { intent, plan, textResponse, responseType }
  */
 export const processNLP = async (userMessage, conversationHistory = [], contextSummary = '', userId = null) => {
     try {
@@ -216,7 +236,7 @@ export const processNLP = async (userMessage, conversationHistory = [], contextS
         const chat = model.startChat({
             history: [
                 { role: 'user', parts: [{ text: systemPrompt }] },
-                { role: 'model', parts: [{ text: '{"intent":"ready","toolCalls":[],"textResponse":"Ready to assist with your finances.","responseType":"text","needsConfirmation":false}' }] },
+                { role: 'model', parts: [{ text: '{"intent":{"type":"query","domains":["general"],"timeframe":null,"entities":{},"normalizedQuery":"Ready"},"plan":{"steps":[]},"textResponse":"Ready to assist with your finances.","responseType":"text"}' }] },
                 ...contextMessages,
             ],
         });
@@ -232,30 +252,49 @@ export const processNLP = async (userMessage, conversationHistory = [], contextS
         try {
             parsed = JSON.parse(cleaned);
         } catch {
+            // Fallback: treat the whole response as text with no tool calls
             return {
-                intent: 'general_response',
-                toolCalls: [],
+                intent: { type: 'advice', domains: ['general'], timeframe: null, entities: {}, normalizedQuery: userMessage },
+                plan: { steps: [] },
                 textResponse: responseText,
                 responseType: 'text',
-                needsConfirmation: false,
+                // Legacy compatibility: flatten plan into toolCalls
+                toolCalls: [],
             };
         }
 
+        // Normalize the parsed output
+        const intent = {
+            type: parsed.intent?.type || 'query',
+            domains: Array.isArray(parsed.intent?.domains) ? parsed.intent.domains : ['general'],
+            timeframe: parsed.intent?.timeframe || null,
+            entities: parsed.intent?.entities || {},
+            normalizedQuery: parsed.intent?.normalizedQuery || userMessage,
+        };
+
+        const plan = {
+            steps: Array.isArray(parsed.plan?.steps) ? parsed.plan.steps : [],
+        };
+
+        // Flatten the step groups into a sequential toolCalls list for backward compatibility
+        const toolCalls = plan.steps.flat().slice(0, 5);
+
         return {
-            intent: parsed.intent || 'unknown',
-            toolCalls: Array.isArray(parsed.toolCalls) ? parsed.toolCalls.slice(0, 5) : [],
+            intent,
+            plan,
             textResponse: parsed.textResponse || '',
             responseType: parsed.responseType || 'text',
-            needsConfirmation: parsed.needsConfirmation || false,
+            // Legacy compatibility
+            toolCalls,
         };
     } catch (error) {
         console.error('NLP Layer Error:', error);
         return {
-            intent: 'error',
-            toolCalls: [],
+            intent: { type: 'error', domains: ['general'], timeframe: null, entities: {}, normalizedQuery: userMessage },
+            plan: { steps: [] },
             textResponse: 'I encountered an issue processing your request. Could you try rephrasing?',
             responseType: 'text',
-            needsConfirmation: false,
+            toolCalls: [],
         };
     }
 };

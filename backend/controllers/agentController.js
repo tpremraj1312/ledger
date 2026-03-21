@@ -1,6 +1,11 @@
 /**
  * Agent Controller — API orchestration layer
  * Handles SSE streaming, conversation management, and memory control.
+ *
+ * v2 Enhancements:
+ *   - New SSE events: plan, insight, charts (progressive rendering)
+ *   - Step-by-step plan broadcasting
+ *   - Multi-chart streaming
  */
 
 import ChatConversation from '../models/ChatConversation.js';
@@ -62,7 +67,7 @@ export const sendMessage = async (req, res) => {
             sendSSE('status', { phase: 'executing', message: 'Processing confirmed action...' });
 
             const result = await executeAgentAction(
-                { intent: 'confirm_action', toolCalls: [], textResponse: '' },
+                { intent: { type: 'confirm_action' }, toolCalls: [], textResponse: '', plan: { steps: [] } },
                 req.user,
                 conversation,
                 { confirmAction }
@@ -83,15 +88,19 @@ export const sendMessage = async (req, res) => {
             sendSSE('complete', {
                 conversationId: conversation._id,
                 chartData: result.chartData || null,
+                charts: result.charts || [],
                 actionResult: result.actionResult || null,
                 suggestions: result.suggestions || [],
+                insights: result.insights || [],
+                actions: result.actions || [],
+                dataSources: result.dataSources || [],
                 confirmationRequired: false,
             });
 
             return res.end();
         }
 
-        // ── NLP Layer (Layer 1) ──
+        // ── NLP Layer (Layer 1) — Intent Router + Query Planner ──
         sendSSE('status', { phase: 'understanding', message: 'Understanding your request...' });
 
         const nlpResult = await processNLP(
@@ -101,10 +110,47 @@ export const sendMessage = async (req, res) => {
             userId.toString()
         );
 
-        sendSSE('status', { phase: 'executing', message: nlpResult.toolCalls?.length > 0 ? 'Executing actions...' : 'Generating response...' });
+        // ── Broadcast the execution plan (for stepper UI) ──
+        if (nlpResult.plan?.steps?.length > 0) {
+            const planSteps = nlpResult.plan.steps.map(stepGroup => {
+                const tools = (Array.isArray(stepGroup) ? stepGroup : [stepGroup]);
+                return tools.map(tc => ({
+                    name: tc.name,
+                    label: getToolLabel(tc.name),
+                }));
+            });
+            sendSSE('plan', { steps: planSteps, intent: nlpResult.intent });
+        }
 
-        // ── Execution Layer (Layer 2) ──
-        const result = await executeAgentAction(nlpResult, req.user, conversation);
+        sendSSE('status', {
+            phase: 'executing',
+            message: nlpResult.toolCalls?.length > 0
+                ? `Running ${nlpResult.toolCalls.length} analysis tools...`
+                : 'Generating response...',
+        });
+
+        // ── Execution Layer (Layer 2) with step callbacks ──
+        let stepIndex = 0;
+        const result = await executeAgentAction(nlpResult, req.user, conversation, {
+            onStepComplete: (stepGroup, stepResults) => {
+                stepIndex++;
+                sendSSE('status', {
+                    phase: 'executing',
+                    message: `Step ${stepIndex} complete — analyzing results...`,
+                    stepIndex,
+                });
+            },
+        });
+
+        // ── Stream insights progressively (before full text) ──
+        if (result.insights && result.insights.length > 0) {
+            sendSSE('insight', { insights: result.insights });
+        }
+
+        // ── Stream charts data ──
+        if (result.charts && result.charts.length > 0) {
+            sendSSE('charts', { charts: result.charts });
+        }
 
         // Save assistant response
         conversation.addMessage('assistant', result.text, {
@@ -125,6 +171,13 @@ export const sendMessage = async (req, res) => {
         // ── Send final complete event ──
         sendSSE('complete', {
             conversationId: conversation._id,
+            // v2 fields
+            charts: result.charts || [],
+            insights: result.insights || [],
+            actions: result.actions || [],
+            dataSources: result.dataSources || [],
+            executedPlan: result.executedPlan || [],
+            // Legacy fields
             chartData: result.chartData || null,
             actionResult: result.actionResult || null,
             suggestions: result.suggestions || [],
@@ -158,6 +211,51 @@ const streamText = async (sendSSE, text) => {
         sendSSE('token', { text: chunk + (i + chunkSize < words.length ? ' ' : '') });
         await new Promise(r => setTimeout(r, 30)); // 30ms between chunks
     }
+};
+
+// ═══════════════════════════════════════════════════════════════
+// TOOL LABEL MAP — human-readable names for the stepper UI
+// ═══════════════════════════════════════════════════════════════
+const TOOL_LABEL_MAP = {
+    getExpenseSummary: '📊 Expense Summary',
+    getSpendingTrend: '📈 Spending Trend',
+    getSpendingByCategory: '📊 Category Breakdown',
+    getMonthlyComparison: '📊 Monthly Comparison',
+    getWeeklyTrend: '📈 Weekly Trend',
+    getBudgetStatus: '📋 Budget Status',
+    compareBudgetVsExpense: '📊 Budget vs Actual',
+    forecastOverspending: '🔮 Overspend Forecast',
+    getPortfolioOverview: '📈 Portfolio Overview',
+    getPortfolioAnalytics: '📈 Deep Analytics',
+    getRebalancingSuggestions: '🔄 Rebalancing',
+    getUnderperformers: '⚠️ Underperformers',
+    simulateSIP: '🔮 SIP Simulation',
+    estimateCapitalGains: '🧾 Capital Gains',
+    getTaxLiability: '🧾 Tax Liability',
+    getDeductionUsage: '🧾 Deductions',
+    compareRegimes: '⚖️ Regime Comparison',
+    getUnused80C: '🧾 80C Analysis',
+    forecastMonthlySavings: '🎯 Savings Plan',
+    simulateRetirement: '🔮 Retirement Sim',
+    simulateLoan: '🏦 Loan Calculator',
+    whatIfScenario: '🔮 What-If Analysis',
+    detectSubscriptionLeaks: '🔍 Subscriptions',
+    getAnomalies: '⚠️ Anomaly Detection',
+    getCashRunway: '💰 Cash Runway',
+    getRecentTransactions: '📋 Recent Transactions',
+    searchTransactions: '🔍 Search Results',
+    addExpense: '✅ Add Expense',
+    addIncome: '✅ Add Income',
+    createBudget: '📋 Create Budget',
+    getFamilySummary: '👨‍👩‍👧 Family Summary',
+    getContributionBreakdown: '📊 Contributions',
+    getQuestStatus: '🏆 Quest Status',
+    getXPProgress: '⭐ XP Progress',
+    getStreak: '🔥 Streak',
+};
+
+const getToolLabel = (toolName) => {
+    return TOOL_LABEL_MAP[toolName] || toolName.replace(/([A-Z])/g, ' $1').trim();
 };
 
 // ═══════════════════════════════════════════════════════════════
