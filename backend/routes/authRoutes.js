@@ -111,17 +111,37 @@ router.get(
       return res.status(500).json({ message: "Google OAuth is not configured properly" });
     }
     console.log("Accessing Google OAuth route...");
-    passport.authenticate("google", { scope: ["profile", "email"] })(req, res, next);
+    const authOptions = { scope: ["profile", "email"], session: false };
+    if (req.query.redirectUri) {
+      authOptions.state = Buffer.from(JSON.stringify({ redirectUri: req.query.redirectUri })).toString("base64");
+    }
+    passport.authenticate("google", authOptions)(req, res, next);
   }
 );
 
 router.get(
   "/google/callback",
-  passport.authenticate("google", { session: false, failureRedirect: `${process.env.FRONTEND_URL}/login` }),
+  (req, res, next) => {
+    passport.authenticate("google", { session: false, failureRedirect: `${process.env.FRONTEND_URL}/login` })(req, res, next);
+  },
   (req, res) => {
     console.log("Google OAuth callback successful, user:", req.user.email);
     const token = jwt.sign({ userId: req.user._id }, process.env.JWT_SECRET, { expiresIn: "1h" });
-    res.redirect(`${process.env.FRONTEND_URL}/login?token=${token}&userId=${req.user._id}&username=${encodeURIComponent(req.user.username)}&email=${encodeURIComponent(req.user.email)}`);
+    
+    let redirectUrl = `${process.env.FRONTEND_URL}/login`;
+    if (req.query.state) {
+      try {
+        const stateObj = JSON.parse(Buffer.from(req.query.state, 'base64').toString('utf8'));
+        if (stateObj.redirectUri) {
+          redirectUrl = stateObj.redirectUri;
+        }
+      } catch (e) {
+        console.error("Failed to parse state param:", e);
+      }
+    }
+    
+    const separator = redirectUrl.includes("?") ? "&" : "?";
+    res.redirect(`${redirectUrl}${separator}token=${token}&userId=${req.user._id}&username=${encodeURIComponent(req.user.username)}&email=${encodeURIComponent(req.user.email)}`);
   }
 );
 

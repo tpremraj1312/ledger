@@ -15,11 +15,16 @@ export const calculateWellnessScore = async (userId) => {
         const now = new Date();
         const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
-        const FamilyGroup = (await import('../models/FamilyGroup.js')).default;
-        const activeGroup = await FamilyGroup.findOne({
-            'members.userId': userId,
-            isActive: true,
-        });
+        let activeGroup = null;
+        try {
+            const FamilyGroup = (await import('../models/FamilyGroup.js')).default;
+            activeGroup = await FamilyGroup.findOne({
+                'members.user': userId,
+                isActive: true,
+            });
+        } catch (importErr) {
+            console.error('Dynamic import of FamilyGroup failed:', importErr);
+        }
 
         const query = {
             user: userId,
