@@ -81,7 +81,7 @@ app.use('/api', limiter);
 
 // CORS configuration
 app.use(cors({
-  origin: [process.env.FRONTEND_URL, process.env.FRONTEND_URL_APP, 'http://localhost:8081', 'http://localhost:19006'],
+  origin: [process.env.FRONTEND_URL, process.env.FRONTEND_URL_APP, 'http://localhost:8081', 'http://localhost:19006', 'https://ledger-x25s.vercel.app'],
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
   credentials: true
 }));
@@ -144,7 +144,7 @@ app.get("/", (req, res) => {
 // Error handling middleware
 app.use((err, req, res, next) => {
   logger.error(`${err.status || 500} - ${err.message} - ${req.originalUrl} - ${req.method} - ${req.ip}`);
-  
+
   let statusCode = 500;
   let message = process.env.NODE_ENV === 'production' ? 'Internal Server Error' : err.message;
 
