@@ -11,6 +11,7 @@ import React, {
 } from "react";
 
 import { fetchFinancialContext } from "../services/financialContextService"; // ✅ FIXED IMPORT
+import { useAuth } from "./authContext";
 
 const FinancialContext = createContext();
 
@@ -23,6 +24,8 @@ export const useFinancial = () => {
 };
 
 export const FinancialProvider = ({ children }) => {
+    const { isAuthenticated } = useAuth();
+    
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -40,6 +43,13 @@ export const FinancialProvider = ({ children }) => {
 
     const refreshData = useCallback(
         async (force = false) => {
+            if (!isAuthenticated) {
+                setData(null);
+                setLoading(false);
+                hasFetched.current = false;
+                return;
+            }
+
             if (!force && hasFetched.current) return;
 
             // Cancel any pending request
@@ -74,7 +84,7 @@ export const FinancialProvider = ({ children }) => {
                 setLoading(false);
             }
         },
-        [filters]
+        [filters, isAuthenticated]
     );
 
     useEffect(() => {

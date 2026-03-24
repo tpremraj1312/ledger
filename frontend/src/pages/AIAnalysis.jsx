@@ -2,6 +2,7 @@ import {
   PieChart, Pie, Cell, Tooltip, ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Legend, BarChart, Bar, AreaChart, Area, ReferenceLine, ReferenceDot, ReferenceArea, ScatterChart, Scatter
 } from 'recharts';
 import { Filter, Loader2, AlertTriangle, RefreshCw, TrendingUp, PieChart as PieChartIcon, Lightbulb, Calendar, ArrowRight, Brain } from 'lucide-react';
+import api from '../api/axios';
 import {
   COMMON_AXIS_PROPS,
   COMMON_TOOLTIP_PROPS,
@@ -9,7 +10,8 @@ import {
   formatCurrencyCompact,
   formatDateChart
 } from '../utils/chartStyles';
-import { useState, useCallback, useEffect, motion } from 'react';
+import { useState, useCallback, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 // Helper Functions
 const formatCurrency = (amount) => {
   if (amount === undefined || amount === null) return '₹0.00';
@@ -119,8 +121,7 @@ const AIAnalysisPage = () => {
 
     try {
       // Fetch AI analysis
-      const analysisResponse = await axios.get(`${import.meta.env.VITE_BACKEND_URL}/api/ai-analysis`, {
-        headers: { Authorization: `Bearer ${token}` },
+      const analysisResponse = await api.get('/api/ai-analysis', {
         params: {
           startDate: filters.startDate,
           endDate: filters.endDate,
@@ -130,12 +131,8 @@ const AIAnalysisPage = () => {
       setAnalysis(analysisResponse.data.analysis);
 
       // Fetch categories
-      const transactionsResponse = await axios.get(`${import.meta.env.VITE_BACKEND_URL}/api/transactions`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const budgetsResponse = await axios.get(`${import.meta.env.VITE_BACKEND_URL}/api/budgets`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const transactionsResponse = await api.get('/api/transactions');
+      const budgetsResponse = await api.get('/api/budgets');
       const transactionCategories = transactionsResponse.data.transactions.map(tx => tx.category);
       const budgetCategories = budgetsResponse.data.map(b => b.category);
       const uniqueCategories = ['All', ...new Set([...transactionCategories, ...budgetCategories])];
@@ -154,18 +151,18 @@ const AIAnalysisPage = () => {
   useEffect(() => {
     // Initial load only fetches categories, not analysis
     const fetchCats = async () => {
-      const token = getAuthToken();
-      const transactionsResponse = await axios.get(`${import.meta.env.VITE_BACKEND_URL}/api/transactions`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const budgetsResponse = await axios.get(`${import.meta.env.VITE_BACKEND_URL}/api/budgets`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const transactionCategories = transactionsResponse.data.transactions.map(tx => tx.category);
-      const budgetCategories = budgetsResponse.data.map(b => b.category);
-      const uniqueCategories = ['All', ...new Set([...transactionCategories, ...budgetCategories])];
-      setCategories(uniqueCategories);
-      setIsLoading(false);
+      try {
+        const transactionsResponse = await api.get('/api/transactions');
+        const budgetsResponse = await api.get('/api/budgets');
+        const transactionCategories = transactionsResponse.data.transactions.map(tx => tx.category);
+        const budgetCategories = budgetsResponse.data.map(b => b.category);
+        const uniqueCategories = ['All', ...new Set([...transactionCategories, ...budgetCategories])];
+        setCategories(uniqueCategories);
+      } catch (err) {
+        console.error('Failed to fetch categories:', err);
+      } finally {
+        setIsLoading(false);
+      }
     };
     fetchCats();
   }, []);
@@ -321,7 +318,7 @@ const AIAnalysisPage = () => {
               <button
                 onClick={fetchData}
                 disabled={isLoading}
-                className="mt-4 px-6 py-3 bg-ledger-primary text-white rounded-xl font-bold shadow-lg hover:shadow-card-200/50 transition-all active:scale-95 disabled:opacity-50 flex items-center"
+                className="mt-4 px-6 py-3 bg-ledger-primary text-grey rounded-xl font-bold shadow-lg hover:shadow-card-200/50 transition-all active:scale-95 disabled:opacity-50 flex items-center"
               >
                 {isLoading ? <Loader2 className="animate-spin mr-2" size={20} /> : <Brain className="mr-2" size={20} />}
                 Generate Analysis

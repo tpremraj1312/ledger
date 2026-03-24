@@ -1,30 +1,71 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  View, Text, StyleSheet, Modal, TouchableOpacity, 
-  ScrollView, ActivityIndicator 
+import {
+  View, Text, StyleSheet, Modal, TouchableOpacity,
+  ScrollView, ActivityIndicator, PanResponder, Animated, Dimensions
 } from 'react-native';
-import { X, Calculator, ArrowRight, TrendingUp } from 'lucide-react-native';
+import { X, TrendingUp } from 'lucide-react-native';
 
-// Try to import Slider, fallback if not available
 let Slider;
 try {
   Slider = require('@react-native-community/slider').default;
 } catch (e) {
-  Slider = ({ style }) => <View style={[style, { height: 40, backgroundColor: '#eee', borderRadius: 4, justifyContent: 'center', alignItems: 'center' }]}><Text style={{fontSize: 10, color: '#999'}}>Slider (Update required: npx expo install @react-native-community/slider)</Text></View>;
+  Slider = ({ style }) => (
+    <View style={[style, { height: 40, backgroundColor: '#eee', borderRadius: 4, justifyContent: 'center', alignItems: 'center' }]}>
+      <Text style={{ fontSize: 10, color: '#999' }}>Slider unavailable</Text>
+    </View>
+  );
 }
+
 import { colors, spacing, fontSize, fontWeight, borderRadius, shadows } from '../../theme';
 import { formatCurrency } from '../../utils/formatters';
 import { simulateInvestment } from '../../services/taxService';
+
+const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 const SimulatorModal = ({ visible, onClose, recommendation, currentTax }) => {
   const [investmentAmount, setInvestmentAmount] = useState(0);
   const [simulatedData, setSimulatedData] = useState(null);
   const [loading, setLoading] = useState(false);
+  const translateY = React.useRef(new Animated.Value(0)).current;
+
+  // Pan responder for swipe-to-dismiss
+  const panResponder = React.useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => false,
+      onMoveShouldSetPanResponder: (_, gestureState) => {
+        return gestureState.dy > 10 && Math.abs(gestureState.dy) > Math.abs(gestureState.dx);
+      },
+      onPanResponderMove: (_, gestureState) => {
+        if (gestureState.dy > 0) {
+          translateY.setValue(gestureState.dy);
+        }
+      },
+      onPanResponderRelease: (_, gestureState) => {
+        if (gestureState.dy > 120 || gestureState.vy > 0.5) {
+          Animated.timing(translateY, {
+            toValue: SCREEN_HEIGHT,
+            duration: 200,
+            useNativeDriver: true,
+          }).start(() => {
+            onClose();
+            translateY.setValue(0);
+          });
+        } else {
+          Animated.spring(translateY, {
+            toValue: 0,
+            useNativeDriver: true,
+            bounciness: 8,
+          }).start();
+        }
+      },
+    })
+  ).current;
 
   useEffect(() => {
     if (visible) {
       setInvestmentAmount(0);
       setSimulatedData(null);
+      translateY.setValue(0);
     }
   }, [visible]);
 
@@ -34,7 +75,6 @@ const SimulatorModal = ({ visible, onClose, recommendation, currentTax }) => {
         setSimulatedData(null);
         return;
       }
-      
       setLoading(true);
       try {
         const sectionKey = recommendation?.sectionKey || recommendation?.section;
@@ -64,85 +104,106 @@ const SimulatorModal = ({ visible, onClose, recommendation, currentTax }) => {
       transparent={true}
       onRequestClose={onClose}
     >
-      <View style={styles.overlay}>
-        <View style={styles.content}>
-          <View style={styles.header}>
-            <View>
-              <Text style={styles.title}>Tax Simulator</Text>
-              <Text style={styles.subtitle}>{recommendation.instrument}</Text>
+      <TouchableOpacity
+        style={styles.overlay}
+        activeOpacity={1}
+        onPress={onClose}
+      >
+        <Animated.View
+          style={[styles.content, { transform: [{ translateY }] }]}
+          {...panResponder.panHandlers}
+        >
+          <TouchableOpacity activeOpacity={1}>
+            {/* Drag Handle */}
+            <View style={styles.dragHandleContainer}>
+              <View style={styles.dragHandle} />
             </View>
-            <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
-              <X size={20} color={colors.textSecondary} />
+
+            {/* Header */}
+            <View style={styles.header}>
+              <View>
+                <Text style={styles.title}>Tax Simulator</Text>
+                <Text style={styles.subtitle}>{recommendation.instrument}</Text>
+              </View>
+              <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
+                <X size={18} color={colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={styles.body} showsVerticalScrollIndicator={false} bounces={false}>
+              {/* Slider Section */}
+              <View style={styles.section}>
+                <View style={styles.labelRow}>
+                  <Text style={styles.label}>Hypothetical Investment</Text>
+                  <Text style={styles.amountText}>{formatCurrency(investmentAmount)}</Text>
+                </View>
+                <Slider
+                  style={styles.slider}
+                  minimumValue={0}
+                  maximumValue={maxLimit}
+                  step={1000}
+                  value={investmentAmount}
+                  onValueChange={setInvestmentAmount}
+                  minimumTrackTintColor={colors.primary}
+                  maximumTrackTintColor={colors.border}
+                  thumbTintColor={colors.primary}
+                />
+                <View style={styles.sliderLabels}>
+                  <Text style={styles.limitText}>₹0</Text>
+                  <Text style={styles.limitText}>Max: {formatCurrency(maxLimit)}</Text>
+                </View>
+              </View>
+
+              {/* Results */}
+              <View style={styles.resultsCard}>
+                {loading && (
+                  <View style={styles.loadingOverlay}>
+                    <ActivityIndicator color={colors.primary} />
+                  </View>
+                )}
+
+                <View style={styles.comparisonRow}>
+                  <View style={styles.taxBox}>
+                    <Text style={styles.taxLabel}>CURRENT TAX</Text>
+                    <Text style={styles.taxValue}>{formatCurrency(currentTax)}</Text>
+                  </View>
+                  <View style={styles.arrowContainer}>
+                    <Text style={styles.arrowText}>→</Text>
+                  </View>
+                  <View style={styles.taxBox}>
+                    <Text style={[styles.taxLabel, { color: colors.primary }]}>NEW TAX</Text>
+                    <Text style={[styles.taxValue, { color: colors.primary }]}>
+                      {formatCurrency(newTax)}
+                    </Text>
+                  </View>
+                </View>
+
+                <View style={styles.savingsBanner}>
+                  <View style={styles.savingsIcon}>
+                    <TrendingUp size={14} color={colors.success} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.savingsLabel}>Net Tax Saved</Text>
+                    <Text style={styles.savingsValue}>{formatCurrency(netSaved)}</Text>
+                  </View>
+                </View>
+              </View>
+
+              {/* Disclaimer */}
+              <View style={styles.infoBox}>
+                <Text style={styles.infoText}>
+                  This is a simulation based on your current income and expense patterns. Actual savings may vary.
+                </Text>
+              </View>
+            </ScrollView>
+
+            {/* Done Button */}
+            <TouchableOpacity style={styles.doneBtn} onPress={onClose} activeOpacity={0.8}>
+              <Text style={styles.doneBtnText}>Done</Text>
             </TouchableOpacity>
-          </View>
-
-          <ScrollView style={styles.body} showsVerticalScrollIndicator={false}>
-            <View style={styles.section}>
-              <View style={styles.labelRow}>
-                <Text style={styles.label}>Hypothetical Investment</Text>
-                <Text style={styles.amountText}>{formatCurrency(investmentAmount)}</Text>
-              </View>
-              <Slider
-                style={styles.slider}
-                minimumValue={0}
-                maximumValue={maxLimit}
-                step={1000}
-                value={investmentAmount}
-                onValueChange={setInvestmentAmount}
-                minimumTrackTintColor={colors.primary}
-                maximumTrackTintColor={colors.border}
-                thumbTintColor={colors.primary}
-              />
-              <View style={styles.sliderLabels}>
-                <Text style={styles.limitText}>₹0</Text>
-                <Text style={styles.limitText}>Max: {formatCurrency(maxLimit)}</Text>
-              </View>
-            </View>
-
-            <View style={styles.resultsCard}>
-              {loading && (
-                <View style={styles.loadingOverlay}>
-                  <ActivityIndicator color={colors.primary} />
-                </View>
-              )}
-              
-              <View style={styles.comparisonRow}>
-                <View style={styles.taxBox}>
-                  <Text style={styles.taxLabel}>CURRENT TAX</Text>
-                  <Text style={styles.taxValue}>{formatCurrency(currentTax)}</Text>
-                </View>
-                <ArrowRight size={16} color={colors.gray400} />
-                <View style={styles.taxBox}>
-                  <Text style={[styles.taxLabel, { color: colors.primary }]}>NEW TAX</Text>
-                  <Text style={[styles.taxValue, { color: colors.primary }]}>
-                    {formatCurrency(newTax)}
-                  </Text>
-                </View>
-              </View>
-
-              <View style={styles.savingsBanner}>
-                <View style={styles.savingsIcon}>
-                  <TrendingUp size={16} color={colors.success} />
-                </View>
-                <View>
-                  <Text style={styles.savingsLabel}>Net Tax Saved</Text>
-                  <Text style={styles.savingsValue}>{formatCurrency(netSaved)}</Text>
-                </View>
-              </View>
-            </View>
-
-            <View style={styles.infoBox}>
-              <Text style={styles.infoText}>
-                This is a simulation based on your current income and expense patterns. Actual savings may vary.
-              </Text>
-            </View>
-          </ScrollView>
-
-          <TouchableOpacity style={styles.doneBtn} onPress={onClose}>
-            <Text style={styles.doneBtnText}>Done</Text>
           </TouchableOpacity>
-        </View>
-      </View>
+        </Animated.View>
+      </TouchableOpacity>
     </Modal>
   );
 };
@@ -150,21 +211,33 @@ const SimulatorModal = ({ visible, onClose, recommendation, currentTax }) => {
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    backgroundColor: 'rgba(0,0,0,0.45)',
     justifyContent: 'flex-end',
   },
   content: {
     backgroundColor: colors.white,
-    borderTopLeftRadius: borderRadius.xl,
-    borderTopRightRadius: borderRadius.xl,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
     paddingBottom: 34,
-    maxHeight: '80%',
+    maxHeight: '82%',
+  },
+  dragHandleContainer: {
+    alignItems: 'center',
+    paddingTop: 10,
+    paddingBottom: 2,
+  },
+  dragHandle: {
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: colors.gray300,
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: spacing.lg,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
@@ -176,7 +249,7 @@ const styles = StyleSheet.create({
   subtitle: {
     fontSize: fontSize.xs,
     color: colors.textSecondary,
-    marginTop: 2,
+    marginTop: 1,
   },
   closeBtn: {
     padding: 8,
@@ -184,16 +257,17 @@ const styles = StyleSheet.create({
     borderRadius: borderRadius.sm,
   },
   body: {
-    padding: spacing.lg,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.lg,
   },
   section: {
-    marginBottom: 24,
+    marginBottom: 20,
   },
   labelRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 10,
   },
   label: {
     fontSize: fontSize.sm,
@@ -202,7 +276,7 @@ const styles = StyleSheet.create({
   },
   amountText: {
     fontSize: fontSize.lg,
-    fontWeight: fontWeight.black,
+    fontWeight: fontWeight.bold,
     color: colors.primary,
   },
   slider: {
@@ -217,7 +291,7 @@ const styles = StyleSheet.create({
   limitText: {
     fontSize: 10,
     color: colors.gray400,
-    fontWeight: fontWeight.bold,
+    fontWeight: fontWeight.semibold,
   },
   resultsCard: {
     backgroundColor: colors.surface,
@@ -225,12 +299,12 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
     borderWidth: 1,
     borderColor: colors.border,
-    marginBottom: 24,
+    marginBottom: 16,
     position: 'relative',
   },
   loadingOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(245, 247, 250, 0.7)',
+    backgroundColor: 'rgba(245, 247, 250, 0.75)',
     zIndex: 10,
     justifyContent: 'center',
     alignItems: 'center',
@@ -240,14 +314,21 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 20,
-    paddingBottom: 20,
+    marginBottom: 16,
+    paddingBottom: 16,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
   taxBox: {
     alignItems: 'center',
     flex: 1,
+  },
+  arrowContainer: {
+    paddingHorizontal: 8,
+  },
+  arrowText: {
+    fontSize: fontSize.md,
+    color: colors.gray400,
   },
   taxLabel: {
     fontSize: 10,
@@ -271,13 +352,13 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
   },
   savingsIcon: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
     backgroundColor: colors.success + '15',
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 12,
+    marginRight: 10,
   },
   savingsLabel: {
     fontSize: 10,
@@ -296,6 +377,7 @@ const styles = StyleSheet.create({
     borderRadius: borderRadius.md,
     borderWidth: 1,
     borderColor: '#FFECC2',
+    marginBottom: 8,
   },
   infoText: {
     fontSize: 11,
@@ -305,7 +387,8 @@ const styles = StyleSheet.create({
   },
   doneBtn: {
     backgroundColor: colors.textPrimary,
-    margin: spacing.lg,
+    marginHorizontal: spacing.lg,
+    marginTop: spacing.md,
     paddingVertical: 14,
     borderRadius: borderRadius.md,
     alignItems: 'center',

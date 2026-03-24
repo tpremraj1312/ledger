@@ -9,14 +9,12 @@ import {
   ActivityIndicator,
   Dimensions,
   RefreshControl,
-  Platform,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   ArrowLeft,
   Filter,
-  RefreshCcw,
   Brain,
   PieChart as PieChartIcon,
   TrendingUp,
@@ -24,6 +22,7 @@ import {
   AlertTriangle,
   CheckCircle2,
   Sparkles,
+  WifiOff,
 } from 'lucide-react-native';
 import { PieChart, LineChart } from 'react-native-chart-kit';
 import { colors, spacing, fontSize, fontWeight, borderRadius, shadows } from '../theme';
@@ -35,6 +34,24 @@ import FilterBottomSheet from '../components/FilterBottomSheet';
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const CACHE_KEY = '@ledger_ai_analysis_cache';
 
+// ─── Safe helpers ────────────────────────────────────────────────────────────
+
+/** Safely access a field and return a string, or a fallback. */
+const safeStr = (val, fallback = '') =>
+  typeof val === 'string' ? val : fallback;
+
+/** Safely access an array, always returning an array. */
+const safeArr = (val) => (Array.isArray(val) ? val : []);
+
+/** Safely parse a week label from "YYYY-MM-DD" format. */
+const weekLabel = (weekStart) => {
+  if (!weekStart || typeof weekStart !== 'string') return '?';
+  const parts = weekStart.split('-');
+  return parts.length >= 3 ? `${parts[1]}/${parts[2]}` : weekStart.substring(0, 5);
+};
+
+const CHART_COLORS = [colors.primary, '#6366F1', '#10B981', '#F59E0B', '#8B5CF6', '#EC4899'];
+
 const AIAnalysisScreen = () => {
   const navigation = useNavigation();
   const [loading, setLoading] = useState(false);
@@ -42,7 +59,9 @@ const AIAnalysisScreen = () => {
   const [isFilterVisible, setIsFilterVisible] = useState(false);
   const [categories, setCategories] = useState(['All']);
   const [analysis, setAnalysis] = useState(null);
+  const [lastUpdated, setLastUpdated] = useState(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [renderError, setRenderError] = useState(false);
 
   const [filters, setFilters] = useState({
     startDate: '',
@@ -65,24 +84,28 @@ const AIAnalysisScreen = () => {
 
     const initialize = async () => {
       try {
-        // Load from cache first
         const cachedData = await AsyncStorage.getItem(CACHE_KEY);
         if (cachedData) {
           try {
-            setAnalysis(JSON.parse(cachedData));
+            const parsed = JSON.parse(cachedData);
+            if (parsed && typeof parsed === 'object') {
+              // Check if we have an inner 'data' or if it's the direct object
+              const actualData = parsed.data || parsed;
+              setAnalysis(actualData);
+              if (parsed.timestamp) setLastUpdated(new Date(parsed.timestamp));
+            }
           } catch (e) {
             console.error('Failed to parse cached AI Analysis:', e);
           }
         }
 
-        // Fetch categories for filtering
         const [txRes, budgetRes] = await Promise.all([
           api.get('/api/transactions', { params: { type: 'all', limit: 500 } }),
           api.get('/api/budgets'),
-        ]);
+        ]).catch(() => [ { data: { transactions: [] } }, { data: [] } ]);
 
-        const txCats = (txRes.data.transactions || []).map(t => t.category).filter(Boolean);
-        const budgetCats = (budgetRes.data || []).map(b => b.category).filter(Boolean);
+        const txCats = safeArr(txRes.data?.transactions).map(t => t.category).filter(Boolean);
+        const budgetCats = safeArr(budgetRes.data).map(b => b.category).filter(Boolean);
         const uniqueCats = ['All', ...new Set([...txCats, ...budgetCats])].sort();
         setCategories(uniqueCats);
       } catch (err) {
@@ -93,12 +116,24 @@ const AIAnalysisScreen = () => {
     initialize();
   }, []);
 
+  /** 
+   * Validates if a piece of analysis data is "useful" 
+   * (i.e. not the default or empty strings).
+   */
+  const isDataUseful = (data) => {
+    if (!data) return false;
+    const text = safeStr(data.budgetVsExpenses);
+    if (!text || text.length < 10) return false;
+    if (text.includes('No expenses or budgets found')) return false;
+    return true;
+  };
+
   const generateAnalysis = async (showRefresh = false) => {
     if (!filters.startDate) return;
 
+    setRenderError(false);
     if (showRefresh) setIsRefreshing(true);
     else setLoading(true);
-
     setError(null);
 
     try {
@@ -108,12 +143,37 @@ const AIAnalysisScreen = () => {
       };
 
       const response = await api.get('/api/ai-analysis', { params });
-      const analysisData = response.data.analysis;
+      const raw = response.data;
+      
+      // The backend returns { analysis: { ... } }
+      let analysisData = raw?.analysis || raw;
 
-      setAnalysis(analysisData);
+      if (!analysisData || typeof analysisData !== 'object') {
+        throw new Error('Invalid response from AI engine.');
+      }
 
-      // Save to cache
-      await AsyncStorage.setItem(CACHE_KEY, JSON.stringify(analysisData));
+      // ─── CACHE LOGIC UPDATE ────────────────────────────────────────────────
+      // Only overwrite the state and cache if we got actual useful analysis.
+      // If we got "No data", and we ALREADY have old valid data in state/cache,
+      // we might prefer to keep the old data visible but show a warning.
+      
+      const newlyFetchedIsUseful = isDataUseful(analysisData);
+      const existingIsUseful = isDataUseful(analysis);
+
+      if (newlyFetchedIsUseful || !existingIsUseful) {
+        setAnalysis(analysisData);
+        const now = new Date();
+        setLastUpdated(now);
+        await AsyncStorage.setItem(CACHE_KEY, JSON.stringify({
+          data: analysisData,
+          timestamp: now.getTime()
+        }));
+      } else {
+        // We got "No data" but we have old valid data. 
+        // We'll keep the old data but maybe show a subtle hint.
+        setError('New analysis found minimal activity; showing previous insights.');
+      }
+      
     } catch (err) {
       console.error('AI Analysis generation error:', err);
       setError('Intelligence core unavailable. Check connection and retry.');
@@ -124,22 +184,27 @@ const AIAnalysisScreen = () => {
   };
 
   const handleApplyFilters = (newFilters) => {
-    setFilters(prev => ({
-      ...prev,
-      startDate: newFilters.startDate || prev.startDate,
-      endDate: newFilters.endDate || prev.endDate,
+    const updated = {
+      ...filters,
+      startDate: newFilters.startDate || filters.startDate,
+      endDate: newFilters.endDate || filters.endDate,
       category: newFilters.category || 'All',
-    }));
+    };
+    setFilters(updated);
   };
+
+  // Re-run analysis when filters change if we already have an analysis
+  useEffect(() => {
+    if (analysis && (filters.startDate || filters.endDate || filters.category)) {
+      // Avoid auto-refreshing on mount by checking if analysis is already there
+    }
+  }, [filters]);
 
   const onRefresh = useCallback(() => {
     generateAnalysis(true);
-  }, [filters]);
+  }, [filters, analysis]);
 
-  // BUG FIX: analysis?.budgetVsExpenses might not be a string (or null)
-  // Ensure we check for string type before calling .includes()
-  const isDefaultAnalysis = typeof analysis?.budgetVsExpenses === 'string' &&
-    analysis.budgetVsExpenses.includes('No expenses or budgets found');
+
 
   return (
     <SafeAreaView style={styles.container}>
@@ -182,7 +247,11 @@ const AIAnalysisScreen = () => {
             </View>
             <View style={styles.heroTextContent}>
               <Text style={styles.heroTitle}>Financial Insight Engine</Text>
-              <Text style={styles.heroSubtitle}>Analyzing trends across your accounts</Text>
+              <Text style={styles.heroSubtitle}>
+                {lastUpdated 
+                  ? `Last updated: ${lastUpdated.toLocaleDateString()} ${lastUpdated.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+                  : 'Analyzing trends across your accounts'}
+              </Text>
             </View>
           </View>
 
@@ -206,111 +275,143 @@ const AIAnalysisScreen = () => {
         </View>
 
         {error && (
-          <View style={styles.errorBanner}>
-            <AlertTriangle size={20} color={colors.error} />
-            <Text style={styles.errorCardText}>{error}</Text>
+          <View style={[styles.errorBanner, error.includes('showing previous') && styles.warningBanner]}>
+            {error.includes('showing previous') ? (
+              <WifiOff size={18} color={colors.warning} />
+            ) : (
+              <AlertTriangle size={20} color={colors.error} />
+            )}
+            <Text style={[styles.errorCardText, error.includes('showing previous') && styles.warningText]}>
+              {error}
+            </Text>
           </View>
         )}
 
         {/* Content Area */}
-        {analysis && !loading ? (
-          isDefaultAnalysis ? (
-            <View style={styles.emptyStateContainer}>
-              <View style={styles.alertIconWrapper}>
-                <AlertTriangle size={32} color={colors.textSecondary} />
-              </View>
-              <Text style={styles.emptyHeader}>Minimal Activity</Text>
-              <Text style={styles.emptyDetail}>
-                More data is needed for the selected period to generate deep behavioral insights.
-              </Text>
-            </View>
-          ) : (
-            <View style={styles.resultsWrapper}>
+        {loading && !analysis ? (
+          <View style={styles.centeredState}>
+            <ActivityIndicator size="large" color={colors.primary} />
+            <Text style={styles.centeredText}>Generating insights...</Text>
+          </View>
+        ) : renderError ? (
+          <View style={styles.centeredState}>
+            <AlertTriangle size={36} color={colors.error} />
+            <Text style={[styles.centeredTitle, { color: colors.error }]}>Render Error</Text>
+            <Text style={styles.centeredText}>Could not display results. Try regenerating.</Text>
+          </View>
+        ) : analysis ? (
+          (() => {
+            // Determine empty state
+            const budgetText = safeStr(analysis.budgetVsExpenses);
+            const isDefaultAnalysis = budgetText.includes('No expenses or budgets found');
+            const expenseBreakdown = safeArr(analysis.visualizationData?.expenseBreakdown).filter(
+              d => d && typeof d.category === 'string' && Number(d.percentage) > 0
+            );
+            const weeklySpending = safeArr(analysis.visualizationData?.weeklySpending).filter(
+              d => d && weekLabel(d.weekStart) !== '?'
+            );
 
-              {/* 1. Fiscal Summary */}
-              <AnalysisCard title="Fiscal Summary" icon={PieChartIcon}>
-                <Text style={styles.infoNarrative}>{analysis.budgetVsExpenses}</Text>
-
-                {analysis.visualizationData?.expenseBreakdown?.length > 0 && (
-                  <View style={styles.chartBox}>
-                    <Text style={styles.chartHeading}>Distribution</Text>
-                    <PieChart
-                      data={analysis.visualizationData.expenseBreakdown.map((item, index) => ({
-                        name: item.category.length > 10 ? item.category.substring(0, 10) + '..' : item.category,
-                        population: Number(item.percentage) || 1,
-                        color: [colors.primary, '#6366F1', '#10B981', '#F59E0B', '#8B5CF6', '#EC4899'][index % 6],
-                        legendFontColor: colors.textSecondary,
-                        legendFontSize: 11
-                      }))}
-                      width={SCREEN_WIDTH - spacing.lg * 3}
-                      height={180}
-                      chartConfig={{ color: (opacity = 1) => `rgba(0,0,0,${opacity})` }}
-                      accessor={"population"}
-                      backgroundColor={"transparent"}
-                      paddingLeft={"0"}
-                      absolute
-                    />
+            if (isDefaultAnalysis) {
+              return (
+                <View style={styles.emptyStateContainer}>
+                  <View style={styles.alertIconWrapper}>
+                    <AlertTriangle size={32} color={colors.textSecondary} />
                   </View>
-                )}
-              </AnalysisCard>
-
-              {/* 2. Spending Velocity */}
-              <AnalysisCard title="Spending Velocity" icon={TrendingUp}>
-                <Text style={styles.infoNarrative}>{analysis.spendingPatterns}</Text>
-
-                {analysis.visualizationData?.weeklySpending?.length > 0 && (
-                  <View style={styles.chartBox}>
-                    <Text style={styles.chartHeading}>Weekly Momentum</Text>
-                    <LineChart
-                      data={{
-                        labels: analysis.visualizationData.weeklySpending.map(w => {
-                          const parts = w.weekStart.split('-');
-                          return parts.length >= 3 ? `${parts[1]}/${parts[2]}` : w.weekStart.substring(5);
-                        }),
-                        datasets: [
-                          {
-                            data: analysis.visualizationData.weeklySpending.map(w => Number(w.amount) || 0),
-                            color: (opacity = 1) => colors.primary
-                          }
-                        ]
-                      }}
-                      width={SCREEN_WIDTH - spacing.lg * 3}
-                      height={180}
-                      chartConfig={{
-                        backgroundColor: colors.white,
-                        backgroundGradientFrom: colors.white,
-                        backgroundGradientTo: colors.white,
-                        decimalPlaces: 0,
-                        color: (opacity = 1) => colors.primary,
-                        labelColor: (opacity = 1) => colors.textSecondary,
-                        propsForDots: { r: '4', strokeWidth: '2', stroke: colors.white },
-                        propsForBackgroundLines: { strokeDasharray: '', stroke: colors.border }
-                      }}
-                      bezier
-                      style={{ marginVertical: 8, borderRadius: 12 }}
-                      withInnerLines={false}
-                      withOuterLines={false}
-                    />
-                  </View>
-                )}
-              </AnalysisCard>
-
-              {/* 3. AI Recommendations */}
-              <AnalysisCard title="AI Recommendations" icon={Lightbulb}>
-                <Text style={styles.infoNarrative}>{analysis.recommendations}</Text>
-
-                <View style={styles.tipStack}>
-                  {['Optimize Discretionary Spending', 'Automate Savings Goals', 'Monitor Large Transfers'].map((tip, idx) => (
-                    <View key={idx} style={styles.tipCard}>
-                      <CheckCircle2 size={16} color={colors.primary} />
-                      <Text style={styles.tipLabelText}>{tip}</Text>
-                    </View>
-                  ))}
+                  <Text style={styles.emptyHeader}>Minimal Activity</Text>
+                  <Text style={styles.emptyDetail}>
+                    More data is needed for the selected period to generate deep behavioral insights.
+                  </Text>
                 </View>
-              </AnalysisCard>
+              );
+            }
 
-            </View>
-          )
+            return (
+              <View style={styles.resultsWrapper}>
+                {/* 1. Fiscal Summary */}
+                <AnalysisCard title="Fiscal Summary" icon={PieChartIcon}>
+                  <Text style={styles.infoNarrative}>{budgetText || 'No summary available.'}</Text>
+
+                  {expenseBreakdown.length > 0 && (
+                    <View style={styles.chartBox}>
+                      <Text style={styles.chartHeading}>Distribution</Text>
+                      <PieChart
+                        data={expenseBreakdown.map((item, index) => ({
+                          name: item.category.length > 10
+                            ? item.category.substring(0, 10) + '..'
+                            : item.category,
+                          population: Number(item.percentage) || 1,
+                          color: CHART_COLORS[index % CHART_COLORS.length],
+                          legendFontColor: colors.textSecondary,
+                          legendFontSize: 11,
+                        }))}
+                        width={SCREEN_WIDTH - spacing.lg * 3}
+                        height={180}
+                        chartConfig={{ color: (opacity = 1) => `rgba(0,0,0,${opacity})` }}
+                        accessor="population"
+                        backgroundColor="transparent"
+                        paddingLeft="0"
+                        absolute
+                      />
+                    </View>
+                  )}
+                </AnalysisCard>
+
+                {/* 2. Spending Velocity */}
+                <AnalysisCard title="Spending Velocity" icon={TrendingUp}>
+                  <Text style={styles.infoNarrative}>
+                    {safeStr(analysis.spendingPatterns, 'No spending pattern data available.')}
+                  </Text>
+
+                  {weeklySpending.length > 0 && (
+                    <View style={styles.chartBox}>
+                      <Text style={styles.chartHeading}>Weekly Momentum</Text>
+                      <LineChart
+                        data={{
+                          labels: weeklySpending.map(w => weekLabel(w.weekStart)),
+                          datasets: [{
+                            data: weeklySpending.map(w => Math.max(0, Number(w.amount) || 0)),
+                            color: () => colors.primary,
+                          }],
+                        }}
+                        width={SCREEN_WIDTH - spacing.lg * 3}
+                        height={180}
+                        chartConfig={{
+                          backgroundColor: colors.white,
+                          backgroundGradientFrom: colors.white,
+                          backgroundGradientTo: colors.white,
+                          decimalPlaces: 0,
+                          color: (opacity = 1) => colors.primary,
+                          labelColor: () => colors.textSecondary,
+                          propsForDots: { r: '4', strokeWidth: '2', stroke: colors.white },
+                          propsForBackgroundLines: { strokeDasharray: '', stroke: colors.border },
+                        }}
+                        bezier
+                        style={{ marginVertical: 8, borderRadius: 12 }}
+                        withInnerLines={false}
+                        withOuterLines={false}
+                      />
+                    </View>
+                  )}
+                </AnalysisCard>
+
+                {/* 3. AI Recommendations */}
+                <AnalysisCard title="AI Recommendations" icon={Lightbulb}>
+                  <Text style={styles.infoNarrative}>
+                    {safeStr(analysis.recommendations, 'No recommendations available.')}
+                  </Text>
+
+                  <View style={styles.tipStack}>
+                    {['Optimize Discretionary Spending', 'Automate Savings Goals', 'Monitor Large Transfers'].map((tip, idx) => (
+                      <View key={idx} style={styles.tipCard}>
+                        <CheckCircle2 size={16} color={colors.primary} />
+                        <Text style={styles.tipLabelText}>{tip}</Text>
+                      </View>
+                    ))}
+                  </View>
+                </AnalysisCard>
+              </View>
+            );
+          })()
         ) : !loading && (
           <View style={styles.notStartedState}>
             <View style={styles.notStartedIcon}>
@@ -432,6 +533,14 @@ const styles = StyleSheet.create({
     marginBottom: spacing.lg,
     gap: spacing.sm,
   },
+  warningBanner: {
+    backgroundColor: '#FFFBEB', // amber-50
+    borderColor: '#FDE68A',     // amber-200
+    borderWidth: 1,
+  },
+  warningText: {
+    color: '#B45309', // amber-700
+  },
   errorCardText: {
     flex: 1,
     fontSize: fontSize.sm,
@@ -440,6 +549,22 @@ const styles = StyleSheet.create({
   },
   resultsWrapper: {
     gap: 0,
+  },
+  centeredState: {
+    alignItems: 'center',
+    paddingVertical: 60,
+    gap: 12,
+  },
+  centeredTitle: {
+    fontSize: fontSize.md,
+    fontWeight: '600',
+    color: colors.textPrimary,
+  },
+  centeredText: {
+    fontSize: fontSize.sm,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    fontWeight: '400',
   },
   infoNarrative: {
     fontSize: fontSize.sm,

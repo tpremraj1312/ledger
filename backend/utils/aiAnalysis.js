@@ -109,25 +109,53 @@ export const generateAIAnalysis = async (userId, { startDate, endDate, category 
     const weeklySpendingData = Object.entries(weeklySpending).map(([week, amount]) => ({ weekStart: week, amount }));
 
     const prompt = `
-Analyze Indian Rupee (₹) finances.
-Data:
-- Total: ${formatCurrency(totalExpenses)} / Budget: ${formatCurrency(totalBudget)}
-- Categories: ${JSON.stringify(expenseBreakdown)}
-- Weekly: ${JSON.stringify(weeklySpendingData)}
-- Filters: ${cappedStart.toDateString()} to ${cappedEnd.toDateString()}, Category: ${category || 'All'}
+You are a professional Indian financial analyst. Analyze the following financial data (all amounts in Indian Rupees ₹).
 
-Return JSON: { budgetVsExpenses, spendingPatterns, recommendations, visualizationData: { expenseBreakdown, weeklySpending } }
-Accurate, professional, actionable. Use ₹.
+DATA:
+- Total Expenses: ${formatCurrency(totalExpenses)}
+- Total Budget: ${formatCurrency(totalBudget)}
+- Budget Utilization: ${totalBudget > 0 ? ((totalExpenses / totalBudget) * 100).toFixed(1) : 0}%
+- Category-wise Breakdown: ${JSON.stringify(expenseBreakdown)}
+- Weekly Spending Trend: ${JSON.stringify(weeklySpendingData)}
+- Analysis Period: ${cappedStart.toDateString()} to ${cappedEnd.toDateString()}
+- Category Filter: ${category || 'All'}
+
+Return a JSON object with EXACTLY these keys. Each text field MUST be a detailed paragraph (minimum 2-3 sentences):
+
+{
+  "budgetVsExpenses": "A detailed paragraph comparing total expenses against budget. Mention specific amounts, percentage utilization, which categories are over/under budget, and the overall financial health.",
+  "spendingPatterns": "A detailed paragraph analyzing spending trends. Mention weekly patterns, peak spending periods, highest spending categories, and any notable trends or anomalies.",
+  "recommendations": "A detailed paragraph with 3-5 actionable financial recommendations. Be specific about which categories to reduce, savings targets, and budget adjustments.",
+  "visualizationData": {
+    "expenseBreakdown": [{"category": "string", "percentage": number, "amount": number}],
+    "weeklySpending": [{"weekStart": "YYYY-MM-DD", "amount": number}]
+  }
+}
+
+IMPORTANT: The budgetVsExpenses, spendingPatterns, and recommendations fields MUST contain substantial, insightful text (not just one line). Use ₹ symbol for all amounts. Be professional and actionable.
 `;
 
     const result = await model.generateContent(prompt);
     const text = result.response.text();
     const jsonMatch = text.match(/```json\s*([\s\S]*?)\s*```/);
     const cleaned = jsonMatch ? jsonMatch[1] : text;
-    const analysis = JSON.parse(cleaned);
+    
+    let analysis = {};
+    try {
+      analysis = JSON.parse(cleaned);
+    } catch (e) {
+      console.error('LLM JSON parse error:', e);
+      analysis = {};
+    }
 
-    analysis.visualizationData = analysis.visualizationData || { expenseBreakdown, weeklySpending: weeklySpendingData };
-    return analysis;
+    return {
+      ...defaultAnalysis,
+      ...analysis,
+      visualizationData: {
+        expenseBreakdown: analysis.visualizationData?.expenseBreakdown || expenseBreakdown,
+        weeklySpending: analysis.visualizationData?.weeklySpending || weeklySpendingData
+      }
+    };
   } catch (error) {
     console.error('AI Analysis Error:', error);
     return defaultAnalysis;

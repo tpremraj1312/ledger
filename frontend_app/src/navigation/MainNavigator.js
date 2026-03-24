@@ -21,6 +21,7 @@ import FamilyExpensesScreen from '../screens/family/FamilyExpensesScreen';
 import NotificationsScreen from '../screens/family/NotificationsScreen';
 import AgentChatScreen from '../screens/agent/AgentChatScreen';
 import TaxOptimizerScreen from '../screens/TaxOptimizerScreen';
+import ITRGuideScreen from '../screens/ITRGuideScreen';
 import SMSParserScreen from '../screens/SMSParserScreen';
 
 const Tab = createBottomTabNavigator();
@@ -119,6 +120,7 @@ const MainNavigator = () => {
       <Stack.Screen name="Notifications" component={NotificationsScreen} />
       <Stack.Screen name="AgentChat" component={AgentChatScreen} />
       <Stack.Screen name="TaxOptimizer" component={TaxOptimizerScreen} />
+      <Stack.Screen name="ITRGuide" component={ITRGuideScreen} />
       <Stack.Screen name="SMSParser" component={SMSParserScreen} />
     </Stack.Navigator>
   );

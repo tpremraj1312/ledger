@@ -1,6 +1,7 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import api from '../api/axios';
+import { useFinancial } from '../context/FinancialContext';
 import {
     COMMON_AXIS_PROPS,
     COMMON_TOOLTIP_PROPS,
@@ -228,6 +229,16 @@ const SimulatorModal = ({ isOpen, onClose, rec, baseTax }) => {
         return () => clearTimeout(t);
     }, [val, rec]);
 
+    // Prevent body scroll when modal is open
+    useEffect(() => {
+        if (isOpen) {
+            document.body.style.overflow = 'hidden';
+        } else {
+            document.body.style.overflow = '';
+        }
+        return () => { document.body.style.overflow = ''; };
+    }, [isOpen]);
+
     if (!isOpen || !rec) return null;
 
     const max = rec.actionDetails?.maxInvestable || rec.maxInvestable || 150000;
@@ -235,12 +246,26 @@ const SimulatorModal = ({ isOpen, onClose, rec, baseTax }) => {
     const saved = result ? result.netTaxSaved : 0;
 
     return (
-        <AnimatePresence>
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
-                <motion.div initial={{ scale: 0.95, y: 12 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 12 }}
-                    className="bg-white rounded-2xl w-full max-w-sm shadow-xl border border-gray-100/80 overflow-hidden" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 z-[9999]" style={{ isolation: 'isolate' }}>
+            {/* Backdrop */}
+            <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+                onClick={onClose}
+            />
 
+            {/* Modal Container - centered */}
+            <div className="absolute inset-0 flex items-center justify-center p-4 pointer-events-none">
+                <motion.div
+                    initial={{ scale: 0.95, opacity: 0, y: 20 }}
+                    animate={{ scale: 1, opacity: 1, y: 0 }}
+                    exit={{ scale: 0.95, opacity: 0, y: 20 }}
+                    transition={{ type: 'spring', duration: 0.35, bounce: 0.15 }}
+                    className="bg-white rounded-2xl w-full max-w-sm shadow-2xl border border-gray-100 overflow-hidden pointer-events-auto"
+                    onClick={e => e.stopPropagation()}
+                >
                     {/* Header */}
                     <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
                         <div>
@@ -255,7 +280,7 @@ const SimulatorModal = ({ isOpen, onClose, rec, baseTax }) => {
                     </div>
 
                     {/* Body */}
-                    <div className="px-5 py-4 space-y-4">
+                    <div className="px-5 py-4 space-y-4 max-h-[60vh] overflow-y-auto">
                         {/* Slider */}
                         <div>
                             <div className="flex justify-between items-center mb-2">
@@ -282,7 +307,7 @@ const SimulatorModal = ({ isOpen, onClose, rec, baseTax }) => {
                                     <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-0.5">Current Tax</p>
                                     <p className="text-base font-bold text-gray-900">{fmt(baseTax)}</p>
                                 </div>
-                                <ArrowRight size={14} className="text-gray-300" />
+                                <ArrowRight size={14} className="text-gray-300 mx-2" />
                                 <div className="text-right">
                                     <p className="text-[10px] font-bold uppercase tracking-wider text-indigo-500 mb-0.5">New Tax</p>
                                     <p className="text-base font-black text-indigo-600">{fmt(newTax)}</p>
@@ -295,6 +320,13 @@ const SimulatorModal = ({ isOpen, onClose, rec, baseTax }) => {
                                 <span className="text-lg font-black">{fmt(saved)}</span>
                             </div>
                         </div>
+
+                        {/* Info */}
+                        <div className="bg-amber-50/60 border border-amber-100 rounded-lg p-3">
+                            <p className="text-[10px] text-amber-700 leading-relaxed text-center">
+                                This is a simulation based on your current income and expense patterns. Actual savings may vary.
+                            </p>
+                        </div>
                     </div>
 
                     {/* Footer */}
@@ -305,8 +337,137 @@ const SimulatorModal = ({ isOpen, onClose, rec, baseTax }) => {
                         </button>
                     </div>
                 </motion.div>
-            </motion.div>
-        </AnimatePresence>
+            </div>
+        </div>
+    );
+};
+
+/* ══════════════════════════════════════════════════════ */
+/* ─── INVEST MODAL ─── */
+/* ══════════════════════════════════════════════════════ */
+const InvestModal = ({ isOpen, onClose, rec, onSuccess }) => {
+    const [amount, setAmount] = useState('');
+    const [type, setType] = useState('Mutual Fund');
+    const [name, setName] = useState('');
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState('');
+
+    useEffect(() => {
+        if (isOpen && rec) {
+            setAmount(rec.actionDetails?.maxInvestable || rec.maxInvestable || '');
+            setName(rec.instrument || '');
+            
+            const instr = (rec.instrument || '').toLowerCase();
+            if (instr.includes('ppf') || instr.includes('nps') || instr.includes('bond')) setType('Bond');
+            else if (instr.includes('fd') || instr.includes('deposit')) setType('FD');
+            else if (instr.includes('insurance')) setType('Other'); // This won't perfectly map to Investment schema but for tax-saving we map broadly to FD/Bond
+            else setType('Mutual Fund');
+        }
+    }, [isOpen, rec]);
+
+    // Prevent body scroll
+    useEffect(() => {
+        if (isOpen) document.body.style.overflow = 'hidden';
+        else document.body.style.overflow = '';
+        return () => { document.body.style.overflow = ''; };
+    }, [isOpen]);
+
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        setLoading(true);
+        setError('');
+        try {
+            const payload = {
+                name: name,
+                assetType: ['Stock', 'Mutual Fund', 'ETF', 'Crypto', 'Gold', 'FD', 'Bond', 'Real Estate'].includes(type) ? type : 'Bond',
+                symbol: `TAX-${rec.sectionKey || 'SAVE'}`,
+                quantity: 1,
+                buyPrice: Number(amount),
+                investedAmount: Number(amount),
+                buyDate: new Date().toISOString(),
+                notes: `Tax-saving investment under ${rec.sectionKey || 'generic'}`
+            };
+
+            await api.post('/api/investments', payload);
+            
+            if (onSuccess) onSuccess();
+            onClose();
+        } catch (err) {
+            setError(err.response?.data?.message || 'Failed to record investment');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    if (!isOpen || !rec) return null;
+
+    return (
+        <div className="fixed inset-0 z-[9999]" style={{ isolation: 'isolate' }}>
+            {/* Backdrop */}
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+
+            {/* Modal */}
+            <div className="absolute inset-0 flex items-center justify-center p-4 min-h-full">
+                <motion.div initial={{ scale: 0.95, opacity: 0, y: 20 }} animate={{ scale: 1, opacity: 1, y: 0 }}
+                    exit={{ scale: 0.95, opacity: 0, y: 20 }} transition={{ type: 'spring', duration: 0.35, bounce: 0.15 }}
+                    className="bg-white rounded-2xl w-full max-w-sm shadow-2xl border border-gray-100 overflow-hidden relative z-10"
+                    onClick={e => e.stopPropagation()}>
+                    
+                    {/* Header */}
+                    <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+                        <div>
+                            <h3 className="text-sm font-bold text-gray-900 flex items-center gap-1.5">
+                                <TrendingUp size={14} className="text-emerald-500" /> Invest Now
+                            </h3>
+                            <p className="text-[10px] text-gray-500 mt-0.5 max-w-[200px] truncate">{rec.instrument}</p>
+                        </div>
+                        <button onClick={onClose} className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-all">
+                            <X size={16} />
+                        </button>
+                    </div>
+
+                    {/* Form */}
+                    <form onSubmit={handleSubmit} className="px-5 py-4 space-y-4">
+                        {error && (
+                            <div className="bg-red-50 text-red-600 text-[11px] p-2.5 rounded-lg border border-red-100 flex gap-2 items-start">
+                                <AlertCircle size={14} className="mt-0.5 flex-shrink-0" /> {error}
+                            </div>
+                        )}
+
+                        <div>
+                            <label className="block text-xs font-semibold text-gray-700 mb-1.5">Investment Amount (₹)</label>
+                            <input type="number" required min="1" value={amount} onChange={e => setAmount(e.target.value)}
+                                className="w-full bg-gray-50 border border-gray-200 text-gray-900 text-sm rounded-xl px-3.5 py-2.5 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500" />
+                            <p className="text-[10px] text-gray-400 mt-1">Recommended up to {fmt(rec.actionDetails?.maxInvestable || rec.maxInvestable)}</p>
+                        </div>
+
+                        <div>
+                            <label className="block text-xs font-semibold text-gray-700 mb-1.5">Instrument Name</label>
+                            <input type="text" required value={name} onChange={e => setName(e.target.value)}
+                                className="w-full bg-gray-50 border border-gray-200 text-gray-900 text-sm rounded-xl px-3.5 py-2.5 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500" />
+                        </div>
+
+                        <div>
+                            <label className="block text-xs font-semibold text-gray-700 mb-1.5">Asset Type</label>
+                            <select value={type} onChange={e => setType(e.target.value)}
+                                className="w-full bg-gray-50 border border-gray-200 text-gray-900 text-sm rounded-xl px-3.5 py-2.5 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500">
+                                <option value="Mutual Fund">Mutual Fund (ELSS, etc.)</option>
+                                <option value="Bond">Bond (PPF, NPS, Gov Bonds)</option>
+                                <option value="FD">Fixed Deposit (Tax Saver)</option>
+                                <option value="Stock">Direct Stocks</option>
+                            </select>
+                        </div>
+
+                        <button type="submit" disabled={loading}
+                            className={`w-full text-white font-semibold text-sm py-3 rounded-xl transition-all flex items-center justify-center gap-2 mt-2 ${loading ? 'bg-emerald-400 cursor-not-allowed' : 'bg-emerald-600 hover:bg-emerald-700 shadow-sm'}`}>
+                            {loading ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle2 size={16} />}
+                            {loading ? 'Recording...' : 'Confirm Registration'}
+                        </button>
+                    </form>
+                </motion.div>
+            </div>
+        </div>
     );
 };
 
@@ -314,11 +475,14 @@ const SimulatorModal = ({ isOpen, onClose, rec, baseTax }) => {
 /* ─── MAIN COMPONENT ─── */
 /* ══════════════════════════════════════════════════════ */
 const TaxAdvisorView = ({ setActiveTab }) => {
+    const { refreshData } = useFinancial();
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const [simRec, setSimRec] = useState(null);
     const [simOpen, setSimOpen] = useState(false);
+    const [investRec, setInvestRec] = useState(null);
+    const [investOpen, setInvestOpen] = useState(false);
 
     const fetch = useCallback(async () => {
         setLoading(true); setError('');
@@ -708,7 +872,7 @@ const TaxAdvisorView = ({ setActiveTab }) => {
                     <div className="space-y-2.5">
                         {data.recommendations.map((rec, i) => (
                             <RecommendationCard key={`${rec.sectionKey}-${rec.instrument}-${i}`} rec={rec} index={i}
-                                onInvestNow={() => setActiveTab('investments')}
+                                onInvestNow={(r) => { setInvestRec(r || rec); setInvestOpen(true); }}
                                 onSimulate={r => { setSimRec(r); setSimOpen(true); }} />
                         ))}
                     </div>
@@ -735,6 +899,8 @@ const TaxAdvisorView = ({ setActiveTab }) => {
 
             <SimulatorModal isOpen={simOpen} onClose={() => setSimOpen(false)} rec={simRec}
                 baseTax={data ? Math.min(data.taxLiability?.oldRegime?.total || 0, data.taxLiability?.newRegime?.total || 0) : 0} />
+                
+            <InvestModal isOpen={investOpen} onClose={() => setInvestOpen(false)} rec={investRec} onSuccess={() => { fetch(); refreshData(); }} />
         </div>
     );
 };
