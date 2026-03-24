@@ -80,7 +80,7 @@ app.use('/api', limiter);
 
 // CORS configuration
 app.use(cors({
-  origin: [process.env.FRONTEND_URL, process.env.FRONTEND_URL_APP],
+  origin: [process.env.FRONTEND_URL, process.env.FRONTEND_URL_APP, 'http://localhost:8081', 'http://localhost:19006'],
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
   credentials: true
 }));
