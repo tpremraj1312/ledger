@@ -2,7 +2,7 @@ import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { View, StyleSheet } from 'react-native';
-import { Home, Gauge, Banknote, Settings } from 'lucide-react-native';
+import { Home, Gauge, Banknote, Settings, Brain } from 'lucide-react-native';
 import { colors, fontSize, fontWeight } from '../theme';
 
 import HomeScreen from '../screens/HomeScreen';
@@ -21,6 +21,7 @@ import FamilyExpensesScreen from '../screens/family/FamilyExpensesScreen';
 import NotificationsScreen from '../screens/family/NotificationsScreen';
 import AgentChatScreen from '../screens/agent/AgentChatScreen';
 import TaxOptimizerScreen from '../screens/TaxOptimizerScreen';
+import SMSParserScreen from '../screens/SMSParserScreen';
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
@@ -69,6 +70,33 @@ const MainTabs = () => {
     >
       <Tab.Screen name="Home" component={HomeScreen} />
       <Tab.Screen name="Budget" component={BudgetScreen} />
+      <Tab.Screen 
+        name="Agent" 
+        component={AgentChatScreen} 
+        options={{
+          tabBarLabel: () => null,
+          tabBarIcon: ({ focused }) => (
+            <View style={{
+              width: 56,
+              height: 56,
+              borderRadius: 28,
+              backgroundColor: '#1E6BD6', // Primary token
+              justifyContent: 'center',
+              alignItems: 'center',
+              marginTop: -24, // Float above the bar
+              borderWidth: 4,
+              borderColor: '#FFFFFF', // Creates the cutout effect
+              shadowColor: '#1E6BD6',
+              shadowOffset: { width: 0, height: 4 },
+              shadowOpacity: 0.3,
+              shadowRadius: 6,
+              elevation: 5,
+            }}>
+              <Brain size={26} color="#FFFFFF" />
+            </View>
+          ),
+        }}
+      />
       <Tab.Screen name="Expenses" component={ExpensesScreen} />
       <Tab.Screen name="Settings" component={SettingsScreen} />
     </Tab.Navigator>
@@ -91,6 +119,7 @@ const MainNavigator = () => {
       <Stack.Screen name="Notifications" component={NotificationsScreen} />
       <Stack.Screen name="AgentChat" component={AgentChatScreen} />
       <Stack.Screen name="TaxOptimizer" component={TaxOptimizerScreen} />
+      <Stack.Screen name="SMSParser" component={SMSParserScreen} />
     </Stack.Navigator>
   );
 };

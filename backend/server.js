@@ -51,6 +51,7 @@ import familyBudgetRoutes from './routes/familyBudgetRoutes.js';
 import taxRoutes from './routes/taxRoutes.js';
 import settingsRoutes from './routes/settingsRoutes.js';
 import agentRoutes from './routes/agentRoutes.js';
+import smsRoutes from './routes/smsRoutes.js';
 import { processRecurringExpenses } from './utils/recurringCron.js';
 import cron from 'node-cron';
 
@@ -133,6 +134,7 @@ app.use('/api/family-budget', authMiddleware, familyBudgetRoutes);
 app.use('/api/tax', authMiddleware, taxRoutes);
 app.use('/api/settings', authMiddleware, settingsRoutes);
 app.use('/api/agent', authMiddleware, agentRoutes);
+app.use('/api/sms', authMiddleware, smsRoutes);
 
 // Basic Root Route
 app.get("/", (req, res) => {

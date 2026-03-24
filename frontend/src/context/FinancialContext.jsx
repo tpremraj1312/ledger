@@ -40,6 +40,12 @@ export const FinancialProvider = ({ children }) => {
 
     const refreshData = useCallback(
         async (force = false) => {
+            const token = localStorage.getItem("token");
+            if (!token) {
+                setLoading(false);
+                return;
+            }
+
             if (!force && hasFetched.current) return;
 
             // Cancel any pending request

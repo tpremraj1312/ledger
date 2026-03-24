@@ -36,8 +36,12 @@ const Signup = () => {
       setError("Please enter a valid email address.");
       return false;
     }
-    if (password.length < 6) {
-      setError("Password must be at least 6 characters long.");
+    if (password.length < 8) {
+      setError("Password must be at least 8 characters long.");
+      return false;
+    }
+    if (!/^(?=.*\d)(?=.*[a-z])(?=.*[A-Z])(?=.*[^a-zA-Z0-9]).{8,}$/.test(password)) {
+      setError("Password must contain at least one uppercase, one lowercase, one number, and one special character.");
       return false;
     }
     if (password !== confirmPassword) {
@@ -75,7 +79,11 @@ const Signup = () => {
       }, 2000);
     } catch (err) {
       console.error("Signup error:", err);
-      setError(err.response?.data?.message || "Signup failed. Please try again.");
+      if (err.response?.data?.errors && Array.isArray(err.response.data.errors) && err.response.data.errors.length > 0) {
+        setError(err.response.data.errors.join(". "));
+      } else {
+        setError(err.response?.data?.message || "Signup failed. Please try again.");
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -124,7 +132,7 @@ const Signup = () => {
             <input
               name="password"
               type={showPassword ? "text" : "password"}
-              placeholder="Password (min. 6 characters)"
+              placeholder="Password (min. 8 chars, 1 uppercase, 1 number, 1 special)"
               value={formData.password}
               onChange={handleChange}
               required

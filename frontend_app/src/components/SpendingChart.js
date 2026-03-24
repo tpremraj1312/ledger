@@ -1,11 +1,11 @@
-import React from 'react';
-import { View, Text, StyleSheet, Dimensions } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, StyleSheet } from 'react-native';
 import { LineChart } from 'react-native-chart-kit';
-import { colors, spacing, fontSize, fontWeight, borderRadius, shadows } from '../theme';
-
-const screenWidth = Dimensions.get('window').width;
+import { colors, spacing, fontSize, borderRadius, shadows } from '../theme';
 
 const SpendingChart = ({ data, title = "Spending Trend" }) => {
+  const [chartWidth, setChartWidth] = useState(300); // Default fallback
+
   if (!data || data.length === 0) {
     return (
       <View style={styles.emptyContainer}>
@@ -66,11 +66,14 @@ const SpendingChart = ({ data, title = "Spending Trend" }) => {
   };
 
   return (
-    <View style={styles.container}>
+    <View 
+      style={styles.container}
+      onLayout={(e) => setChartWidth(e.nativeEvent.layout.width - spacing.md * 2)}
+    >
       <Text style={styles.title}>{title}</Text>
       <LineChart
         data={chartData}
-        width={screenWidth - spacing.lg * 2 - spacing.md * 2} // container padding
+        width={chartWidth}
         height={220}
         chartConfig={chartConfig}
         bezier
@@ -97,7 +100,7 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: fontSize.base,
-    fontWeight: fontWeight.bold,
+    fontWeight: '500', // Removed bold
     color: colors.textPrimary,
     marginBottom: spacing.base,
     paddingHorizontal: spacing.sm,

@@ -89,7 +89,7 @@ const transactionSchema = new mongoose.Schema({
   },
   source: {
     type: String,
-    enum: ['manual', 'billscan'],
+    enum: ['manual', 'billscan', 'sms'],
     default: 'manual',
   },
   categories: {
