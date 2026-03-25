@@ -31,6 +31,8 @@ import { colors, spacing, fontSize, borderRadius, shadows } from '../theme';
 import useSmsStore from '../store/smsStore';
 import SMSCard from '../components/sms/SMSCard';
 import RiskAlertModal from '../components/sms/RiskAlertModal';
+import api from '../api/axios';
+import { useFinancial } from '../context/FinancialContext';
 
 // ─── Filter Tabs ────────────────────────────────────────────────────────────
 const FILTERS = [
@@ -115,7 +117,9 @@ const SMSParserScreen = ({ navigation }) => {
     [transactions, activeFilter]
   );
 
-  const handleParseSms = useCallback(() => {
+  const { refreshData } = useFinancial();
+
+  const handleParseSms = useCallback(async () => {
     const text = smsInput.trim();
     if (!text) {
       Alert.alert('Empty Input', 'Please paste an SMS message to parse.');
@@ -124,13 +128,24 @@ const SMSParserScreen = ({ navigation }) => {
 
     setIsParsing(true);
 
-    // Use setTimeout to prevent UI blocking
-    setTimeout(() => {
-      const result = processSms(text);
-      setIsParsing(false);
-
+    try {
+      // Small delay to allow UI to show loader
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      const result = processSms(text, '', true); // forceReparse=true for manual input
+      
       if (result) {
         setSmsInput('');
+        
+        // Background sync to backend so Tax Optimizer and Gamification engines run
+        try {
+          await api.post('/api/sms/sync', { transactions: [result] });
+          // Force refresh the global context so Home / Tax screens update immediately
+          refreshData(true);
+        } catch (syncErr) {
+          console.error('[SMS Parser] Sync error:', syncErr);
+        }
+
         Alert.alert(
           'SMS Parsed',
           `${result.transactionType === 'debit' ? 'Debit' : 'Credit'} of ₹${result.amount} at ${result.merchant}\nRisk Score: ${result.riskScore}/100`,
@@ -141,8 +156,10 @@ const SMSParserScreen = ({ navigation }) => {
           'This message does not appear to be a bank transaction SMS. Try pasting a different message.',
         );
       }
-    }, 100);
-  }, [smsInput, processSms]);
+    } finally {
+      setIsParsing(false);
+    }
+  }, [smsInput, processSms, refreshData]);
 
   const handleDelete = useCallback((hash) => {
     Alert.alert(

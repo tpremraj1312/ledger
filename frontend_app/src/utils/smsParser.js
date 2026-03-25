@@ -9,10 +9,16 @@
  */
 
 // ─── Amount Extraction Patterns ─────────────────────────────────────────────
+// ORDER MATTERS: More specific patterns FIRST to avoid matching account numbers
 const AMOUNT_PATTERNS = [
+  // 1. "debited by 80.00" / "credited with Rs.500" — keyword BEFORE amount (SBI, PNB style)
+  /(?:debited|credited|spent|paid|received|withdrawn|deposited|transferred|charged|deducted)\s+(?:by|with|for|of)?\s*(?:Rs\.?|INR|₹)?\s*([\d,]+\.?\d*)/i,
+  // 2. Explicit currency symbol before amount: Rs.80.00, INR 5,000, ₹1234
   /(?:Rs\.?|INR|₹)\s*([\d,]+\.?\d*)/i,
+  // 3. "amount of Rs.500" / "amt: 1234"
   /(?:amount|amt)\s*(?:of|:)?\s*(?:Rs\.?|INR|₹)?\s*([\d,]+\.?\d*)/i,
-  /([\d,]+\.?\d*)\s*(?:debited|credited|spent|received|transferred|withdrawn|deposited)/i,
+  // 4. Amount before keyword: "500 debited" / "1234.56 credited"
+  /([\d,]+\.\d{1,2})\s*(?:debited|credited|spent|received|transferred|withdrawn|deposited)/i,
 ];
 
 // ─── Transaction Type Detection ─────────────────────────────────────────────
@@ -37,11 +43,19 @@ const MERCHANT_PATTERNS = [
   /Info:\s*(.+?)(?:\s+Ref|\s+Avl|$)/i,
 ];
 
+// ─── Month Name Map (for compact date parsing) ─────────────────────────────
+const MONTH_MAP = {
+  jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5,
+  jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11,
+};
+
 // ─── Date Extraction Patterns ───────────────────────────────────────────────
 const DATE_PATTERNS = [
-  /(\d{1,2}[-/]\d{1,2}[-/]\d{2,4})/,                    // DD/MM/YYYY or DD-MM-YYYY
-  /(\d{1,2}\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{2,4})/i,  // 24 Mar 2026
-  /(\d{4}[-/]\d{1,2}[-/]\d{1,2})/,                      // YYYY-MM-DD
+  /(\d{1,2})[-/](\d{1,2})[-/](\d{2,4})/,                                        // DD/MM/YYYY or DD-MM-YYYY
+  /(\d{1,2})\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+(\d{2,4})/i,  // 24 Mar 2026
+  /(\d{1,2})(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)(\d{2,4})/i,        // 10Mar26 (compact, SBI style)
+  /on\s+date\s+(\d{1,2})(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)(\d{2,4})/i, // "on date 10Mar26"
+  /(\d{4})[-/](\d{1,2})[-/](\d{1,2})/,                                          // YYYY-MM-DD
 ];
 
 // ─── Account Type Detection ─────────────────────────────────────────────────
@@ -55,8 +69,8 @@ const ACCOUNT_TYPE_PATTERNS = {
 
 // ─── Account Number Extraction ──────────────────────────────────────────────
 const ACCOUNT_NUMBER_PATTERNS = [
-  /(?:A\/c|Ac|Acct|Account|a\/c)\s*(?:no\.?)?\s*[*xX]*(\d{3,6})/i,
-  /(?:card|ending)\s*(?:no\.?)?\s*[*xX]*(\d{3,6})/i,
+  /(?:A\/c|Ac|Acct|Account|a\/c)\s*(?:no\.?)?\s*[*xX]+(\d{3,6})/i,
+  /(?:card|ending)\s*(?:no\.?)?\s*[*xX]+(\d{3,6})/i,
   /[*xX]+(\d{4})/,
 ];
 
@@ -169,26 +183,67 @@ const extractMerchant = (text) => {
 };
 
 /**
+ * Safely construct a Date from parts.
+ * Handles 2-digit years (26 → 2026) and month names.
+ */
+const buildDate = (day, monthInput, year) => {
+  let y = parseInt(year, 10);
+  let m;
+  let d = parseInt(day, 10);
+
+  // Handle 2-digit year
+  if (y < 100) y += 2000;
+
+  // Month can be a number or name
+  if (typeof monthInput === 'string' && isNaN(parseInt(monthInput, 10))) {
+    m = MONTH_MAP[monthInput.toLowerCase().substring(0, 3)];
+    if (m === undefined) return null;
+  } else {
+    m = parseInt(monthInput, 10) - 1; // JS months are 0-indexed
+  }
+
+  if (isNaN(d) || isNaN(m) || isNaN(y)) return null;
+
+  const date = new Date(y, m, d);
+  if (isNaN(date.getTime())) return null;
+  return date;
+};
+
+/**
  * Extract transaction date from SMS text.
  * Falls back to current device time if no date found.
  */
 const extractDate = (text) => {
   for (const pattern of DATE_PATTERNS) {
     const match = text.match(pattern);
-    if (match && match[1]) {
-      const parsed = new Date(match[1]);
-      if (!isNaN(parsed.getTime())) {
-        return parsed.toISOString();
+    if (!match) continue;
+
+    let date = null;
+
+    // Check how many capture groups we have
+    if (match[3]) {
+      // 3 capture groups: (part1)(part2)(part3)
+      const p1 = match[1], p2 = match[2], p3 = match[3];
+
+      // If p1 is 4 digits → YYYY-MM-DD
+      if (p1.length === 4 && !isNaN(parseInt(p1, 10))) {
+        date = buildDate(p3, p2, p1);
       }
-      // Try DD/MM/YYYY → swap to MM/DD/YYYY for JS parsing
-      const parts = match[1].split(/[-/]/);
-      if (parts.length === 3) {
-        const swapped = new Date(`${parts[1]}/${parts[0]}/${parts[2]}`);
-        if (!isNaN(swapped.getTime())) {
-          return swapped.toISOString();
-        }
+      // If p2 is a month name → DD Mon YY or DDMonYY
+      else if (isNaN(parseInt(p2, 10))) {
+        date = buildDate(p1, p2, p3);
       }
+      // Otherwise DD/MM/YYYY
+      else {
+        date = buildDate(p1, p2, p3);
+      }
+    } else if (match[1]) {
+      // Single capture group — try direct parse
+      date = new Date(match[1]);
+      if (isNaN(date.getTime())) date = null;
     }
+
+    if (date) return date.toISOString();
   }
   return new Date().toISOString(); // Fallback: device time
 };

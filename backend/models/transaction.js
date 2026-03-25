@@ -130,6 +130,11 @@ const transactionSchema = new mongoose.Schema({
     default: false,
     index: true,
   },
+  smsHash: {
+    type: String,
+    default: null,
+    index: true,
+  },
   createdAt: {
     type: Date,
     default: Date.now,

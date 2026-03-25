@@ -11,7 +11,7 @@ import {
   BookOpen, MessageCircle, AlertCircle, ArrowUpRight, Lightbulb
 } from 'lucide-react-native';
 import { BarChart } from 'react-native-chart-kit';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 
 import { colors, spacing, fontSize, fontWeight, borderRadius, shadows } from '../theme';
 import { formatCurrency } from '../utils/formatters';
@@ -50,9 +50,11 @@ const TaxOptimizerScreen = () => {
     }
   }, []);
 
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+  useFocusEffect(
+    useCallback(() => {
+      fetchData();
+    }, [fetchData])
+  );
 
   if (error && !data) {
     return (
@@ -175,19 +177,19 @@ const TaxOptimizerScreen = () => {
             value={`${data?.savingsRate || 0}%`}
             sub={
               (data?.savingsRate || 0) >= 30 ? 'Healthy' :
-              (data?.savingsRate || 0) >= 15 ? 'Room to improve' : 'Needs attention'
+                (data?.savingsRate || 0) >= 15 ? 'Room to improve' : 'Needs attention'
             }
             icon={<PiggyBank size={12} color={
               (data?.savingsRate || 0) >= 30 ? '#10B981' :
-              (data?.savingsRate || 0) >= 15 ? '#D97706' : '#DC2626'
+                (data?.savingsRate || 0) >= 15 ? '#D97706' : '#DC2626'
             } />}
             color={
               (data?.savingsRate || 0) >= 30 ? '#10B981' :
-              (data?.savingsRate || 0) >= 15 ? '#D97706' : '#DC2626'
+                (data?.savingsRate || 0) >= 15 ? '#D97706' : '#DC2626'
             }
             bgColor={
               (data?.savingsRate || 0) >= 30 ? '#F0FDF4' :
-              (data?.savingsRate || 0) >= 15 ? '#FFFBEB' : '#FEF2F2'
+                (data?.savingsRate || 0) >= 15 ? '#FFFBEB' : '#FEF2F2'
             }
           />
         </View>

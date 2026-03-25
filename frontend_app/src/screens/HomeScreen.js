@@ -12,6 +12,8 @@ import {
   Dimensions,
   ActivityIndicator,
   Alert,
+  Platform,
+  StatusBar,
 } from 'react-native';
 import {
   FileText,
@@ -422,7 +424,7 @@ const HomeScreen = () => {
         )}
 
         {/* Bottom spacing */}
-        <View style={{ height: 100 }} />
+        <View style={{ height: 120 }} />
       </ScrollView>
 
       {/* Removed FAB since it's now in the Bottom Tab Bar */}
@@ -462,10 +464,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#1E6BD6',
     borderBottomLeftRadius: 24,
     borderBottomRightRadius: 24,
-    paddingTop: spacing.xl,
-    paddingBottom: spacing.xl, // Increased bottom padding for carousel
+    paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 40) + 12 : spacing['2xl'],
+    paddingBottom: spacing['2xl'],
     paddingHorizontal: spacing.lg,
-    marginBottom: spacing.md,
+    marginBottom: spacing.base,
   },
   headerTop: {
     flexDirection: 'row',
@@ -575,22 +577,22 @@ const styles = StyleSheet.create({
   gridItem: {
     width: '23%',
     alignItems: 'center',
-    marginBottom: 24,
+    marginBottom: 28,
   },
   gridIconSquare: {
-    width: 60,
-    height: 60,
-    borderRadius: 18, // Squared with rounded corners
+    width: 64,
+    height: 64,
+    borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 10,
   },
   gridLabel: {
     fontSize: 11,
-    fontWeight: '500', // Removed bold
+    fontWeight: '500',
     color: colors.textPrimary,
     textAlign: 'center',
-    lineHeight: 14,
+    lineHeight: 15,
   },
   overviewGrid: {
     paddingHorizontal: spacing.lg,

@@ -1,5 +1,6 @@
 import express from 'express';
 import SmsTransaction from '../models/SmsTransaction.js';
+import Transaction from '../models/transaction.js';
 import authMiddleware from '../middleware/authMiddleware.js';
 
 const router = express.Router();
@@ -18,7 +19,12 @@ router.post('/sync', authMiddleware, async (req, res) => {
       synced: 0,
       duplicates: 0,
       errors: 0,
+      ledgerInserted: 0,
     };
+
+    // Lazily import engines if needed
+    const { processEvent, GAMIFICATION_EVENTS } = await import('../services/gamificationEngine.js');
+    const { processTaxEvent, TAX_EVENTS } = await import('../services/taxEngine/taxOptimizationEngine.js');
 
     for (const tx of transactions) {
       try {
@@ -48,6 +54,40 @@ router.post('/sync', authMiddleware, async (req, res) => {
           { upsert: true, new: true }
         );
         results.synced++;
+
+        // --- Ledger Integration (Create Transaction if not exists) ---
+        // Exclude internal transfers or failed tx if needed, but here we ingest all parsed
+        const existingLedgerTx = await Transaction.findOne({
+          user: req.user._id,
+          smsHash: tx.smsHash,
+        });
+
+        if (!existingLedgerTx) {
+          const newLedgerTx = new Transaction({
+            user: req.user._id,
+            type: tx.transactionType,
+            amount: tx.amount,
+            category: tx.category || 'Other',
+            description: `SMS: ${tx.merchant}`,
+            date: new Date(tx.date),
+            source: 'sms',
+            status: 'completed',
+            isDeleted: false,
+            mode: 'PERSONAL',
+            smsHash: tx.smsHash,
+          });
+
+          await newLedgerTx.save();
+          results.ledgerInserted++;
+
+          // Run hooks asynchronously so sync isn't blocked wildly
+          processEvent(req.user._id, GAMIFICATION_EVENTS.TRANSACTION_ADDED, { transaction: newLedgerTx })
+            .catch(err => console.error('[SMS Sync] Gamification error:', err));
+            
+          processTaxEvent(req.user._id, TAX_EVENTS.TRANSACTION_ADDED, { transaction: newLedgerTx })
+            .catch(err => console.error('[SMS Sync] Tax engine error:', err));
+        }
+
       } catch (err) {
         if (err.code === 11000) {
           results.duplicates++;

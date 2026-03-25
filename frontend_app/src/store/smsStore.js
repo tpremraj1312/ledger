@@ -88,15 +88,15 @@ const useSmsStore = create((set, get) => ({
   },
 
   // ── Process a Single Raw SMS ───────────────────────────────────
-  processSms: (rawSms, sender = '') => {
+  processSms: (rawSms, sender = '', forceReparse = false) => {
     const state = get();
 
     // Step 1: Parse
     const parsed = parseSms(rawSms, sender);
     if (!parsed) return null; // Non-financial SMS
 
-    // Step 2: Deduplicate
-    if (state.seenHashes.has(parsed.smsHash)) {
+    // Step 2: Deduplicate (skip if forceReparse is true)
+    if (!forceReparse && state.seenHashes.has(parsed.smsHash)) {
       return null; // Already processed
     }
 
@@ -114,8 +114,17 @@ const useSmsStore = create((set, get) => ({
     parsed.riskReasons = riskResult.riskReasons;
     parsed.factorBreakdown = riskResult.factorBreakdown;
 
-    // Step 5: Update state
-    const newTransactions = [parsed, ...state.transactions];
+    // Step 5: Update state (replace old entry if forceReparse)
+    let newTransactions;
+    if (forceReparse && state.seenHashes.has(parsed.smsHash)) {
+      // Replace the old (incorrectly parsed) entry with the new one
+      newTransactions = state.transactions.map(tx =>
+        tx.smsHash === parsed.smsHash ? parsed : tx
+      );
+    } else {
+      newTransactions = [parsed, ...state.transactions];
+    }
+
     const newSeenHashes = new Set(state.seenHashes);
     newSeenHashes.add(parsed.smsHash);
 

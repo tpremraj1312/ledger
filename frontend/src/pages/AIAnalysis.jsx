@@ -268,7 +268,7 @@ const AIAnalysisPage = () => {
   }
 
   // Check for default analysis
-  const isDefaultAnalysis = analysis?.budgetVsExpenses.includes('No expenses or budgets found');
+  const isDefaultAnalysis = analysis?.budgetVsExpenses?.includes('No expenses or budgets found');
 
   const dateRangeText = () => {
     const startDate = new Date(filters.startDate);

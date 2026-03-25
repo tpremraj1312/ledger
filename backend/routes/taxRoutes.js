@@ -8,7 +8,6 @@
 
 import express from 'express';
 import { computeTaxSummary } from '../services/taxService.js';
-import { generateTaxNarrative } from '../utils/taxAiNarrative.js';
 import { simulateTaxProjection } from '../services/taxProjectionService.js';
 import { addXP } from '../services/xpService.js';
 
@@ -54,19 +53,22 @@ router.get('/full-analysis', async (req, res) => {
         // Step 1: Compute tax summary
         const summary = await computeTaxSummary(userId, fy || undefined);
 
-        // Step 2: Generate AI insights (in parallel with XP award)
+        // Step 2: Generate deterministic insights (no generative AI dependency)
         const [aiInsights] = await Promise.all([
-            generateTaxNarrative(summary).catch((err) => {
-                console.error('AI Insights generation failed:', err);
-                return {
-                    overallAssessment: 'AI insights are temporarily unavailable. Your tax summary and recommendations are based on accurate server-side calculations.',
-                    strengths: [],
-                    improvements: [],
-                    regimeAdvice: `Based on calculations, the ${summary.taxLiability.recommendedRegime} appears optimal.`,
-                    actionItems: [],
-                    incomeInsights: '',
-                    expenseInsights: '',
-                };
+            Promise.resolve({
+                overallAssessment: `Based on your data, your tax optimization score is ${summary.optimizationScore}/100. The ${summary.taxLiability.recommendedRegime} is mathematically optimal for your profile.`,
+                strengths: summary.optimizationScore >= 70 ? ['Excellent use of available tax deductions.'] : [],
+                improvements: summary.optimizationScore < 70 ? ['Consider reviewing the recommended high-priority tax-saving instruments.'] : [],
+                regimeAdvice: `Based on calculations, the ${summary.taxLiability.recommendedRegime} appears optimal.`,
+                actionItems: summary.recommendations.slice(0, 3).map(r => ({
+                    urgency: r.priority,
+                    section: r.sectionKey,
+                    action: `Consider ${r.instrument}`,
+                    reasoning: r.why,
+                    estimatedSaving: `₹${r.estimatedTaxSaving.toLocaleString('en-IN')}`
+                })),
+                incomeInsights: '',
+                expenseInsights: '',
             }),
             // Award XP (non-blocking)
             addXP(userId, 8, `tax_full_analysis_${summary.financialYear}`).catch((xpErr) => {
@@ -98,7 +100,21 @@ router.post('/ai-explain', async (req, res) => {
             return res.status(400).json({ message: 'Tax summary is required in request body' });
         }
 
-        const narrative = await generateTaxNarrative(summary);
+        const narrative = {
+            overallAssessment: `Based on your data, your tax optimization score is ${summary.optimizationScore}/100. The ${summary.taxLiability.recommendedRegime} is mathematically optimal for your profile.`,
+            strengths: summary.optimizationScore >= 70 ? ['Excellent use of available tax deductions.'] : [],
+            improvements: summary.optimizationScore < 70 ? ['Consider reviewing the recommended high-priority tax-saving instruments.'] : [],
+            regimeAdvice: `Based on calculations, the ${summary.taxLiability.recommendedRegime} appears optimal.`,
+            actionItems: summary.recommendations.slice(0, 3).map(r => ({
+                urgency: r.priority,
+                section: r.sectionKey,
+                action: `Consider ${r.instrument}`,
+                reasoning: r.why,
+                estimatedSaving: `₹${r.estimatedTaxSaving.toLocaleString('en-IN')}`
+            })),
+            incomeInsights: '',
+            expenseInsights: '',
+        };
 
         // Award XP for generating AI explanation (idempotent)
         const xpReason = `tax_ai_explain_${summary.financialYear}`;

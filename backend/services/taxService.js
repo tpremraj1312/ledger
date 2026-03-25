@@ -34,7 +34,6 @@ export const computeTaxSummary = async (userId, financialYear) => {
                 type: 'credit',
                 isDeleted: false,
                 mode: 'PERSONAL',
-                date: { $gte: start, $lte: end },
             },
         },
         {
@@ -71,7 +70,6 @@ export const computeTaxSummary = async (userId, financialYear) => {
                 type: 'debit',
                 isDeleted: false,
                 mode: 'PERSONAL',
-                date: { $gte: start, $lte: end },
             },
         },
         {
@@ -96,10 +94,9 @@ export const computeTaxSummary = async (userId, financialYear) => {
 
     const monthlyExpenseAvg = parseFloat((totalExpenses / monthsInFY).toFixed(2));
 
-    // ── 3. Query Investments in FY ──
+    // ── 3. Query Investments (All Time) ──
     const investments = await Investment.find({
         user: userOid,
-        buyDate: { $gte: start, $lte: end },
     }).lean();
 
     let totalInvested = 0;

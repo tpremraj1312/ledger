@@ -356,7 +356,7 @@ const InvestModal = ({ isOpen, onClose, rec, onSuccess }) => {
         if (isOpen && rec) {
             setAmount(rec.actionDetails?.maxInvestable || rec.maxInvestable || '');
             setName(rec.instrument || '');
-            
+
             const instr = (rec.instrument || '').toLowerCase();
             if (instr.includes('ppf') || instr.includes('nps') || instr.includes('bond')) setType('Bond');
             else if (instr.includes('fd') || instr.includes('deposit')) setType('FD');
@@ -389,7 +389,7 @@ const InvestModal = ({ isOpen, onClose, rec, onSuccess }) => {
             };
 
             await api.post('/api/investments', payload);
-            
+
             if (onSuccess) onSuccess();
             onClose();
         } catch (err) {
@@ -413,7 +413,7 @@ const InvestModal = ({ isOpen, onClose, rec, onSuccess }) => {
                     exit={{ scale: 0.95, opacity: 0, y: 20 }} transition={{ type: 'spring', duration: 0.35, bounce: 0.15 }}
                     className="bg-white rounded-2xl w-full max-w-sm shadow-2xl border border-gray-100 overflow-hidden relative z-10"
                     onClick={e => e.stopPropagation()}>
-                    
+
                     {/* Header */}
                     <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
                         <div>
@@ -475,7 +475,7 @@ const InvestModal = ({ isOpen, onClose, rec, onSuccess }) => {
 /* ─── MAIN COMPONENT ─── */
 /* ══════════════════════════════════════════════════════ */
 const TaxAdvisorView = ({ setActiveTab }) => {
-    const { refreshData } = useFinancial();
+    const { refreshData, data: globalData } = useFinancial();
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
@@ -491,7 +491,7 @@ const TaxAdvisorView = ({ setActiveTab }) => {
         finally { setLoading(false); }
     }, []);
 
-    useEffect(() => { fetch(); }, [fetch]);
+    useEffect(() => { fetch(); }, [fetch, globalData]);
 
     /* ── Loading Skeleton ── */
     if (loading) {
@@ -899,7 +899,7 @@ const TaxAdvisorView = ({ setActiveTab }) => {
 
             <SimulatorModal isOpen={simOpen} onClose={() => setSimOpen(false)} rec={simRec}
                 baseTax={data ? Math.min(data.taxLiability?.oldRegime?.total || 0, data.taxLiability?.newRegime?.total || 0) : 0} />
-                
+
             <InvestModal isOpen={investOpen} onClose={() => setInvestOpen(false)} rec={investRec} onSuccess={() => { fetch(); refreshData(); }} />
         </div>
     );
