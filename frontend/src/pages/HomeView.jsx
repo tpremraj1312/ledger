@@ -178,9 +178,8 @@ const HomeView = React.memo(({ setActiveTab = () => console.warn('setActiveTab n
     formData.append('scanType', scanType);
 
     try {
-      const response = await api.post('/api/billscan', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      });
+      const response = await api.post('/api/billscan', formData);
+      console.log('Scanned Bill Data:', JSON.stringify(response.data, null, 2));
 
       setIsScanModalOpen(false);
       setScanFile(null);
@@ -208,11 +207,15 @@ const HomeView = React.memo(({ setActiveTab = () => console.warn('setActiveTab n
       const token = localStorage.getItem('token');
       await api.put(`/api/transactions/${txId}`, { category: newCategory });
 
-      setUnknownTransactions(prev => prev.filter(tx => tx._id !== txId));
-      if (unknownTransactions.length <= 1) {
-        setIsUnknownModalOpen(false);
-        await refreshData();
-      }
+      await refreshData();
+
+      setUnknownTransactions(prev => {
+        const remaining = prev.filter(tx => tx._id !== txId);
+        if (remaining.length === 0) {
+          setIsUnknownModalOpen(false);
+        }
+        return remaining;
+      });
     } catch (err) {
       console.error("Failed to update category", err);
     }

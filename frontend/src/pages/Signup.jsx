@@ -36,8 +36,9 @@ const Signup = () => {
       setError("Please enter a valid email address.");
       return false;
     }
-    if (password.length < 6) {
-      setError("Password must be at least 6 characters long.");
+    const passwordRegex = /^(?=.*\d)(?=.*[a-z])(?=.*[A-Z])(?=.*[^a-zA-Z0-9]).{8,}$/;
+    if (!passwordRegex.test(password)) {
+      setError("Password must be at least 8 characters long and include uppercase, lowercase, a number, and a special character.");
       return false;
     }
     if (password !== confirmPassword) {
@@ -124,7 +125,7 @@ const Signup = () => {
             <input
               name="password"
               type={showPassword ? "text" : "password"}
-              placeholder="Password (min. 6 characters)"
+              placeholder="Password (8+ chars, Uppercase, Number, Special)"
               value={formData.password}
               onChange={handleChange}
               required

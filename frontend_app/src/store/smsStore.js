@@ -22,6 +22,7 @@ const STORAGE_KEYS = {
   USER_PROFILE: '@sms_user_profile',
   SETTINGS: '@sms_settings',
   SEEN_HASHES: '@sms_seen_hashes',
+  LAST_INBOX_SCAN: '@sms_last_inbox_scan',
 };
 
 // ─── Persistence Helpers ────────────────────────────────────────────────────
@@ -54,6 +55,7 @@ const useSmsStore = create((set, get) => ({
   seenHashes: new Set(),
   isLoading: true,
   lastAlert: null, // Last high-risk transaction for alert modal
+  lastInboxScanTimestamp: null, // Tracks the last time we scanned the SMS inbox
   settings: {
     alertsEnabled: true,
     vibrationEnabled: true,
@@ -63,10 +65,11 @@ const useSmsStore = create((set, get) => ({
   // ── Initialization ─────────────────────────────────────────────
   initialize: async () => {
     try {
-      const [transactions, settings, seenHashesArr] = await Promise.all([
+      const [transactions, settings, seenHashesArr, lastScan] = await Promise.all([
         loadFromStorage(STORAGE_KEYS.TRANSACTIONS, []),
         loadFromStorage(STORAGE_KEYS.SETTINGS, null),
         loadFromStorage(STORAGE_KEYS.SEEN_HASHES, []),
+        loadFromStorage(STORAGE_KEYS.LAST_INBOX_SCAN, null),
       ]);
 
       const seenHashes = new Set(seenHashesArr);
@@ -80,6 +83,7 @@ const useSmsStore = create((set, get) => ({
         seenHashes,
         isLoading: false,
         settings: settings || get().settings,
+        lastInboxScanTimestamp: lastScan,
       });
     } catch (err) {
       console.error('[SMSStore] Initialization failed:', err);
@@ -217,6 +221,18 @@ const useSmsStore = create((set, get) => ({
     saveToStorage(STORAGE_KEYS.SETTINGS, merged);
   },
 
+  // ── Set Last Inbox Scan Timestamp ──────────────────────────────
+  setLastInboxScanTimestamp: (timestamp) => {
+    set({ lastInboxScanTimestamp: timestamp });
+    saveToStorage(STORAGE_KEYS.LAST_INBOX_SCAN, timestamp);
+  },
+
+  // ── Get Recent Transactions (for HomeScreen widget) ──────────
+  getRecentTransactions: (count = 3) => {
+    const { transactions } = get();
+    return transactions.slice(0, count);
+  },
+
   // ── Clear All Data ─────────────────────────────────────────────
   clearAllData: async () => {
     await Promise.all([
@@ -224,6 +240,7 @@ const useSmsStore = create((set, get) => ({
       AsyncStorage.removeItem(STORAGE_KEYS.USER_PROFILE),
       AsyncStorage.removeItem(STORAGE_KEYS.SETTINGS),
       AsyncStorage.removeItem(STORAGE_KEYS.SEEN_HASHES),
+      AsyncStorage.removeItem(STORAGE_KEYS.LAST_INBOX_SCAN),
     ]);
 
     set({

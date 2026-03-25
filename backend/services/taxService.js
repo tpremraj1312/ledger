@@ -34,6 +34,7 @@ export const computeTaxSummary = async (userId, financialYear) => {
                 type: 'credit',
                 isDeleted: false,
                 mode: 'PERSONAL',
+                date: { $gte: start, $lte: end },
             },
         },
         {
@@ -70,6 +71,7 @@ export const computeTaxSummary = async (userId, financialYear) => {
                 type: 'debit',
                 isDeleted: false,
                 mode: 'PERSONAL',
+                date: { $gte: start, $lte: end },
             },
         },
         {

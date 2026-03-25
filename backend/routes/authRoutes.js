@@ -238,9 +238,15 @@ router.post("/signup", async (req, res) => {
   if (!username || !email || !password) {
     return res.status(400).json({ message: "Username, email, and password are required" });
   }
-  if (password.length < 6) {
-    return res.status(400).json({ message: "Password must be at least 6 characters long" });
+  
+  // Complexity Regex matching User model
+  const passwordRegex = /^(?=.*\d)(?=.*[a-z])(?=.*[A-Z])(?=.*[^a-zA-Z0-9]).{8,}$/;
+  if (!passwordRegex.test(password)) {
+    return res.status(400).json({ 
+      message: "Password does not meet complexity requirements! It needs at least 8 characters, including uppercase, lowercase, a number, and a special character." 
+    });
   }
+
   if (!/\S+@\S+\.\S+/.test(email)) {
     return res.status(400).json({ message: "Please use a valid email address" });
   }

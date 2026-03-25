@@ -5,16 +5,7 @@ import {
 } from 'react-native';
 import { X, TrendingUp } from 'lucide-react-native';
 
-let Slider;
-try {
-  Slider = require('@react-native-community/slider').default;
-} catch (e) {
-  Slider = ({ style }) => (
-    <View style={[style, { height: 40, backgroundColor: '#eee', borderRadius: 4, justifyContent: 'center', alignItems: 'center' }]}>
-      <Text style={{ fontSize: 10, color: '#999' }}>Slider unavailable</Text>
-    </View>
-  );
-}
+import Slider from '@react-native-community/slider';
 
 import { colors, spacing, fontSize, fontWeight, borderRadius, shadows } from '../../theme';
 import { formatCurrency } from '../../utils/formatters';
@@ -96,6 +87,7 @@ const SimulatorModal = ({ visible, onClose, recommendation, currentTax }) => {
   const maxLimit = recommendation.actionDetails?.maxInvestable || recommendation.maxInvestable || 150000;
   const newTax = simulatedData ? simulatedData.simulatedTax : currentTax;
   const netSaved = simulatedData ? simulatedData.netTaxSaved : 0;
+  const insight = simulatedData?.insight || "Calculating potential savings...";
 
   return (
     <Modal
@@ -179,14 +171,47 @@ const SimulatorModal = ({ visible, onClose, recommendation, currentTax }) => {
                 </View>
 
                 <View style={styles.savingsBanner}>
-                  <View style={styles.savingsIcon}>
-                    <TrendingUp size={14} color={colors.success} />
+                  <View style={styles.savingsRowMain}>
+                    <View style={styles.savingsIcon}>
+                      <TrendingUp size={14} color={colors.success} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.savingsLabel}>Net Tax Saved</Text>
+                      <Text style={styles.savingsValue}>{formatCurrency(netSaved)}</Text>
+                    </View>
                   </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.savingsLabel}>Net Tax Saved</Text>
-                    <Text style={styles.savingsValue}>{formatCurrency(netSaved)}</Text>
-                  </View>
+
+                  {/* Smart Analysis Delta */}
+                  {simulatedData && (simulatedData.oldRegimeSaving > 0 || simulatedData.newRegimeSaving > 0) && (
+                    <View style={styles.deltaContainer}>
+                      {simulatedData.oldRegimeSaving > 0 && (
+                        <View style={styles.deltaItem}>
+                          <Text style={styles.deltaLabel}>Old Regime Saving</Text>
+                          <View style={styles.deltaValueRow}>
+                            <Text style={styles.deltaValue}>+{formatCurrency(simulatedData.oldRegimeSaving)}</Text>
+                          </View>
+                        </View>
+                      )}
+                      {simulatedData.newRegimeSaving > 0 && (
+                        <View style={styles.deltaItem}>
+                          <Text style={styles.deltaLabel}>New Regime Saving</Text>
+                          <View style={styles.deltaValueRow}>
+                            <Text style={styles.deltaValue}>+{formatCurrency(simulatedData.newRegimeSaving)}</Text>
+                          </View>
+                        </View>
+                      )}
+                    </View>
+                  )}
                 </View>
+              </View>
+
+              {/* Pocket CA Insight */}
+              <View style={styles.insightBox}>
+                <View style={styles.insightHeader}>
+                  <TrendingUp size={12} color={colors.primary} />
+                  <Text style={styles.insightLabel}>SMART ANALYSIS</Text>
+                </View>
+                <Text style={styles.insightText}>{insight}</Text>
               </View>
 
               {/* Disclaimer */}
@@ -343,13 +368,15 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
   },
   savingsBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
     backgroundColor: colors.white,
     padding: spacing.md,
     borderRadius: borderRadius.md,
     borderWidth: 1,
     borderColor: colors.border,
+  },
+  savingsRowMain: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   savingsIcon: {
     width: 30,
@@ -371,18 +398,71 @@ const styles = StyleSheet.create({
     fontWeight: fontWeight.bold,
     color: colors.success,
   },
-  infoBox: {
-    backgroundColor: '#FFF8E6',
+  deltaContainer: {
+    marginTop: spacing.md,
+    paddingTop: spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    flexDirection: 'row',
+    gap: spacing.md,
+  },
+  deltaItem: {
+    flex: 1,
+  },
+  deltaLabel: {
+    fontSize: 8,
+    fontWeight: fontWeight.bold,
+    color: colors.textSecondary,
+    textTransform: 'uppercase',
+    marginBottom: 2,
+  },
+  deltaValueRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  deltaValue: {
+    fontSize: 10,
+    fontWeight: fontWeight.bold,
+    color: colors.primary,
+  },
+  insightBox: {
+    backgroundColor: '#EEF4FF',
     padding: spacing.md,
     borderRadius: borderRadius.md,
     borderWidth: 1,
-    borderColor: '#FFECC2',
+    borderColor: '#D0E2FF',
+    marginBottom: 12,
+  },
+  insightHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 4,
+  },
+  insightLabel: {
+    fontSize: 9,
+    fontWeight: fontWeight.black,
+    color: colors.primaryDark,
+    letterSpacing: 0.5,
+  },
+  insightText: {
+    fontSize: 11,
+    color: colors.textPrimary,
+    lineHeight: 16,
+    fontStyle: 'italic',
+  },
+  infoBox: {
+    backgroundColor: colors.surface,
+    padding: spacing.md,
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
     marginBottom: 8,
   },
   infoText: {
-    fontSize: 11,
-    color: '#855E00',
-    lineHeight: 16,
+    fontSize: 10,
+    color: colors.textSecondary,
+    lineHeight: 15,
     textAlign: 'center',
   },
   doneBtn: {

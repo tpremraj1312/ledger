@@ -169,6 +169,8 @@ export const simulateTaxProfile = (baseProfile, additionalInvestments) => {
         newTotalTax,
         oldTaxableIncome,
         newTaxableIncome,
+        oldTaxDelta: parseFloat((baseProfile.oldTotalTax - oldTotalTax).toFixed(2)),
+        newTaxDelta: parseFloat((baseProfile.newTotalTax - newTotalTax).toFixed(2)),
         deductions: simDeductions,
         recommendedRegime: oldTotalTax <= newTotalTax ? 'Old Regime' : 'New Regime'
     };

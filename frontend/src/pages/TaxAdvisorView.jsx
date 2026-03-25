@@ -303,21 +303,48 @@ const SimulatorModal = ({ isOpen, onClose, rec, baseTax }) => {
                                 </div>
                             )}
                             <div className="flex justify-between items-center mb-3 pb-3 border-b border-gray-200">
-                                <div>
-                                    <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-0.5">Current Tax</p>
+                                <div className="text-center flex-1">
+                                    <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-0.5">Current Tax</p>
                                     <p className="text-base font-bold text-gray-900">{fmt(baseTax)}</p>
                                 </div>
                                 <ArrowRight size={14} className="text-gray-300 mx-2" />
-                                <div className="text-right">
+                                <div className="text-center flex-1">
                                     <p className="text-[10px] font-bold uppercase tracking-wider text-indigo-500 mb-0.5">New Tax</p>
                                     <p className="text-base font-black text-indigo-600">{fmt(newTax)}</p>
                                 </div>
                             </div>
-                            <div className="bg-emerald-50 text-emerald-700 py-2.5 px-3 rounded-lg flex items-center justify-between border border-emerald-100">
+                            
+                            <div className="bg-emerald-50 text-emerald-700 py-2.5 px-3 rounded-lg flex items-center justify-between border border-emerald-100 mb-3">
                                 <span className="text-xs font-semibold flex items-center gap-1.5">
                                     <TrendingUp size={13} /> Net Tax Saved
                                 </span>
                                 <span className="text-lg font-black">{fmt(saved)}</span>
+                            </div>
+
+                            {/* Smart Analysis Delta */}
+                            {result && (result.oldRegimeSaving > 0 || result.newRegimeSaving > 0) && (
+                                <div className="grid grid-cols-2 gap-3 pt-1 mb-3 border-t border-gray-100">
+                                    {result.oldRegimeSaving > 0 && (
+                                        <div>
+                                            <p className="text-[8px] font-bold text-gray-400 uppercase">Old Regime Saving</p>
+                                            <p className="text-[11px] font-bold text-indigo-600">+{fmt(result.oldRegimeSaving)}</p>
+                                        </div>
+                                    )}
+                                    {result.newRegimeSaving > 0 && (
+                                        <div>
+                                            <p className="text-[8px] font-bold text-gray-400 uppercase">New Regime Saving</p>
+                                            <p className="text-[11px] font-bold text-indigo-600">+{fmt(result.newRegimeSaving)}</p>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
+                            {/* Pocket CA Insight */}
+                            <div className="bg-indigo-50/50 rounded-lg p-2.5 flex gap-2 items-start border border-indigo-100/50">
+                                <Sparkles size={12} className="text-indigo-500 mt-0.5 flex-shrink-0" />
+                                <p className="text-[10px] text-indigo-900 leading-relaxed font-medium italic">
+                                    {result?.insight || "Adjust the slider to simulate impact on your tax liability."}
+                                </p>
                             </div>
                         </div>
 
@@ -345,126 +372,112 @@ const SimulatorModal = ({ isOpen, onClose, rec, baseTax }) => {
 /* ══════════════════════════════════════════════════════ */
 /* ─── INVEST MODAL ─── */
 /* ══════════════════════════════════════════════════════ */
-const InvestModal = ({ isOpen, onClose, rec, onSuccess }) => {
-    const [amount, setAmount] = useState('');
-    const [type, setType] = useState('Mutual Fund');
-    const [name, setName] = useState('');
-    const [loading, setLoading] = useState(false);
-    const [error, setError] = useState('');
-
-    useEffect(() => {
-        if (isOpen && rec) {
-            setAmount(rec.actionDetails?.maxInvestable || rec.maxInvestable || '');
-            setName(rec.instrument || '');
-
-            const instr = (rec.instrument || '').toLowerCase();
-            if (instr.includes('ppf') || instr.includes('nps') || instr.includes('bond')) setType('Bond');
-            else if (instr.includes('fd') || instr.includes('deposit')) setType('FD');
-            else if (instr.includes('insurance')) setType('Other'); // This won't perfectly map to Investment schema but for tax-saving we map broadly to FD/Bond
-            else setType('Mutual Fund');
-        }
-    }, [isOpen, rec]);
-
-    // Prevent body scroll
+const InvestModal = ({ isOpen, onClose, rec, setActiveTab }) => {
     useEffect(() => {
         if (isOpen) document.body.style.overflow = 'hidden';
         else document.body.style.overflow = '';
         return () => { document.body.style.overflow = ''; };
     }, [isOpen]);
 
-    const handleSubmit = async (e) => {
-        e.preventDefault();
-        setLoading(true);
-        setError('');
-        try {
-            const payload = {
-                name: name,
-                assetType: ['Stock', 'Mutual Fund', 'ETF', 'Crypto', 'Gold', 'FD', 'Bond', 'Real Estate'].includes(type) ? type : 'Bond',
-                symbol: `TAX-${rec.sectionKey || 'SAVE'}`,
-                quantity: 1,
-                buyPrice: Number(amount),
-                investedAmount: Number(amount),
-                buyDate: new Date().toISOString(),
-                notes: `Tax-saving investment under ${rec.sectionKey || 'generic'}`
-            };
+    if (!isOpen || !rec) return null;
 
-            await api.post('/api/investments', payload);
-
-            if (onSuccess) onSuccess();
-            onClose();
-        } catch (err) {
-            setError(err.response?.data?.message || 'Failed to record investment');
-        } finally {
-            setLoading(false);
+    const handleRedirect = () => {
+        const sec = rec.sectionKey || '';
+        if (['80D_self', '80D_parents', '24b', 'HRA', 'LTA'].includes(sec)) {
+            setActiveTab('expenses');
+        } else {
+            setActiveTab('investments');
         }
+        onClose();
     };
 
-    if (!isOpen || !rec) return null;
+    const getGuidance = () => {
+        const sec = rec.sectionKey;
+        if (sec === '80C') return {
+            title: 'Section 80C Expert Guide',
+            desc: 'You can claim up to ₹1,50,000 per financial year by investing in highly regulated, tax-saving instruments.',
+            bullets: ['PPF (Long term, safe)', 'ELSS Mutual Funds (Best for growth)', 'Tax-Saver 5Y Fixed Deposits', 'Life Insurance Premiums']
+        };
+        if (sec === '80CCD_1B') return {
+            title: 'NPS Retirement Planning',
+            desc: 'An additional exclusive deduction of ₹50,000 above the 80C limit for retirement.',
+            bullets: ['Low cost management', 'Tier I Account mandatory', 'Equity & Debt asset allocation']
+        };
+        if (sec === '80D_self' || sec === '80D_parents') return {
+            title: 'Health Insurance Optimization',
+            desc: 'Deductions on medical insurance premiums for self and family.',
+            bullets: ['Up to ₹25k for self/family', 'Additional ₹25k-50k for parents', 'Includes Preventive checkups']
+        };
+        return {
+            title: 'Optimization Strategy',
+            desc: rec.description || 'Actionable steps to reduce your tax burden in this category.',
+            bullets: ['Verify eligibility criteria', 'Keep digital proofs ready', 'Log records in Ledger immediately']
+        };
+    };
+
+    const guide = getGuidance();
+    const remaining = rec.actionDetails?.maxInvestable || rec.maxInvestable || 0;
+    const limit = rec.maxLimit || 150000;
+    const progress = Math.max(0, Math.min(100, (1 - (remaining / limit)) * 100));
 
     return (
         <div className="fixed inset-0 z-[9999]" style={{ isolation: 'isolate' }}>
-            {/* Backdrop */}
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
                 className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
-
-            {/* Modal */}
-            <div className="absolute inset-0 flex items-center justify-center p-4 min-h-full">
+            <div className="absolute inset-0 flex items-center justify-center p-4 min-h-full pointer-events-none">
                 <motion.div initial={{ scale: 0.95, opacity: 0, y: 20 }} animate={{ scale: 1, opacity: 1, y: 0 }}
                     exit={{ scale: 0.95, opacity: 0, y: 20 }} transition={{ type: 'spring', duration: 0.35, bounce: 0.15 }}
-                    className="bg-white rounded-2xl w-full max-w-sm shadow-2xl border border-gray-100 overflow-hidden relative z-10"
+                    className="bg-white rounded-2xl w-full max-w-sm shadow-2xl border border-gray-100 overflow-hidden pointer-events-auto"
                     onClick={e => e.stopPropagation()}>
-
-                    {/* Header */}
+                    
                     <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
-                        <div>
-                            <h3 className="text-sm font-bold text-gray-900 flex items-center gap-1.5">
-                                <TrendingUp size={14} className="text-emerald-500" /> Invest Now
-                            </h3>
-                            <p className="text-[10px] text-gray-500 mt-0.5 max-w-[200px] truncate">{rec.instrument}</p>
+                        <div className="flex items-center gap-2">
+                            <div className="p-1.5 bg-blue-50 rounded-lg"><Lightbulb size={16} className="text-blue-600" /></div>
+                            <div>
+                                <h3 className="text-sm font-bold text-gray-900">Expert Guidance</h3>
+                                <p className="text-[10px] text-gray-500">Sec {rec.sectionKey}</p>
+                            </div>
                         </div>
-                        <button onClick={onClose} className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-all">
-                            <X size={16} />
-                        </button>
+                        <button onClick={onClose} className="p-1.5 text-gray-400 hover:text-gray-600 rounded-lg transition-all"><X size={16} /></button>
                     </div>
 
-                    {/* Form */}
-                    <form onSubmit={handleSubmit} className="px-5 py-4 space-y-4">
-                        {error && (
-                            <div className="bg-red-50 text-red-600 text-[11px] p-2.5 rounded-lg border border-red-100 flex gap-2 items-start">
-                                <AlertCircle size={14} className="mt-0.5 flex-shrink-0" /> {error}
+                    <div className="p-5 space-y-4">
+                        <div className="bg-gray-50 rounded-xl p-4 border border-gray-100">
+                            <div className="flex justify-between items-center mb-1">
+                                <span className="text-[10px] font-bold text-gray-400 uppercase">Current Progress</span>
+                                <span className="text-xs font-bold text-blue-600">{fmt(limit - remaining)} / {fmt(limit)}</span>
                             </div>
-                        )}
-
-                        <div>
-                            <label className="block text-xs font-semibold text-gray-700 mb-1.5">Investment Amount (₹)</label>
-                            <input type="number" required min="1" value={amount} onChange={e => setAmount(e.target.value)}
-                                className="w-full bg-gray-50 border border-gray-200 text-gray-900 text-sm rounded-xl px-3.5 py-2.5 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500" />
-                            <p className="text-[10px] text-gray-400 mt-1">Recommended up to {fmt(rec.actionDetails?.maxInvestable || rec.maxInvestable)}</p>
+                            <div className="h-1.5 w-full bg-gray-200 rounded-full overflow-hidden">
+                                <motion.div initial={{ width: 0 }} animate={{ width: `${progress}%` }} className="h-full bg-blue-600 rounded-full" />
+                            </div>
                         </div>
 
                         <div>
-                            <label className="block text-xs font-semibold text-gray-700 mb-1.5">Instrument Name</label>
-                            <input type="text" required value={name} onChange={e => setName(e.target.value)}
-                                className="w-full bg-gray-50 border border-gray-200 text-gray-900 text-sm rounded-xl px-3.5 py-2.5 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500" />
+                            <h4 className="text-sm font-bold text-gray-900 mb-1">{guide.title}</h4>
+                            <p className="text-xs text-gray-500 leading-relaxed">{guide.desc}</p>
                         </div>
 
-                        <div>
-                            <label className="block text-xs font-semibold text-gray-700 mb-1.5">Asset Type</label>
-                            <select value={type} onChange={e => setType(e.target.value)}
-                                className="w-full bg-gray-50 border border-gray-200 text-gray-900 text-sm rounded-xl px-3.5 py-2.5 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500">
-                                <option value="Mutual Fund">Mutual Fund (ELSS, etc.)</option>
-                                <option value="Bond">Bond (PPF, NPS, Gov Bonds)</option>
-                                <option value="FD">Fixed Deposit (Tax Saver)</option>
-                                <option value="Stock">Direct Stocks</option>
-                            </select>
+                        <div className="bg-blue-50/50 rounded-xl p-4 border border-blue-100">
+                            <p className="text-[10px] font-bold text-blue-700 uppercase mb-2 tracking-wider">Top Strategies</p>
+                            <ul className="space-y-2">
+                                {guide.bullets.map((b, i) => (
+                                    <li key={i} className="text-[11px] text-gray-700 flex gap-2">
+                                        <TrendingUp size={12} className="text-blue-500 mt-0.5 flex-shrink-0" /> {b}
+                                    </li>
+                                ))}
+                            </ul>
                         </div>
 
-                        <button type="submit" disabled={loading}
-                            className={`w-full text-white font-semibold text-sm py-3 rounded-xl transition-all flex items-center justify-center gap-2 mt-2 ${loading ? 'bg-emerald-400 cursor-not-allowed' : 'bg-emerald-600 hover:bg-emerald-700 shadow-sm'}`}>
-                            {loading ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle2 size={16} />}
-                            {loading ? 'Recording...' : 'Confirm Registration'}
+                        <div className="bg-amber-50 rounded-lg p-3 flex gap-2 border border-amber-100">
+                            <Info size={14} className="text-amber-600 flex-shrink-0 mt-0.5" />
+                            <p className="text-[10px] text-amber-800 leading-tight">Log your transactions in the Ledger dashboard to automatically track and applying savings.</p>
+                        </div>
+
+                        <button onClick={handleRedirect}
+                            className="w-full bg-gray-900 text-white font-bold text-sm py-3 rounded-xl hover:bg-black transition-all shadow-md flex items-center justify-center gap-2">
+                            Go to Tracker <ArrowRight size={14} />
                         </button>
-                    </form>
+                    </div>
                 </motion.div>
             </div>
         </div>
@@ -900,7 +913,7 @@ const TaxAdvisorView = ({ setActiveTab }) => {
             <SimulatorModal isOpen={simOpen} onClose={() => setSimOpen(false)} rec={simRec}
                 baseTax={data ? Math.min(data.taxLiability?.oldRegime?.total || 0, data.taxLiability?.newRegime?.total || 0) : 0} />
 
-            <InvestModal isOpen={investOpen} onClose={() => setInvestOpen(false)} rec={investRec} onSuccess={() => { fetch(); refreshData(); }} />
+            <InvestModal isOpen={investOpen} onClose={() => setInvestOpen(false)} rec={investRec} setActiveTab={setActiveTab} />
         </div>
     );
 };

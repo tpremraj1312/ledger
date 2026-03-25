@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "LedgerFinance",
-    "slug": "LedgerFinance",
+    "slug": "frontend_app",
     "version": "1.0.0",
     "orientation": "portrait",
     "scheme": "ledger",
@@ -34,7 +34,15 @@
     "plugins": [
       "expo-secure-store",
       "@react-native-community/datetimepicker",
-      "expo-web-browser"
+      "expo-web-browser",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/ledgerlogo.png",
+          "color": "#1E6BD6"
+        }
+      ],
+      "./plugins/withSmsAndroidPatch.js"
     ],
     "extra": {
       "eas": {

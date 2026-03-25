@@ -20,6 +20,7 @@ const ScanBillModal = ({ visible, onClose, onScanSubmit }) => {
   const [errorText, setErrorText] = useState('');
 
   const pickImage = async (useCamera = false) => {
+    console.log(`[ScanBillModal] pickImage called. useCamera: ${useCamera}`);
     setErrorText('');
     try {
       let result;
@@ -30,7 +31,7 @@ const ScanBillModal = ({ visible, onClose, onScanSubmit }) => {
           return;
         }
         result = await ImagePicker.launchCameraAsync({
-          mediaTypes: ImagePicker.MediaTypeOptions.Images,
+          mediaTypes: ['images'],
           quality: 0.8,
         });
       } else {
@@ -40,7 +41,7 @@ const ScanBillModal = ({ visible, onClose, onScanSubmit }) => {
           return;
         }
         result = await ImagePicker.launchImageLibraryAsync({
-          mediaTypes: ImagePicker.MediaTypeOptions.Images,
+          mediaTypes: ['images'],
           quality: 0.8,
         });
       }
@@ -49,7 +50,10 @@ const ScanBillModal = ({ visible, onClose, onScanSubmit }) => {
         const asset = result.assets[0];
         const filename = asset.uri.split('/').pop() || 'scanned_image.jpg';
         const match = /\.(\w+)$/.exec(filename);
-        const type = match ? `image/${match[1]}` : `image/jpeg`;
+        let type = match ? `image/${match[1]}` : `image/jpeg`;
+        
+        // Normalize jpg to jpeg to prevent backend rejection
+        if (type === 'image/jpg') type = 'image/jpeg';
 
         setSelectedFile({
           uri: asset.uri,

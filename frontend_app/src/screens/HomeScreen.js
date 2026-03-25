@@ -45,6 +45,8 @@ import CategoryChart from '../components/CategoryChart';
 import { formatCurrency } from '../utils/formatters';
 import { colors, spacing, fontSize, borderRadius, shadows } from '../theme';
 import api from '../api/axios';
+import useSmsStore from '../store/smsStore';
+import { getRiskColor, getRiskBgColor } from '../utils/riskEngine';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const CAROUSEL_CARD_WIDTH = SCREEN_WIDTH - 64;
@@ -68,7 +70,7 @@ const CAROUSEL_ITEMS = [
   { id: '4', title: 'Family Finance', subtitle: 'Track family budgets together', cta: 'Manage', route: 'FamilyDashboard', icon: Users, accent: '#14B8A6' },
   { id: '5', title: 'Finance Quests', subtitle: 'Complete gamified challenges', cta: 'Play Now', route: 'Gamification', icon: Trophy, accent: '#F59E0B' },
   { id: '6', title: 'Budget Compare', subtitle: 'See how you stack up', cta: 'Compare', route: 'BudgetComparison', icon: BarChart2, accent: '#8B5CF6' },
-  { id: '7', title: 'SMS Parser', subtitle: 'Read bank SMS automatically', cta: 'Parse', route: 'Placeholder', icon: MessageSquare, accent: '#EC4899' },
+  { id: '7', title: 'SMS Parser', subtitle: 'Read bank SMS automatically', cta: 'Parse', route: 'SMSParser', icon: MessageSquare, accent: '#EC4899' },
 ];
 
 const CarouselCard = React.memo(({ item, onPress }) => {
@@ -175,9 +177,8 @@ const HomeScreen = () => {
       });
       formData.append('scanType', scanType);
 
-      const response = await api.post('/api/billscan', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      });
+      const response = await api.post('/api/billscan', formData);
+      console.log('Scanned Bill Data:', JSON.stringify(response.data, null, 2));
 
       setIsScanModalOpen(false);
       await refreshData();
@@ -201,6 +202,7 @@ const HomeScreen = () => {
       }
     } catch (err) {
       console.error('Bill scan error:', err);
+      console.error('Bill scan error response:', JSON.stringify(err.response?.data, null, 2));
       throw err; // Let ScanBillModal catch it to show the error internally
     }
   };
@@ -211,7 +213,9 @@ const HomeScreen = () => {
       await refreshData();
 
       const remaining = unknownTransactions.filter(tx => tx._id !== txId);
-      if (remaining.length <= 1) {
+      setUnknownTransactions(remaining);
+      
+      if (remaining.length === 0) {
         setIsUnknownModalOpen(false);
       }
     } catch (err) {
@@ -306,6 +310,9 @@ const HomeScreen = () => {
             ))}
           </View>
         </View>
+
+        {/* SMS Activity Widget — Live SMS parsed data */}
+        <SmsActivityWidget navigation={navigation} />
 
         {/* Conditional Content: Skeleton, Error, or Data */}
         {isLoading && !data ? (
@@ -454,6 +461,74 @@ const HomeScreen = () => {
     </SafeAreaView>
   );
 };
+
+// ─── SMS Activity Widget ────────────────────────────────────────────────────
+const SmsActivityWidget = React.memo(({ navigation }) => {
+  const { transactions, getStats, getRecentTransactions, isLoading } = useSmsStore();
+
+  // Re-derive when transactions change
+  const stats = React.useMemo(() => getStats(), [transactions]);
+  const recentSms = React.useMemo(() => getRecentTransactions(3), [transactions]);
+
+  if (isLoading || transactions.length === 0) return null;
+
+  return (
+    <View style={styles.smsWidget}>
+      <View style={styles.smsWidgetHeader}>
+        <View style={styles.smsWidgetTitleRow}>
+          <View style={[styles.smsWidgetDot, { backgroundColor: '#10B981' }]} />
+          <Text style={styles.smsWidgetTitle}>SMS Activity</Text>
+        </View>
+        <TouchableOpacity onPress={() => navigation.navigate('SMSParser')}>
+          <Text style={styles.smsWidgetLink}>View All →</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Mini stats row */}
+      <View style={styles.smsWidgetStatsRow}>
+        <View style={styles.smsWidgetStat}>
+          <Text style={styles.smsWidgetStatValue}>{stats.totalParsed}</Text>
+          <Text style={styles.smsWidgetStatLabel}>Parsed</Text>
+        </View>
+        <View style={[styles.smsWidgetStatDivider]} />
+        <View style={styles.smsWidgetStat}>
+          <Text style={[styles.smsWidgetStatValue, stats.highRiskCount > 0 && { color: '#DC2626' }]}>{stats.highRiskCount}</Text>
+          <Text style={styles.smsWidgetStatLabel}>Alerts</Text>
+        </View>
+        <View style={[styles.smsWidgetStatDivider]} />
+        <View style={styles.smsWidgetStat}>
+          <Text style={styles.smsWidgetStatValue}>{stats.todayCount}</Text>
+          <Text style={styles.smsWidgetStatLabel}>Today</Text>
+        </View>
+      </View>
+
+      {/* Recent SMS transactions */}
+      {recentSms.map((tx) => {
+        const riskColor = getRiskColor(tx.riskLevel);
+        const riskBg = getRiskBgColor(tx.riskLevel);
+        return (
+          <View key={tx.smsHash} style={styles.smsWidgetItem}>
+            <View style={[styles.smsWidgetItemIcon, { backgroundColor: tx.transactionType === 'debit' ? '#FEF2F2' : '#F0FDF4' }]}>
+              <Text style={{ fontSize: 16 }}>{tx.transactionType === 'debit' ? '↗' : '↙'}</Text>
+            </View>
+            <View style={{ flex: 1, marginLeft: 10 }}>
+              <Text style={styles.smsWidgetItemMerchant} numberOfLines={1}>{tx.merchant || 'Unknown'}</Text>
+              <Text style={styles.smsWidgetItemMeta}>{tx.category} • {new Date(tx.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</Text>
+            </View>
+            <View style={{ alignItems: 'flex-end' }}>
+              <Text style={[styles.smsWidgetItemAmount, { color: tx.transactionType === 'debit' ? '#DC2626' : '#16A34A' }]}>
+                {tx.transactionType === 'debit' ? '-' : '+'}₹{tx.amount?.toLocaleString('en-IN')}
+              </Text>
+              <View style={[styles.smsWidgetRiskBadge, { backgroundColor: riskBg }]}>
+                <Text style={[styles.smsWidgetRiskText, { color: riskColor }]}>{tx.riskScore}</Text>
+              </View>
+            </View>
+          </View>
+        );
+      })}
+    </View>
+  );
+});
 
 const styles = StyleSheet.create({
   container: {
@@ -705,6 +780,106 @@ const styles = StyleSheet.create({
     width: 1,
     height: '100%',
     backgroundColor: colors.border,
+  },
+
+  // SMS Activity Widget
+  smsWidget: {
+    marginHorizontal: spacing.lg,
+    marginBottom: spacing.xl,
+    backgroundColor: colors.white,
+    borderRadius: borderRadius.lg,
+    padding: spacing.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  smsWidgetHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: spacing.md,
+  },
+  smsWidgetTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  smsWidgetDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginRight: spacing.sm,
+  },
+  smsWidgetTitle: {
+    fontSize: fontSize.base,
+    fontWeight: '500',
+    color: colors.textPrimary,
+  },
+  smsWidgetLink: {
+    fontSize: fontSize.sm,
+    fontWeight: '500',
+    color: colors.primary,
+  },
+  smsWidgetStatsRow: {
+    flexDirection: 'row',
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.md,
+    padding: spacing.md,
+    marginBottom: spacing.md,
+  },
+  smsWidgetStat: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  smsWidgetStatValue: {
+    fontSize: fontSize.lg,
+    fontWeight: '500',
+    color: colors.textPrimary,
+  },
+  smsWidgetStatLabel: {
+    fontSize: fontSize.xs,
+    color: colors.textSecondary,
+    marginTop: 2,
+  },
+  smsWidgetStatDivider: {
+    width: 1,
+    backgroundColor: colors.border,
+  },
+  smsWidgetItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  smsWidgetItemIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  smsWidgetItemMerchant: {
+    fontSize: fontSize.sm,
+    fontWeight: '500',
+    color: colors.textPrimary,
+  },
+  smsWidgetItemMeta: {
+    fontSize: fontSize.xs,
+    color: colors.textSecondary,
+    marginTop: 2,
+  },
+  smsWidgetItemAmount: {
+    fontSize: fontSize.sm,
+    fontWeight: '500',
+  },
+  smsWidgetRiskBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 6,
+    marginTop: 2,
+  },
+  smsWidgetRiskText: {
+    fontSize: 10,
+    fontWeight: '500',
   },
 });
 

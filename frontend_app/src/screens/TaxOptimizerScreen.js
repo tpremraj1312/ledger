@@ -22,6 +22,7 @@ import Header from '../components/ui/Header';
 import ScoreGauge from '../components/tax/ScoreGauge';
 import DeductionBar from '../components/tax/DeductionBar';
 import SimulatorModal from '../components/tax/SimulatorModal';
+import InvestNowModal from '../components/tax/InvestNowModal';
 import TaxSummaryCard from '../components/tax/TaxSummaryCard';
 import RecommendationCard from '../components/tax/RecommendationCard';
 import ActionItemCard from '../components/tax/ActionItemCard';
@@ -36,6 +37,8 @@ const TaxOptimizerScreen = () => {
   const [error, setError] = useState(null);
   const [simOpen, setSimOpen] = useState(false);
   const [simRec, setSimRec] = useState(null);
+  const [investOpen, setInvestOpen] = useState(false);
+  const [investRec, setInvestRec] = useState(null);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -310,10 +313,7 @@ const TaxOptimizerScreen = () => {
             {data?.deductions?.sections?.map((sec) => (
               <DeductionBar
                 key={sec.sectionKey}
-                label={sec.section}
-                claimed={sec.claimed}
-                limit={sec.limit}
-                percentage={sec.percentage}
+                section={sec}
               />
             ))}
           </View>
@@ -486,6 +486,10 @@ const TaxOptimizerScreen = () => {
                   setSimRec(r);
                   setSimOpen(true);
                 }}
+                onInvest={(r) => {
+                  setInvestRec(r);
+                  setInvestOpen(true);
+                }}
               />
             ))
           ) : (
@@ -551,6 +555,17 @@ const TaxOptimizerScreen = () => {
         onClose={() => setSimOpen(false)}
         recommendation={simRec}
         currentTax={currentBestTax}
+      />
+
+      {/* ─── Invest Now Bottom Sheet ─── */}
+      <InvestNowModal
+        visible={investOpen}
+        onClose={() => setInvestOpen(false)}
+        recommendation={investRec}
+        onSuccess={() => {
+          setInvestOpen(false);
+          fetchData();
+        }}
       />
     </SafeAreaView>
   );

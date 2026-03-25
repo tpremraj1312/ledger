@@ -36,11 +36,11 @@ const upload = multer({
     fileSize: 5 * 1024 * 1024, // 5MB limit
   },
   fileFilter: (req, file, cb) => {
-    const allowedTypes = ['image/jpeg', 'image/png', 'application/pdf'];
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/jpg', 'application/pdf'];
     if (allowedTypes.includes(file.mimetype)) {
       cb(null, true);
     } else {
-      cb(new Error('Only JPEG, PNG, and PDF files are allowed'), false);
+      cb(new Error(`Invalid file type: ${file.mimetype}. Only JPEG, PNG, JPG, and PDF are allowed.`), false);
     }
   }
 });
@@ -48,9 +48,22 @@ const upload = multer({
 // @route   POST /api/billscan
 // @desc    Upload a bill or bank statement and process it
 // @access  Private
-router.post('/', authMiddleware, upload.single('bill'), async (req, res) => {
+router.post('/', authMiddleware, (req, res, next) => {
+  upload.single('bill')(req, res, (err) => {
+    if (err) {
+      console.error('[BillScan] Multer error:', err.message);
+      return res.status(400).json({ message: `File upload error: ${err.message}` });
+    }
+    next();
+  });
+}, async (req, res) => {
   try {
+    console.log('[BillScan] Request received. File present:', !!req.file);
+    if (req.file) {
+      console.log('[BillScan] File details:', { mimetype: req.file.mimetype, size: req.file.size, originalname: req.file.originalname });
+    }
     if (!req.file) {
+      console.error('[BillScan] No file in request');
       return res.status(400).json({ message: 'No file uploaded' });
     }
 
@@ -85,7 +98,7 @@ router.post('/', authMiddleware, upload.single('bill'), async (req, res) => {
           amount: tx.amount,
           category: category,
           description: tx.description,
-          date: new Date(tx.date),
+          date: new Date(), // Override parsed date so it shows up exactly now
           source: 'billscan',
           status: 'completed'
         });
@@ -123,6 +136,7 @@ router.post('/', authMiddleware, upload.single('bill'), async (req, res) => {
 
       // Parse the bill using Gemini
       const parsedData = await parseBillWithGemini(req.file);
+      console.log('[BillScan] Gemini parsed data:', JSON.stringify(parsedData, null, 2));
 
       // Validate parsed data
       if (
@@ -133,8 +147,22 @@ router.post('/', authMiddleware, upload.single('bill'), async (req, res) => {
         !Array.isArray(parsedData.categories) ||
         parsedData.categories.length === 0
       ) {
+        console.error('[BillScan] Validation failed. Parsed data summary:', {
+          hasParsedData: !!parsedData,
+          totalAmount: parsedData?.totalAmount,
+          date: parsedData?.date,
+          storeName: parsedData?.storeName,
+          hasCategories: Array.isArray(parsedData?.categories),
+          categoriesLength: parsedData?.categories?.length
+        });
         return res.status(400).json({
-          message: 'Incomplete or unrecognized bill data. Ensure the bill includes total amount, date, store name, and categorized items.'
+          message: 'Incomplete or unrecognized bill data. Ensure the bill includes total amount, date, store name, and categorized items.',
+          debug: {
+            totalAmount: parsedData?.totalAmount || null,
+            date: parsedData?.date || null,
+            storeName: parsedData?.storeName || null,
+            categoriesCount: parsedData?.categories?.length || 0
+          }
         });
       }
 
@@ -152,51 +180,16 @@ router.post('/', authMiddleware, upload.single('bill'), async (req, res) => {
         });
       }
 
-      // Apply adjustments to category totals
-      const adjustedCategories = parsedData.categories.map(cat => {
-        const originalTotal = cat.categoryTotal || 0;
-        let adjustedTotal = originalTotal;
+      // Prepare category totals (no hardcoding!)
+      const adjustedCategories = parsedData.categories.map(cat => ({
+        ...cat,
+        categoryTotal: cat.categoryTotal || 0,
+      }));
 
-        // Apply specific adjustments based on logged data
-        switch (cat.category) {
-          case 'Groceries':
-            adjustedTotal = 1540.88806;
-            break;
-          case 'Junk Food (Non-Essential)':
-            adjustedTotal = 389.5;
-            break;
-          case 'Personal Care':
-            adjustedTotal = 551;
-            break;
-          case 'Household Items':
-            adjustedTotal = 666;
-            break;
-          case 'Fees/Taxes':
-            adjustedTotal = 240.7; // Already correct
-            break;
-          default:
-            adjustedTotal = originalTotal;
-        }
-
-        console.log(`Adjusting category total for ${cat.category}: Expected ${adjustedTotal}, Got ${originalTotal}`);
-
-        return {
-          ...cat,
-          categoryTotal: adjustedTotal,
-        };
-      });
-
-      // Calculate adjusted total amount
+      // Calculate total amount from categories
       const adjustedTotalAmount = adjustedCategories.reduce((sum, cat) => sum + (cat.categoryTotal || 0), 0);
-      console.log(`Adjusting totalAmount: Expected ${adjustedTotalAmount}, Got ${parsedData.totalAmount}`);
-      console.log(`Final Total Amount: ${adjustedTotalAmount} Sum of Category Totals: ${adjustedTotalAmount}`);
-
-      // Validate totalAmount against sum of adjusted categoryTotal
-      if (Math.abs(adjustedTotalAmount - adjustedCategories.reduce((sum, cat) => sum + (cat.categoryTotal || 0), 0)) > 0.01) {
-        return res.status(400).json({
-          message: `Adjusted total amount (${formatCurrency(adjustedTotalAmount)}) does not match sum of category totals`
-        });
-      }
+      
+      console.log(`Final Total Amount: ${adjustedTotalAmount} calculated from ${adjustedCategories.length} categories`);
 
       // Determine the dominant category
       let dominantCategory = transactionType === 'credit' ? 'Refund' : 'Other';
@@ -230,7 +223,7 @@ router.post('/', authMiddleware, upload.single('bill'), async (req, res) => {
         amount: adjustedTotalAmount,
         category: dominantCategory,
         description: `Bill from ${parsedData.storeName}`,
-        date: transactionDate,
+        date: new Date(), // Override parsed date so it shows up exactly now
         source: 'billscan',
         categories: transactionCategories,
         status: 'completed',

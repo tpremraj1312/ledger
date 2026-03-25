@@ -19,7 +19,7 @@ const router = express.Router();
  */
 router.get('/summary', async (req, res) => {
     try {
-        const userId = req.user.userId;
+        const userId = req.user._id;
         const { fy } = req.query;
 
         const summary = await computeTaxSummary(userId, fy || undefined);
@@ -47,7 +47,7 @@ router.get('/summary', async (req, res) => {
  */
 router.get('/full-analysis', async (req, res) => {
     try {
-        const userId = req.user.userId;
+        const userId = req.user._id;
         const { fy } = req.query;
 
         // Step 1: Compute tax summary
@@ -93,7 +93,7 @@ router.get('/full-analysis', async (req, res) => {
  */
 router.post('/ai-explain', async (req, res) => {
     try {
-        const userId = req.user.userId;
+        const userId = req.user._id;
         const { summary } = req.body;
 
         if (!summary) {
@@ -138,7 +138,7 @@ router.post('/ai-explain', async (req, res) => {
  */
 router.post('/projection', async (req, res) => {
     try {
-        const userId = req.user.userId;
+        const userId = req.user._id;
         const { expectedIncome, futureInvestments, futureDeductions, financialYear } = req.body;
 
         if (!expectedIncome || expectedIncome <= 0) {
@@ -199,10 +199,24 @@ router.post('/simulate', async (req, res) => {
         const simBestTax = Math.min(simProfile.oldTotalTax, simProfile.newTotalTax);
         const netTaxSaved = Math.max(0, baseBestTax - simBestTax);
 
+        let insight = '';
+        if (netTaxSaved === 0) {
+            if (simProfile.oldTaxDelta > 0) {
+                insight = `This investment reduces your Old Regime tax by ₹${simProfile.oldTaxDelta.toLocaleString('en-IN')}, but the New Regime is still more beneficial for your profile.`;
+            } else {
+                insight = "This category is already fully optimized or your income level doesn't trigger additional savings here.";
+            }
+        } else {
+            insight = `Great! This investment directly reduces your total tax liability by ₹${netTaxSaved.toLocaleString('en-IN')}.`;
+        }
+
         res.json({
             originalTax: baseBestTax,
             simulatedTax: simBestTax,
             netTaxSaved,
+            oldRegimeSaving: simProfile.oldTaxDelta,
+            newRegimeSaving: simProfile.newTaxDelta,
+            insight,
             details: {
                 baseProfile: { oldRegime: baseProfile.oldTotalTax, newRegime: baseProfile.newTotalTax },
                 simProfile: { oldRegime: simProfile.oldTotalTax, newRegime: simProfile.newTotalTax },

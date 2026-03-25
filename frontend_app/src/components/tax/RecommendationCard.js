@@ -23,7 +23,7 @@ const RISK_STYLES = {
   'N/A': { bg: '#EFF6FF', text: '#1E6BD6' },
 };
 
-const RecommendationCard = ({ rec, onSimulate }) => {
+const RecommendationCard = ({ rec, onSimulate, onInvest }) => {
   const [expanded, setExpanded] = useState(false);
   const prio = PRIO_STYLES[rec.priority] || PRIO_STYLES.medium;
   const risk = RISK_STYLES[rec.riskLevel] || RISK_STYLES['N/A'];
@@ -128,6 +128,14 @@ const RecommendationCard = ({ rec, onSimulate }) => {
             >
               <Play size={12} color={colors.primary} />
               <Text style={styles.simulateBtnText}>Simulate</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.investBtn}
+              onPress={(e) => { e.stopPropagation?.(); onInvest?.(rec); }}
+            >
+              <TrendingUp size={12} color={colors.white} />
+              <Text style={styles.investBtnText}>Invest Now</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -303,8 +311,24 @@ const styles = StyleSheet.create({
   },
   simulateBtnText: {
     fontSize: fontSize.xs,
-    fontWeight: fontWeight.semibold,
-    color: colors.textPrimary,
+    fontWeight: fontWeight.bold,
+    color: colors.primary,
+  },
+  investBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.primary,
+    paddingVertical: 10,
+    borderRadius: borderRadius.md,
+    gap: 6,
+    ...shadows.sm,
+  },
+  investBtnText: {
+    fontSize: fontSize.xs,
+    fontWeight: fontWeight.bold,
+    color: colors.white,
   },
   expandRow: {
     flexDirection: 'row',

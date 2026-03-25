@@ -30,7 +30,7 @@ const validCategories = [
 // Attempt to repair malformed JSON
 const repairJson = (rawText) => {
   let cleaned = rawText
-    .replace(/```json|```/g, '') // Remove markdown wrappers
+    .replace(/```json\s*|\s*```/g, '') // Remove markdown wrappers with whitespace
     .replace(/^[^{]*?{/, '{')    // Remove anything before first {
     .replace(/}[^}]*$/, '}')     // Remove anything after last }
     .trim();
@@ -77,7 +77,7 @@ const correctCategory = (itemName, currentCategory) => {
 
 export const parseBillWithGemini = async (file) => {
   try {
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash-lite' });
 
     const base64Data = file.buffer.toString('base64');
 
@@ -365,7 +365,7 @@ Output:
 
 export const parseBankStatementWithGemini = async (file) => {
   try {
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash-lite' });
     const base64Data = file.buffer.toString('base64');
 
     const prompt = `
