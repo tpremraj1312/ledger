@@ -464,9 +464,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#1E6BD6',
     borderBottomLeftRadius: 24,
     borderBottomRightRadius: 24,
-    paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 40) + 12 : spacing['2xl'],
-    paddingBottom: spacing['2xl'],
-    paddingHorizontal: spacing.lg,
+    paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 40) + 32 : 64,
+    paddingBottom: 48,
+    paddingHorizontal: spacing.xl,
     marginBottom: spacing.base,
   },
   headerTop: {

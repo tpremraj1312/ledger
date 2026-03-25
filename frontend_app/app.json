@@ -1,14 +1,14 @@
 {
   "expo": {
-    "name": "frontend_app",
-    "slug": "frontend_app",
+    "name": "LedgerFinance",
+    "slug": "LedgerFinance",
     "version": "1.0.0",
     "orientation": "portrait",
     "scheme": "ledger",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/ledgerlogo.png",
     "userInterfaceStyle": "light",
     "splash": {
-      "image": "./assets/splash-icon.png",
+      "image": "./assets/ledgerlogo.png",
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
@@ -18,14 +18,18 @@
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/android-icon-foreground.png",
-        "backgroundImage": "./assets/android-icon-background.png",
-        "monochromeImage": "./assets/android-icon-monochrome.png"
+        "foregroundImage": "./assets/ledgerlogo.png",
+        "backgroundImage": "./assets/ledgerlogo.png",
+        "monochromeImage": "./assets/ledgerlogo.png"
       },
-      "package": "com.ledgerfinance.app"
+      "package": "com.ledgerfinance.app",
+      "permissions": [
+        "RECEIVE_SMS",
+        "READ_SMS"
+      ]
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/ledgerlogo.png"
     },
     "plugins": [
       "expo-secure-store",

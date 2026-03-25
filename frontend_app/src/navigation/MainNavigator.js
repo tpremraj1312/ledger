@@ -33,7 +33,7 @@ const MainTabs = () => {
       screenOptions={({ route }) => ({
         headerShown: false,
         tabBarIcon: ({ focused, color, size }) => {
-          const iconSize = 22;
+          const iconSize = 26;
           const iconColor = focused ? colors.primary : colors.gray400;
 
           switch (route.name) {
@@ -60,9 +60,9 @@ const MainTabs = () => {
           backgroundColor: colors.white,
           borderTopColor: colors.border,
           borderTopWidth: 1,
-          height: 60,
-          paddingBottom: 8,
-          paddingTop: 6,
+          height: 75,
+          paddingBottom: 16,
+          paddingTop: 10,
         },
         tabBarItemStyle: {
           paddingVertical: 4,
@@ -78,13 +78,13 @@ const MainTabs = () => {
           tabBarLabel: () => null,
           tabBarIcon: ({ focused }) => (
             <View style={{
-              width: 56,
-              height: 56,
-              borderRadius: 28,
+              width: 64,
+              height: 64,
+              borderRadius: 32,
               backgroundColor: '#1E6BD6', // Primary token
               justifyContent: 'center',
               alignItems: 'center',
-              marginTop: -24, // Float above the bar
+              marginTop: -32, // Float above the bar
               borderWidth: 4,
               borderColor: '#FFFFFF', // Creates the cutout effect
               shadowColor: '#1E6BD6',
@@ -93,7 +93,7 @@ const MainTabs = () => {
               shadowRadius: 6,
               elevation: 5,
             }}>
-              <Brain size={26} color="#FFFFFF" />
+              <Brain size={30} color="#FFFFFF" />
             </View>
           ),
         }}
@@ -104,25 +104,30 @@ const MainTabs = () => {
   );
 };
 
+import SmsAutoListener from '../components/SmsAutoListener';
+
 const MainNavigator = () => {
   return (
-    <Stack.Navigator screenOptions={{ headerShown: false, animation: 'slide_from_right' }}>
-      <Stack.Screen name="MainTabs" component={MainTabs} />
-      <Stack.Screen name="Placeholder" component={PlaceholderScreen} />
-      <Stack.Screen name="Gamification" component={GamificationScreen} />
-      <Stack.Screen name="Investments" component={InvestmentScreen} />
-      <Stack.Screen name="BudgetComparison" component={BudgetComparisonScreen} />
-      <Stack.Screen name="AIAnalysis" component={AIAnalysisScreen} />
-      <Stack.Screen name="FamilyDashboard" component={FamilyDashboardScreen} />
-      <Stack.Screen name="FamilyMembers" component={FamilyMembersScreen} />
-      <Stack.Screen name="FamilyBudget" component={FamilyBudgetScreen} />
-      <Stack.Screen name="FamilyExpenses" component={FamilyExpensesScreen} />
-      <Stack.Screen name="Notifications" component={NotificationsScreen} />
-      <Stack.Screen name="AgentChat" component={AgentChatScreen} />
-      <Stack.Screen name="TaxOptimizer" component={TaxOptimizerScreen} />
-      <Stack.Screen name="ITRGuide" component={ITRGuideScreen} />
-      <Stack.Screen name="SMSParser" component={SMSParserScreen} />
-    </Stack.Navigator>
+    <>
+      <SmsAutoListener />
+      <Stack.Navigator screenOptions={{ headerShown: false, animation: 'slide_from_right' }}>
+        <Stack.Screen name="MainTabs" component={MainTabs} />
+        <Stack.Screen name="Placeholder" component={PlaceholderScreen} />
+        <Stack.Screen name="Gamification" component={GamificationScreen} />
+        <Stack.Screen name="Investments" component={InvestmentScreen} />
+        <Stack.Screen name="BudgetComparison" component={BudgetComparisonScreen} />
+        <Stack.Screen name="AIAnalysis" component={AIAnalysisScreen} />
+        <Stack.Screen name="FamilyDashboard" component={FamilyDashboardScreen} />
+        <Stack.Screen name="FamilyMembers" component={FamilyMembersScreen} />
+        <Stack.Screen name="FamilyBudget" component={FamilyBudgetScreen} />
+        <Stack.Screen name="FamilyExpenses" component={FamilyExpensesScreen} />
+        <Stack.Screen name="Notifications" component={NotificationsScreen} />
+        <Stack.Screen name="AgentChat" component={AgentChatScreen} />
+        <Stack.Screen name="TaxOptimizer" component={TaxOptimizerScreen} />
+        <Stack.Screen name="ITRGuide" component={ITRGuideScreen} />
+        <Stack.Screen name="SMSParser" component={SMSParserScreen} />
+      </Stack.Navigator>
+    </>
   );
 };
 
